@@ -1,0 +1,225 @@
+import {
+  buoyancyFactor,
+  apparentWeightInFluid,
+  hydrostaticPressure,
+  apiGravity,
+  specificGravityFromApi,
+  bottomHoleFracPressure,
+  surfaceTreatingPressure,
+  fractureGradient,
+  balancedPlugHeight,
+  darcyOilRateBblDay,
+  pipeDisplacementBbl,
+  pipeDisplacementCuFt,
+} from '../calc/generalCalc.js'
+import { capacityFactors, annulusFactors } from '../calc/geometry.js'
+import { ALL_PIPES } from '../data/pipes.js'
+import { CONVERSIONS, VISCOSITY_TABLE } from '../data/units.js'
+
+const categories = [...new Set(CONVERSIONS.map((c) => c.category))]
+
+export const section9 = {
+  id: 'general',
+  title: 'Fórmulas y Conversiones',
+  icon: '🧮',
+  summary: 'Boyancia, presión hidrostática, hidráulica de tratamiento, tapón balanceado, Darcy y conversión de unidades.',
+  formulaNote: 'Boyancia = 1 − 0.015·(lb/gal). Ph (psi) = 0.052·(lb/gal)·altura(ft). °API = 141.5/SG − 131.5.',
+  calculators: [
+    {
+      id: 'buoyancy',
+      title: 'Factor de Boyancia y Peso Aparente',
+      inputs: [
+        { type: 'number', id: 'mudWeight', label: 'Peso del fluido', unit: 'lb/gal', step: 0.01, default: 10 },
+        { type: 'number', id: 'airWeight', label: 'Peso al aire (opcional)', unit: 'lb', step: 1 },
+      ],
+      compute(v) {
+        if (!v.mudWeight) throw new Error('Ingresá el peso del fluido.')
+        const bf = buoyancyFactor(v.mudWeight)
+        const results = [{ label: 'Factor de boyancia', value: bf, unit: '', digits: 4 }]
+        if (v.airWeight) {
+          results.push({ label: 'Peso aparente en fluido', value: apparentWeightInFluid(v.airWeight, v.mudWeight), unit: 'lb', digits: 1 })
+        }
+        return { results }
+      },
+    },
+    {
+      id: 'hydrostatic',
+      title: 'Presión Hidrostática',
+      inputs: [
+        { type: 'number', id: 'ppg', label: 'Peso del fluido', unit: 'lb/gal', step: 0.01, default: 9 },
+        { type: 'number', id: 'height', label: 'Altura de columna', unit: 'ft', step: 1, default: 5000 },
+      ],
+      compute(v) {
+        if (!v.ppg) throw new Error('Ingresá el peso del fluido.')
+        const psiPerFt = 0.052 * v.ppg
+        const results = [{ label: 'Gradiente', value: psiPerFt, unit: 'psi/ft', digits: 4 }]
+        if (v.height) results.push({ label: 'Presión hidrostática', value: hydrostaticPressure(v.ppg, v.height), unit: 'psi', digits: 1 })
+        return { results }
+      },
+    },
+    {
+      id: 'treatment-hydraulics',
+      title: 'Hidráulica de Tratamiento (Frac)',
+      inputs: [
+        { type: 'number', id: 'isip', label: 'ISIP', unit: 'psi', step: 1, default: 3000 },
+        { type: 'number', id: 'ppg', label: 'Peso del fluido', unit: 'lb/gal', step: 0.01, default: 9 },
+        { type: 'number', id: 'depth', label: 'Profundidad', unit: 'ft', step: 1, default: 8000 },
+        { type: 'number', id: 'pf', label: 'Fricción en tubería (Pf)', unit: 'psi', step: 1, default: 0 },
+        { type: 'number', id: 'ppf', label: 'Fricción de perforaciones (Ppf)', unit: 'psi', step: 1, default: 0 },
+      ],
+      compute(v) {
+        if (!v.isip || !v.depth) throw new Error('Completá ISIP y profundidad.')
+        const ph = hydrostaticPressure(v.ppg || 0, v.depth)
+        const bhfp = bottomHoleFracPressure(v.isip, ph)
+        const stp = surfaceTreatingPressure(v.isip, v.pf || 0, v.ppf || 0)
+        const fg = fractureGradient(v.isip, ph, v.depth)
+        return {
+          results: [
+            { label: 'Presión hidrostática (Ph)', value: ph, unit: 'psi', digits: 1 },
+            { label: 'BHFP (presión de frac. de fondo)', value: bhfp, unit: 'psi', digits: 1 },
+            { label: 'STP (presión de superficie)', value: stp, unit: 'psi', digits: 1 },
+            { label: 'Gradiente de fractura', value: fg, unit: 'psi/ft', digits: 4 },
+          ],
+        }
+      },
+    },
+    {
+      id: 'api-gravity',
+      title: 'Gravedad API ↔ Gravedad Específica',
+      inputs: [
+        { type: 'number', id: 'sg', label: 'Gravedad específica', step: 0.001, default: 0.85 },
+      ],
+      compute(v) {
+        if (!v.sg) throw new Error('Ingresá la gravedad específica.')
+        return {
+          results: [
+            { label: 'Gravedad API', value: apiGravity(v.sg), unit: '°API', digits: 2 },
+            { label: 'Verificación (SG desde °API)', value: specificGravityFromApi(apiGravity(v.sg)), unit: '', digits: 4 },
+          ],
+        }
+      },
+    },
+    {
+      id: 'balanced-plug',
+      title: 'Tapón Balanceado (Balanced Plug)',
+      description: 'Altura de la lechada con la sarta de trabajo adentro, dado el volumen total de cemento.',
+      inputs: [
+        { type: 'number', id: 'totalCuFt', label: 'Volumen total de lechada', unit: 'ft³', step: 0.1, default: 50 },
+        {
+          type: 'pipePreset', id: 'workString', label: 'Sarta de trabajo (ID)', dataset: ALL_PIPES,
+          odField: 'wsOd', idField: 'wsId',
+        },
+        { type: 'number', id: 'annulusD', label: 'Diámetro exterior del anular (pozo o ID casing)', unit: 'in', step: 0.001, default: 8.5 },
+      ],
+      compute(v) {
+        if (!v.totalCuFt || !v.wsId || !v.annulusD) throw new Error('Completá todos los campos.')
+        const cfWs = capacityFactors(v.wsId).cuftPerFt
+        const cfAnnulus = annulusFactors(v.annulusD, v.wsOd).cuftPerFt
+        const height = balancedPlugHeight(v.totalCuFt, cfWs, cfAnnulus)
+        return {
+          results: [
+            { label: 'Capacidad sarta de trabajo', value: cfWs, unit: 'ft³/ft', digits: 5 },
+            { label: 'Capacidad anular', value: cfAnnulus, unit: 'ft³/ft', digits: 5 },
+            { label: 'Altura del tapón (sarta adentro)', value: height, unit: 'ft', digits: 1 },
+          ],
+        }
+      },
+    },
+    {
+      id: 'darcy-oil',
+      title: "Darcy — Caudal Radial de Petróleo",
+      description: 'Fórmula estándar de flujo radial en régimen permanente, unidades de campo.',
+      inputs: [
+        { type: 'number', id: 'k', label: 'Permeabilidad (k)', unit: 'md', step: 0.1, default: 50 },
+        { type: 'number', id: 'h', label: 'Espesor de la formación (h)', unit: 'ft', step: 0.1, default: 20 },
+        { type: 'number', id: 'dp', label: 'Pe − Pwf', unit: 'psi', step: 1, default: 500 },
+        { type: 'number', id: 'mu', label: 'Viscosidad del petróleo', unit: 'cp', step: 0.01, default: 2 },
+        { type: 'number', id: 'bo', label: 'Factor volumétrico (Bo)', unit: 'rb/stb', step: 0.01, default: 1.2 },
+        { type: 'number', id: 're', label: 'Radio de drenaje (re)', unit: 'ft', step: 1, default: 1000 },
+        { type: 'number', id: 'rw', label: 'Radio de pozo (rw)', unit: 'ft', step: 0.01, default: 0.354 },
+      ],
+      compute(v) {
+        if (!v.k || !v.h || !v.mu || !v.bo || !v.re || !v.rw) throw new Error('Completá todos los campos.')
+        const q = darcyOilRateBblDay(v.k, v.h, v.dp, v.mu, v.bo, v.re, v.rw)
+        return { results: [{ label: 'Caudal estimado', value: q, unit: 'bbl/día', digits: 1 }] }
+      },
+    },
+    {
+      id: 'pipe-displacement',
+      title: 'Desplazamiento de Tubería (metal)',
+      inputs: [
+        { type: 'number', id: 'wt', label: 'Peso con acoples', unit: 'lb/ft', step: 0.01, default: 15.5 },
+        { type: 'number', id: 'depth', label: 'Profundidad / longitud', unit: 'ft', step: 1, default: 5000 },
+      ],
+      compute(v) {
+        if (!v.wt || !v.depth) throw new Error('Completá peso y profundidad.')
+        return {
+          results: [
+            { label: 'Desplazamiento', value: pipeDisplacementCuFt(v.wt, v.depth), unit: 'ft³', digits: 2 },
+            { label: 'Desplazamiento', value: pipeDisplacementBbl(v.wt, v.depth), unit: 'bbl', digits: 3 },
+          ],
+        }
+      },
+    },
+    {
+      id: 'unit-converter',
+      title: 'Conversor de Unidades',
+      inputs: [
+        { type: 'select', id: 'category', label: 'Categoría', options: categories.map((c) => ({ value: c, label: c })), default: categories[0] },
+        { type: 'number', id: 'value', label: 'Valor', step: 'any', default: 1 },
+      ],
+      compute(v) {
+        const rows = CONVERSIONS.filter((c) => c.category === v.category)
+        const val = v.value ?? 1
+        return {
+          results: rows.map((r) => ({ label: `${val} ${r.from} →`, value: val * r.factor, unit: r.to, digits: 5 })),
+        }
+      },
+    },
+    {
+      id: 'viscosity-converter',
+      title: 'Conversor de Viscosidad',
+      description: 'Interpola entre Saybolt Universal Seconds, grados Engler y centipoise.',
+      inputs: [{ type: 'number', id: 'sus', label: 'Saybolt Universal Seconds', step: 1, default: 100 }],
+      compute(v) {
+        if (!v.sus) throw new Error('Ingresá SUS.')
+        const rows = VISCOSITY_TABLE
+        const s = Math.min(Math.max(v.sus, rows[0].sus), rows[rows.length - 1].sus)
+        let out = rows[rows.length - 1]
+        for (let i = 0; i < rows.length - 1; i++) {
+          const a = rows[i], b = rows[i + 1]
+          if (s >= a.sus && s <= b.sus) {
+            const t = (s - a.sus) / (b.sus - a.sus)
+            out = { engler: a.engler + t * (b.engler - a.engler), cp: a.cp + t * (b.cp - a.cp) }
+            break
+          }
+        }
+        return {
+          results: [
+            { label: 'Grados Engler', value: out.engler, unit: '°E', digits: 3 },
+            { label: 'Centipoise (relativo, × SG del fluido)', value: out.cp, unit: 'cp', digits: 2 },
+          ],
+        }
+      },
+    },
+    {
+      id: 'decimal-equivalents',
+      title: 'Equivalentes Decimales de Fracciones',
+      inputs: [
+        { type: 'number', id: 'num', label: 'Numerador', step: 1, default: 11 },
+        { type: 'number', id: 'den', label: 'Denominador', step: 1, default: 16 },
+      ],
+      compute(v) {
+        if (!v.num || !v.den) throw new Error('Completá numerador y denominador.')
+        const dec = v.num / v.den
+        const nearest64 = Math.round(dec * 64)
+        return {
+          results: [
+            { label: 'Decimal', value: dec, unit: '', digits: 5 },
+            { label: 'Equivalente más cercano en 64avos', value: nearest64, unit: `/64 = ${(nearest64 / 64).toFixed(5)}`, digits: 0 },
+          ],
+        }
+      },
+    },
+  ],
+}
