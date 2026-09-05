@@ -1,7 +1,27 @@
-import { proppantRatioFromVolumes, perforationFriction, hydraulicHorsepower, PROPPANT_MESH_PRESETS, GAL_PER_LB_WATER } from '../calc/fracturing.js'
+import { solveProppantSlurry, perforationFriction, hydraulicHorsepower, PROPPANT_MESH_PRESETS, GAL_PER_LB_WATER } from '../calc/fracturing.js'
 import { stokesSettlingVelocityFtPerMin } from '../calc/generalCalc.js'
 import { PROPPANT_TRUE_DENSITY } from '../data/proppant.js'
 import { density, flow, lengthIn, lengthInResult, pressure, pressureResult, volume, weightResult } from '../ui/fieldHelpers.js'
+
+const SOLVE_FIELD_IDS = {
+  ratio: ['aVal', 'bVal'],
+  slurry: ['bVal', 'ratioVal'],
+  clean: ['aVal', 'ratioVal'],
+}
+
+function proppantFieldSpec(id, isRate) {
+  if (id === 'aVal') {
+    return isRate
+      ? flow('aVal', 'Caudal de slurry', { step: 0.1, default: 15 })
+      : volume('aVal', 'Volumen de slurry', { step: 0.1, default: 15 })
+  }
+  if (id === 'bVal') {
+    return isRate
+      ? flow('bVal', 'Caudal de fluido limpio', { step: 0.1, default: 10 })
+      : volume('bVal', 'Volumen de fluido limpio', { step: 0.1, default: 10 })
+  }
+  return { type: 'number', id: 'ratioVal', label: 'Proppant Ratio', unit: 'lb/gal (psa)', step: 0.01, default: 5 }
+}
 
 export const section13 = {
   id: 'fracturing',
@@ -14,26 +34,66 @@ export const section13 = {
     {
       id: 'proppant-ratio',
       title: 'Relación de Proppant (Slurry / Limpio)',
-      description: 'A partir del volumen de slurry y de fluido limpio, calcula la concentración de proppant y el total agregado.',
+      description:
+        'Elegí el método (por volúmenes o por caudal) y qué variable calcular; completá las otras dos. SG del proppant y densidad del agua (8.345404 lb/gal) fijan la conversión volumen ↔ peso.',
       inputs: [
         {
           type: 'select',
           id: 'sgPreset',
           label: 'Proppant',
-          options: PROPPANT_TRUE_DENSITY.map((p) => ({ value: p.id, label: `${p.label} (SG ${p.sg})` })),
+          options: PROPPANT_TRUE_DENSITY.map((p) => ({ value: p.id, label: p.label })),
           default: 'sand',
         },
-        volume('slurryVol', 'Volumen de slurry', { step: 0.1, default: 15 }),
-        volume('cleanVol', 'Volumen de fluido limpio', { step: 0.1, default: 10 }),
+        {
+          type: 'select',
+          id: 'method',
+          label: 'Método',
+          options: [
+            { value: 'volumes', label: 'Volúmenes' },
+            { value: 'flowrate', label: 'Caudal' },
+          ],
+          default: 'volumes',
+          rerenderForm: true,
+        },
+        (values) => ({
+          type: 'select',
+          id: 'solveFor',
+          label: 'Calcular',
+          options:
+            values.method === 'flowrate'
+              ? [
+                  { value: 'slurry', label: 'Caudal de slurry' },
+                  { value: 'clean', label: 'Caudal de fluido limpio' },
+                  { value: 'ratio', label: 'Proppant Ratio' },
+                ]
+              : [
+                  { value: 'slurry', label: 'Volumen de slurry' },
+                  { value: 'clean', label: 'Volumen de fluido limpio' },
+                  { value: 'ratio', label: 'Proppant Ratio' },
+                ],
+          default: 'ratio',
+          rerenderForm: true,
+        }),
+        (values) => proppantFieldSpec(SOLVE_FIELD_IDS[values.solveFor || 'ratio'][0], values.method === 'flowrate'),
+        (values) => proppantFieldSpec(SOLVE_FIELD_IDS[values.solveFor || 'ratio'][1], values.method === 'flowrate'),
       ],
       compute(v) {
-        if (!v.slurryVol || !v.cleanVol) throw new Error('Completá ambos volúmenes.')
         const preset = PROPPANT_TRUE_DENSITY.find((p) => p.id === v.sgPreset) || PROPPANT_TRUE_DENSITY[0]
-        const out = proppantRatioFromVolumes(v.slurryVol, v.cleanVol, preset.sg)
+        const isRate = v.method === 'flowrate'
+        const solveFor = v.solveFor || 'ratio'
+        const knowns = { slurry: v.aVal ?? null, clean: v.bVal ?? null, ratio: v.ratioVal ?? null }
+        knowns[solveFor] = null
+        const knownCount = (knowns.slurry != null) + (knowns.clean != null) + (knowns.ratio != null)
+        if (knownCount !== 2) throw new Error('Completá los dos valores conocidos.')
+        const out = solveProppantSlurry({ ...knowns, sg: preset.sg })
+        const volUnit = isRate ? 'bpm' : 'bbl'
+        const volDigits = isRate ? 3 : 2
         return {
           results: [
-            { label: 'Volumen de proppant', value: out.proppantVolGal, unit: 'gal', digits: 2 },
-            weightResult('Proppant total', out.proppantTotalLb, { digits: 1 }),
+            { label: isRate ? 'Caudal de slurry' : 'Volumen de slurry', value: out.slurry, unit: volUnit, digits: volDigits },
+            { label: isRate ? 'Caudal de fluido limpio' : 'Volumen de fluido limpio', value: out.clean, unit: volUnit, digits: volDigits },
+            { label: 'Volumen de proppant', value: out.proppantVolGal, unit: isRate ? 'gal/min' : 'gal', digits: 2 },
+            { label: 'Proppant Total', value: out.proppantTotalLb, unit: isRate ? 'lb/min' : 'lb', digits: 1 },
             { label: 'Proppant Ratio', value: out.proppantRatioPsa, unit: 'lb/gal (psa)', digits: 3 },
           ],
         }
@@ -105,7 +165,7 @@ export const section13 = {
           type: 'select',
           id: 'sgPreset',
           label: 'Proppant',
-          options: PROPPANT_TRUE_DENSITY.map((p) => ({ value: p.id, label: `${p.label} (SG ${p.sg})` })),
+          options: PROPPANT_TRUE_DENSITY.map((p) => ({ value: p.id, label: p.label })),
           default: 'sand',
         },
         { type: 'number', id: 'fluidSg', label: 'Gravedad específica del fluido', step: 0.01, default: 1.0 },

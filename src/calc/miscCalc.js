@@ -22,6 +22,12 @@ export function triplexSingleActingBblPerStroke(linerIn, strokeIn, efficiency = 
   return bbl * efficiency
 }
 
+// Quintuplex, single-acting (5 cylinders, one side each — common frac pump layout).
+export function quintuplexBblPerStroke(linerIn, strokeIn, efficiency = 1) {
+  const bbl = (5 * (Math.PI / 4) * linerIn * linerIn * strokeIn) / 9702
+  return bbl * efficiency
+}
+
 export function pumpOutputBblPerMin(bblPerCycle, strokesPerMin) {
   return bblPerCycle * strokesPerMin
 }

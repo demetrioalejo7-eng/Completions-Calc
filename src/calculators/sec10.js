@@ -2,6 +2,7 @@ import {
   duplexBblPerCycle,
   triplexDoubleActingBblPerCycle,
   triplexSingleActingBblPerStroke,
+  quintuplexBblPerStroke,
   densityChangeWithTemp,
   pipeStretchInches,
   packerDifferentialPressure,
@@ -9,6 +10,7 @@ import {
 import { CACL2_TABLE, NACL_TABLE, KCL_TABLE, ppgFromPct, pctFromPpg } from '../data/salts.js'
 import { PACKER_TUBING_WEIGHT_PSI } from '../data/misc.js'
 import { bariteWaterMudAt, bariteOilMudAt } from '../data/misc.js'
+import { PUMP_MODELS } from '../data/pumps.js'
 import { density, densityResult, lengthFt, lengthIn, lengthInResult, pressureResult, volumeResult, weight, weightResult } from '../ui/fieldHelpers.js'
 
 const saltSets = {
@@ -32,6 +34,7 @@ export const section10 = {
           { value: 'duplex', label: 'Duplex, doble efecto' },
           { value: 'triplexDouble', label: 'Triplex, doble efecto' },
           { value: 'triplexSingle', label: 'Triplex, simple efecto' },
+          { value: 'quintuplexSingle', label: 'Quintuplex, simple efecto' },
         ], default: 'duplex' },
         lengthIn('liner', 'Diámetro de camisa (liner)', { step: 0.01, default: 5.0 }),
         lengthIn('rod', 'Diámetro de vástago (rod)', { step: 0.01, default: 2.0 }),
@@ -45,6 +48,7 @@ export const section10 = {
         let bblPerCycle
         if (v.pumpType === 'triplexDouble') bblPerCycle = triplexDoubleActingBblPerCycle(v.liner, v.rod || 0, v.stroke, eff)
         else if (v.pumpType === 'triplexSingle') bblPerCycle = triplexSingleActingBblPerStroke(v.liner, v.stroke, eff)
+        else if (v.pumpType === 'quintuplexSingle') bblPerCycle = quintuplexBblPerStroke(v.liner, v.stroke, eff)
         else bblPerCycle = duplexBblPerCycle(v.liner, v.rod || 0, v.stroke, eff)
         const results = [
           volumeResult('Barriles por ciclo/embolada', bblPerCycle, { digits: 5 }),
@@ -57,6 +61,66 @@ export const section10 = {
           )
         }
         return { results }
+      },
+    },
+    {
+      id: 'pump-performance-chart',
+      title: 'Curva de Bomba — Datos de Fabricante',
+      description:
+        'Presión y caudal máximos según la tabla de rendimiento publicada por el fabricante (no son fórmulas estimadas). La presión mostrada es la real de la bomba: la menor entre el límite por carga de vástago (rod load) y el límite por potencia disponible a esa velocidad.',
+      diagram: { kind: 'pipeCrossSection', labels: { od: 'PD (diámetro de plunger)', id: null } },
+      inputs: [
+        {
+          type: 'select',
+          id: 'model',
+          label: 'Modelo de bomba',
+          options: PUMP_MODELS.map((m) => ({ value: m.id, label: m.label })),
+          default: PUMP_MODELS[0].id,
+          rerenderForm: true,
+        },
+        (values) => {
+          const model = PUMP_MODELS.find((m) => m.id === values.model) || PUMP_MODELS[0]
+          return {
+            type: 'select',
+            id: 'plungerIdx',
+            label: 'Diámetro de plunger (PD)',
+            options: model.plungerRows.map((r, i) => ({ value: String(i), label: `${r.plungerIn}" (${r.gpr} gal/rev)` })),
+            default: '0',
+          }
+        },
+        (values) => {
+          const model = PUMP_MODELS.find((m) => m.id === values.model) || PUMP_MODELS[0]
+          return {
+            type: 'select',
+            id: 'speedIdx',
+            label: 'Velocidad (SPM / RPM piñón)',
+            options: model.speedColumns.map((c, i) => ({ value: String(i), label: `${c.spm} SPM / ${c.rpm} RPM` })),
+            default: '0',
+          }
+        },
+      ],
+      compute(v) {
+        const model = PUMP_MODELS.find((m) => m.id === v.model) || PUMP_MODELS[0]
+        const row = model.plungerRows[Number(v.plungerIdx ?? 0)]
+        const col = model.speedColumns[Number(v.speedIdx ?? 0)]
+        const i = Number(v.speedIdx ?? 0)
+        const gpm = row.gpm[i]
+        const psi = row.psi[i]
+        const bpm = gpm / 42
+        const hhp = (gpm * psi) / 1714
+        const plungerAreaIn2 = (Math.PI / 4) * row.plungerIn * row.plungerIn
+        const rodLoadLbf = psi * plungerAreaIn2
+        return {
+          results: [
+            { label: 'Caudal máximo', value: gpm, unit: 'gpm', digits: 0 },
+            { label: 'Caudal máximo', value: bpm, unit: 'bpm', digits: 3 },
+            pressureResult('Presión máxima', psi, { digits: 0 }),
+            { label: 'Potencia hidráulica (HHP)', value: hhp, unit: 'hp', digits: 0 },
+            { label: 'Potencia de entrada requerida (BHP)', value: col.bhp, unit: 'hp', digits: 0 },
+            { label: 'Carga de vástago a esta presión', value: rodLoadLbf, unit: 'lbf', digits: 0 },
+            { label: '% de la carga máxima de vástago', value: (rodLoadLbf / model.maxRodLoadLbf) * 100, unit: '%', digits: 1 },
+          ],
+        }
       },
     },
     {

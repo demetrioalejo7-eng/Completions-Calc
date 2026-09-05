@@ -1,5 +1,6 @@
 import { n2TotalVolumeScf, n2BottomHolePressure, co2LiquidRate } from '../calc/nitrogenCalc.js'
 import { N2_PROPERTIES, CO2_PROPERTIES } from '../data/nitrogen.js'
+import { convertTemperature } from '../data/units.js'
 import { flow, lengthFt, lengthIn, pressure, pressureResult, volumeResult, weightResult } from '../ui/fieldHelpers.js'
 
 export const section11 = {
@@ -16,17 +17,30 @@ export const section11 = {
       inputs: [
         lengthIn('id', 'Diámetro interior de línea', { step: 0.001, default: 4.0 }),
         lengthFt('length', 'Longitud', { step: 1, default: 5000 }),
-        { type: 'number', id: 'pressure', label: 'Presión', unit: 'psia', step: 10, default: 1000 },
-        { type: 'number', id: 'temp', label: 'Temperatura', unit: '°F', step: 1, default: 100 },
+        pressure('pressure', 'Presión (absoluta)', { step: 10, default: 1000 }),
+        { type: 'number', id: 'temp', label: 'Temperatura', step: 1, default: 100 },
+        {
+          type: 'select',
+          id: 'tempUnit',
+          label: 'Unidad de temperatura',
+          options: [
+            { value: 'F', label: '°F' },
+            { value: 'C', label: '°C' },
+          ],
+          default: 'F',
+        },
       ],
       compute(v) {
         if (!v.id || !v.length || !v.pressure) throw new Error('Completá todos los campos.')
-        const out = n2TotalVolumeScf(v.id, v.length, v.pressure, v.temp ?? 60)
+        const tempF = v.temp == null ? 60 : v.tempUnit === 'C' ? convertTemperature(v.temp, 'C', 'F') : v.temp
+        const out = n2TotalVolumeScf(v.id, v.length, v.pressure, tempF)
+        const liquidGal = out.totalScf / N2_PROPERTIES.scfPerGalLiquid
         return {
           results: [
             volumeResult('Volumen del sistema', out.volBbl, { digits: 3 }),
             { label: 'Multiplicador de volumen (VM)', value: out.vm, unit: 'SCF/bbl', digits: 1 },
-            { label: 'Volumen total de N2', value: out.totalScf, unit: 'SCF', digits: 0 },
+            { label: 'Volumen total de N2 (gaseoso, estándar)', value: out.totalScf, unit: 'SCF', digits: 0 },
+            { label: 'Volumen total de N2 (líquido)', value: liquidGal, unit: 'gal', digits: 1 },
           ],
         }
       },

@@ -3,13 +3,30 @@
 // tool's worked example (proppant ratio / proppant total).
 export const GAL_PER_LB_WATER = 8.345404
 
-export function proppantRatioFromVolumes(slurryVolBbl, cleanVolBbl, proppantSg) {
-  if (slurryVolBbl <= cleanVolBbl) throw new Error('El volumen de slurry debe ser mayor al volumen limpio.')
-  const proppantVolGal = (slurryVolBbl - cleanVolBbl) * 42
-  const trueDensityPpg = proppantSg * GAL_PER_LB_WATER
-  const proppantTotalLb = proppantVolGal * trueDensityPpg
-  const proppantRatioPsa = proppantTotalLb / (cleanVolBbl * 42)
-  return { proppantVolGal, proppantTotalLb, proppantRatioPsa }
+// General slurry/clean/proppant-ratio solver. Works for both "Volumes"
+// (bbl) and "Flow Rate" (bpm) methods — the relationships are the same,
+// only the units of `slurry`/`clean` change (and the resulting
+// "proppantTotal" becomes a rate, lb/min, instead of a static lb amount).
+// Pass exactly one of `slurry`, `clean`, `ratio` as null/undefined — it is
+// solved for from the other two. Relations (with k = true density, ppg):
+//   proppantVol(gal) = (slurry - clean) * 42
+//   proppantTotal(lb) = proppantVol(gal) * k
+//   ratio(psa, lb/gal) = proppantTotal(lb) / (clean * 42)
+export function solveProppantSlurry({ slurry, clean, ratio, sg }) {
+  const k = sg * GAL_PER_LB_WATER
+  if (slurry == null) {
+    if (clean == null || ratio == null) throw new Error('Completá dos de los tres valores.')
+    slurry = clean * (1 + ratio / k)
+  } else if (clean == null) {
+    if (ratio == null) throw new Error('Completá dos de los tres valores.')
+    clean = (k * slurry) / (ratio + k)
+  } else {
+    if (slurry <= clean) throw new Error('El volumen/caudal de slurry debe ser mayor al de fluido limpio.')
+  }
+  const proppantVolGal = (slurry - clean) * 42
+  const proppantTotalLb = proppantVolGal * k
+  const proppantRatioPsa = ratio ?? proppantTotalLb / (clean * 42)
+  return { slurry, clean, proppantVolGal, proppantTotalLb, proppantRatioPsa }
 }
 
 // Standard oilfield perforation friction pressure formula.

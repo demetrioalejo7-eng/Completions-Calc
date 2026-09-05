@@ -197,8 +197,8 @@ export function renderCalculatorForm(container, calc) {
   clear(container)
   const values = {}
   for (const rawInput of calc.inputs) {
-    if (typeof rawInput === 'function') continue
-    const input = rawInput
+    const input = typeof rawInput === 'function' ? rawInput(values) : rawInput
+    if (!input) continue
     values[input.id] = input.default ?? null
     if (input.type === 'pipePreset') {
       values[input.odField] = input.odDefault ?? null
