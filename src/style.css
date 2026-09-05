@@ -9,6 +9,7 @@
   --accent-dark: #1e9c78;
   --danger: #ff7a7a;
   --radius: 14px;
+  --card-shadow: none;
   color-scheme: dark;
 }
 
@@ -333,18 +334,31 @@ input[type='checkbox'] {
 }
 
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-theme='dark']) {
     --bg: #f2f6f8;
     --bg-elev: #ffffff;
     --bg-card: #ffffff;
     --border: #dbe6ec;
     --text: #10222c;
     --text-dim: #5c7684;
+    --card-shadow: 0 1px 2px rgba(16, 34, 44, 0.06);
     color-scheme: light;
   }
-  .grid-card,
-  .list-item,
-  .result-card {
-    box-shadow: 0 1px 2px rgba(16, 34, 44, 0.06);
-  }
+}
+
+:root[data-theme='light'] {
+  --bg: #f2f6f8;
+  --bg-elev: #ffffff;
+  --bg-card: #ffffff;
+  --border: #dbe6ec;
+  --text: #10222c;
+  --text-dim: #5c7684;
+  --card-shadow: 0 1px 2px rgba(16, 34, 44, 0.06);
+  color-scheme: light;
+}
+
+.grid-card,
+.list-item,
+.result-card {
+  box-shadow: var(--card-shadow, none);
 }

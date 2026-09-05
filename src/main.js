@@ -27,7 +27,7 @@ window.addEventListener('hashchange', route)
 window.addEventListener('DOMContentLoaded', route)
 route()
 
-if ('serviceWorker' in navigator) {
+if (__ENABLE_PWA__ && 'serviceWorker' in navigator) {
   import('virtual:pwa-register')
     .then(({ registerSW }) => registerSW({ immediate: true }))
     .catch(() => {})
