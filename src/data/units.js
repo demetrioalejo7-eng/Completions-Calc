@@ -1,51 +1,89 @@
-// Section 9 — common unit conversion factors (MULTIPLY value BY factor).
-// A curated subset of the handbook's conversion table, grouped by category.
+// Section 9 — bidirectional unit converter. Each category has a base unit;
+// every other unit stores its factor-to-base (value_in_unit * factor =
+// value_in_base). Converting unit A -> B: value * factorA / factorB.
 
-export const CONVERSIONS = [
-  { category: 'Volumen', from: 'Barriles', factor: 5.6146, to: 'Pies cúbicos' },
-  { category: 'Volumen', from: 'Barriles', factor: 42.0, to: 'Galones' },
-  { category: 'Volumen', from: 'Pies cúbicos', factor: 0.1781, to: 'Barriles' },
-  { category: 'Volumen', from: 'Pies cúbicos', factor: 7.4805, to: 'Galones (US)' },
-  { category: 'Volumen', from: 'Galones (US)', factor: 0.02381, to: 'Barriles' },
-  { category: 'Volumen', from: 'Galones (US)', factor: 0.1337, to: 'Pies cúbicos' },
-  { category: 'Volumen', from: 'Galones (US)', factor: 231.0, to: 'Pulgadas cúbicas' },
-  { category: 'Volumen', from: 'Acre-pie', factor: 7758, to: 'Barriles' },
-  { category: 'Volumen', from: 'Litros', factor: 0.2642, to: 'Galones (US)' },
+export const UNIT_CATEGORIES = {
+  Longitud: {
+    'Pies (ft)': 1,
+    'Pulgadas (in)': 1 / 12,
+    'Metros (m)': 3.28084,
+    'Centímetros (cm)': 0.0328084,
+    'Milímetros (mm)': 0.00328084,
+    'Millas (mi)': 5280,
+    'Yardas (yd)': 3,
+    'Kilómetros (km)': 3280.84,
+  },
+  Volumen: {
+    'Barriles (bbl)': 1,
+    'Galones US (gal)': 1 / 42,
+    'Pies cúbicos (ft³)': 5.6146,
+    'Pulgadas cúbicas (in³)': 5.6146 / 1728,
+    'Litros (L)': 1 / 158.987,
+    'Metros cúbicos (m³)': 6.28981,
+    'Acre-pie (acre-ft)': 7758,
+  },
+  Presión: {
+    'PSI': 1,
+    'Atmósferas (atm)': 14.696,
+    'Pies de agua @ 60°F': 0.4331,
+    'Pulgadas de mercurio (inHg)': 0.4912,
+    'kg/cm²': 14.2233,
+    'kPa': 0.145038,
+    'Bar': 14.5038,
+  },
+  'Peso / Masa': {
+    'Libras (lb)': 1,
+    'Kilogramos (kg)': 2.20462,
+    'Gramos (g)': 0.00220462,
+    'Toneladas cortas (short ton)': 2000,
+    'Toneladas largas (long ton)': 2240,
+    'Toneladas métricas (t)': 2204.62,
+  },
+  Potencia: {
+    'Caballos de fuerza (HP)': 1,
+    'Kilowatts (kW)': 1.34102,
+    'Ft-lb/min': 1 / 33000,
+    'Ft-lb/seg': 1 / 550,
+  },
+  Caudal: {
+    'Barriles/min (bpm)': 1,
+    'Barriles/hora': 1 / 60,
+    'Galones/min (gpm)': 1 / 42,
+    'Pies³/min': 1 / 5.6146,
+    'Pies³/seg': 60 / 5.6146,
+    'Litros/min': 1 / 158.987,
+  },
+  Densidad: {
+    'Lb/galón (ppg)': 1,
+    'Lb/pie³': 1 / 7.4805,
+    'g/cm³ (SG)': 8.34540,
+    'kg/m³': 8.34540 / 1000,
+  },
+  Área: {
+    'Pies² (ft²)': 1,
+    'Pulgadas² (in²)': 1 / 144,
+    'Metros² (m²)': 10.7639,
+    'Acres': 43560,
+  },
+  Velocidad: {
+    'Pies/min (ft/min)': 1,
+    'Pies/seg (ft/s)': 60,
+    'Metros/seg (m/s)': 196.85,
+    'Millas/hora (mph)': 88,
+    'km/hora': 54.6807,
+  },
+}
 
-  { category: 'Presión', from: 'Atmósferas', factor: 14.70, to: 'PSI' },
-  { category: 'Presión', from: 'Atmósferas', factor: 33.94, to: 'Pies de agua' },
-  { category: 'Presión', from: 'Atmósferas', factor: 29.92, to: 'Pulgadas de mercurio' },
-  { category: 'Presión', from: 'PSI', factor: 2.309, to: 'Pies de agua @ 60°F' },
-  { category: 'Presión', from: 'PSI', factor: 2.0353, to: 'Pulgadas de mercurio' },
-  { category: 'Presión', from: 'PSI', factor: 0.06804, to: 'Atmósferas' },
-  { category: 'Presión', from: 'PSI', factor: 703.1, to: 'kg/m²' },
-  { category: 'Presión', from: 'Lb/galón', factor: 0.052, to: 'PSI por ft de profundidad' },
-  { category: 'Presión', from: 'Pies de agua @ 60°F', factor: 0.4331, to: 'PSI' },
-
-  { category: 'Longitud', from: 'Pies', factor: 0.3048, to: 'Metros' },
-  { category: 'Longitud', from: 'Metros', factor: 3.281, to: 'Pies' },
-  { category: 'Longitud', from: 'Pulgadas', factor: 2.54, to: 'Centímetros' },
-  { category: 'Longitud', from: 'Millas', factor: 5280, to: 'Pies' },
-
-  { category: 'Peso', from: 'Libras', factor: 453.6, to: 'Gramos' },
-  { category: 'Peso', from: 'Kilogramos', factor: 2.205, to: 'Libras' },
-  { category: 'Peso', from: 'Toneladas cortas', factor: 2000, to: 'Libras' },
-  { category: 'Peso', from: 'Toneladas largas', factor: 2240, to: 'Libras' },
-
-  { category: 'Potencia', from: 'Caballos de fuerza (HP)', factor: 33000, to: 'Ft-lb/min' },
-  { category: 'Potencia', from: 'Caballos de fuerza (HP)', factor: 550, to: 'Ft-lb/seg' },
-  { category: 'Potencia', from: 'Caballos de fuerza (HP)', factor: 0.7457, to: 'Kilowatts' },
-  { category: 'Potencia', from: 'Kilowatts', factor: 1.341, to: 'Caballos de fuerza (HP)' },
-
-  { category: 'Caudal', from: 'Barriles/hora', factor: 0.700, to: 'Galones/min' },
-  { category: 'Caudal', from: 'Galones/min', factor: 1.429, to: 'Barriles/hora' },
-  { category: 'Caudal', from: 'Pies³/min', factor: 0.1247, to: 'Galones/seg' },
-  { category: 'Caudal', from: 'Pies³/seg', factor: 448.83, to: 'Galones/min' },
-
-  { category: 'Densidad', from: 'Lb/galón', factor: 0.1198, to: 'g/cm³' },
-  { category: 'Densidad', from: 'Lb/pie³', factor: 0.01602, to: 'g/cm³' },
-  { category: 'Densidad', from: 'Lb/pie³', factor: 16.03, to: 'kg/m³' },
-]
+// Temperature needs offsets, handled separately from the linear categories.
+export function convertTemperature(value, from, to) {
+  let celsius
+  if (from === 'F') celsius = ((value - 32) * 5) / 9
+  else if (from === 'K') celsius = value - 273.15
+  else celsius = value
+  if (to === 'F') return (celsius * 9) / 5 + 32
+  if (to === 'K') return celsius + 273.15
+  return celsius
+}
 
 // Viscosity: Saybolt Universal Seconds vs Centipoise (relative viscosity) &
 // Engler degrees, Section 9.

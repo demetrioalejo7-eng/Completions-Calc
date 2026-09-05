@@ -66,6 +66,74 @@ export const section11 = {
       },
     },
     {
+      id: 'n2-volume-convert',
+      title: 'N2 — Volumen Estándar ↔ Líquido',
+      inputs: [
+        {
+          type: 'select',
+          id: 'mode',
+          label: 'Tengo',
+          options: [
+            { value: 'std', label: 'Volumen estándar (SCF)' },
+            { value: 'liq', label: 'N2 líquido (gal)' },
+          ],
+          default: 'liq',
+        },
+        { type: 'number', id: 'value', label: 'Valor', step: 0.01, default: 1 },
+      ],
+      compute(v) {
+        if (!v.value) throw new Error('Ingresá un valor.')
+        if (v.mode === 'liq') {
+          return {
+            results: [
+              { label: 'N2 líquido', value: v.value, unit: 'gal', digits: 3 },
+              { label: 'Volumen estándar', value: v.value * N2_PROPERTIES.scfPerGalLiquid, unit: 'SCF', digits: 2 },
+            ],
+          }
+        }
+        return {
+          results: [
+            { label: 'Volumen estándar', value: v.value, unit: 'SCF', digits: 2 },
+            { label: 'N2 líquido', value: v.value / N2_PROPERTIES.scfPerGalLiquid, unit: 'gal', digits: 4 },
+          ],
+        }
+      },
+    },
+    {
+      id: 'co2-volume-convert',
+      title: 'CO2 — Masa/Volumen Líquido ↔ Volumen Gaseoso',
+      inputs: [
+        {
+          type: 'select',
+          id: 'mode',
+          label: 'Tengo',
+          options: [
+            { value: 'mass', label: 'Masa líquida (ton)' },
+            { value: 'liq', label: 'Volumen líquido (gal)' },
+            { value: 'gas', label: 'Volumen gaseoso estándar (SCF)' },
+          ],
+          default: 'mass',
+        },
+        { type: 'number', id: 'value', label: 'Valor', step: 0.01, default: 60 },
+      ],
+      compute(v) {
+        if (!v.value) throw new Error('Ingresá un valor.')
+        let liqGal
+        if (v.mode === 'mass') liqGal = v.value * CO2_PROPERTIES.galPerTon
+        else if (v.mode === 'gas') liqGal = v.value / CO2_PROPERTIES.scfPerGalLiquid
+        else liqGal = v.value
+        const massTon = liqGal / CO2_PROPERTIES.galPerTon
+        const scf = liqGal * CO2_PROPERTIES.scfPerGalLiquid
+        return {
+          results: [
+            { label: 'Masa líquida', value: massTon, unit: 'ton', digits: 3 },
+            { label: 'Volumen líquido', value: liqGal, unit: 'gal', digits: 1 },
+            { label: 'Volumen gaseoso estándar', value: scf, unit: 'SCF', digits: 0 },
+          ],
+        }
+      },
+    },
+    {
       id: 'n2-co2-properties',
       title: 'Propiedades Físicas N2 / CO2',
       inputs: [],

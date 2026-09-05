@@ -45,6 +45,32 @@ export function rectangularTankGal(lengthFt, widthFt, heightFt) {
   return lengthFt * widthFt * heightFt * 7.4805
 }
 
+// Sloped (rectangular frustum) pit. All lengths in ft, returns ft³.
+export function slopedPitCuFt(topL, topW, bottomL, bottomW, height) {
+  const aTop = topL * topW
+  const aBottom = bottomL * bottomW
+  return (height / 3) * (aTop + aBottom + Math.sqrt(aTop * aBottom))
+}
+
+// Partial fill (from the bottom) of a sloped rectangular pit.
+export function slopedPitPartialCuFt(topL, topW, bottomL, bottomW, height, fluidHeight) {
+  const frac = fluidHeight / height
+  const surfL = bottomL + frac * (topL - bottomL)
+  const surfW = bottomW + frac * (topW - bottomW)
+  return slopedPitCuFt(surfL, surfW, bottomL, bottomW, fluidHeight)
+}
+
+// Sloped (conical frustum) cylindrical tank. Diameters/height in ft, ft³.
+export function slopedCylinderCuFt(topDia, bottomDia, height) {
+  return ((Math.PI * height) / 12) * (topDia * topDia + topDia * bottomDia + bottomDia * bottomDia)
+}
+
+export function slopedCylinderPartialCuFt(topDia, bottomDia, height, fluidHeight) {
+  const frac = fluidHeight / height
+  const surfDia = bottomDia + frac * (topDia - bottomDia)
+  return slopedCylinderCuFt(surfDia, bottomDia, fluidHeight)
+}
+
 // Partial fill of a horizontal cylindrical tank with flat heads.
 // d, l in inches; h = liquid depth in inches (h <= d/2, i.e. up to half full;
 // for more than half full compute the empty portion and subtract from full).

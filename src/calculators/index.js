@@ -9,6 +9,8 @@ import { section8 } from './sec8.js'
 import { section9 } from './sec9.js'
 import { section10 } from './sec10.js'
 import { section11 } from './sec11.js'
+import { section12 } from './sec12.js'
+import { section13 } from './sec13.js'
 
 export const SECTIONS = [
   section1,
@@ -22,6 +24,8 @@ export const SECTIONS = [
   section9,
   section10,
   section11,
+  section12,
+  section13,
 ]
 
 export function findSection(sectionId) {

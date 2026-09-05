@@ -5,7 +5,13 @@ import {
   sphericalTankTotal,
   rectangularTankGal,
   horizontalPartialFillGal,
+  slopedPitCuFt,
+  slopedPitPartialCuFt,
+  slopedCylinderCuFt,
+  slopedCylinderPartialCuFt,
 } from '../calc/tankCalc.js'
+
+const CUFT_PER_BBL = 5.6146
 
 export const section8 = {
   id: 'tanks',
@@ -110,6 +116,62 @@ export const section8 = {
             { label: 'Barriles por pulgada de profundidad', value: 0.0148 * v.length * v.width, unit: 'bbl/in', digits: 4 },
           ],
         }
+      },
+    },
+    {
+      id: 'sloped-pit',
+      title: 'Pit con Taludes (Sloped Pit)',
+      description: 'Pileta con paredes inclinadas, distinta medida arriba y abajo.',
+      inputs: [
+        { type: 'number', id: 'topL', label: 'Largo arriba', unit: 'ft', step: 0.1, default: 30 },
+        { type: 'number', id: 'topW', label: 'Ancho arriba', unit: 'ft', step: 0.1, default: 20 },
+        { type: 'number', id: 'bottomL', label: 'Largo abajo', unit: 'ft', step: 0.1, default: 26 },
+        { type: 'number', id: 'bottomW', label: 'Ancho abajo', unit: 'ft', step: 0.1, default: 16 },
+        { type: 'number', id: 'height', label: 'Altura total', unit: 'ft', step: 0.1, default: 6 },
+        { type: 'number', id: 'fluidHeight', label: 'Altura de líquido (desde el fondo)', unit: 'ft', step: 0.1, default: 4 },
+      ],
+      compute(v) {
+        if (!v.topL || !v.topW || !v.bottomL || !v.bottomW || !v.height) throw new Error('Completá todos los campos.')
+        const totalCuFt = slopedPitCuFt(v.topL, v.topW, v.bottomL, v.bottomW, v.height)
+        const results = [
+          { label: 'Volumen total', value: totalCuFt, unit: 'ft³', digits: 1 },
+          { label: 'Volumen total', value: totalCuFt / CUFT_PER_BBL, unit: 'bbl', digits: 2 },
+        ]
+        if (v.fluidHeight) {
+          const fluidCuFt = slopedPitPartialCuFt(v.topL, v.topW, v.bottomL, v.bottomW, v.height, v.fluidHeight)
+          results.push(
+            { label: 'Volumen de líquido', value: fluidCuFt, unit: 'ft³', digits: 1 },
+            { label: 'Volumen de líquido', value: fluidCuFt / CUFT_PER_BBL, unit: 'bbl', digits: 2 }
+          )
+        }
+        return { results }
+      },
+    },
+    {
+      id: 'sloped-cylinder',
+      title: 'Tanque Cónico (Sloped Cylinder)',
+      description: 'Tanque cilíndrico con distinto diámetro arriba y abajo (tronco de cono).',
+      inputs: [
+        { type: 'number', id: 'topDia', label: 'Diámetro arriba', unit: 'ft', step: 0.1, default: 20 },
+        { type: 'number', id: 'bottomDia', label: 'Diámetro abajo', unit: 'ft', step: 0.1, default: 15 },
+        { type: 'number', id: 'height', label: 'Altura total', unit: 'ft', step: 0.1, default: 30 },
+        { type: 'number', id: 'fluidHeight', label: 'Altura de líquido (desde el fondo)', unit: 'ft', step: 0.1, default: 10 },
+      ],
+      compute(v) {
+        if (!v.topDia || !v.bottomDia || !v.height) throw new Error('Completá todos los campos.')
+        const totalCuFt = slopedCylinderCuFt(v.topDia, v.bottomDia, v.height)
+        const results = [
+          { label: 'Volumen total', value: totalCuFt, unit: 'ft³', digits: 1 },
+          { label: 'Volumen total', value: totalCuFt / CUFT_PER_BBL, unit: 'bbl', digits: 2 },
+        ]
+        if (v.fluidHeight) {
+          const fluidCuFt = slopedCylinderPartialCuFt(v.topDia, v.bottomDia, v.height, v.fluidHeight)
+          results.push(
+            { label: 'Volumen de líquido', value: fluidCuFt, unit: 'ft³', digits: 1 },
+            { label: 'Volumen de líquido', value: fluidCuFt / CUFT_PER_BBL, unit: 'bbl', digits: 2 }
+          )
+        }
+        return { results }
       },
     },
   ],

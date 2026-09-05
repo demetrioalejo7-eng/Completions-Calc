@@ -14,9 +14,114 @@ import {
 } from '../calc/generalCalc.js'
 import { capacityFactors, annulusFactors } from '../calc/geometry.js'
 import { ALL_PIPES } from '../data/pipes.js'
-import { CONVERSIONS, VISCOSITY_TABLE } from '../data/units.js'
+import { UNIT_CATEGORIES, convertTemperature, VISCOSITY_TABLE } from '../data/units.js'
+import { el, fmt, clear } from '../ui/dom.js'
 
-const categories = [...new Set(CONVERSIONS.map((c) => c.category))]
+const categoryNames = Object.keys(UNIT_CATEGORIES)
+
+function mountUnitConverter(container) {
+  clear(container)
+  const state = { category: categoryNames[0], from: null, to: null, value: 1 }
+  const units = () => Object.keys(UNIT_CATEGORIES[state.category])
+  state.from = units()[0]
+  state.to = units()[1]
+
+  const formEl = el('div', { class: 'calc-form' })
+  const resultsEl = el('div', { class: 'calc-results' })
+
+  function renderResults() {
+    clear(resultsEl)
+    const factors = UNIT_CATEGORIES[state.category]
+    const val = Number(state.value) || 0
+    const out = (val * factors[state.from]) / factors[state.to]
+    resultsEl.appendChild(
+      el('div', { class: 'result-card' }, [
+        el('div', { class: 'result-row' }, [
+          el('span', { class: 'result-label' }, `${fmt(val, 6)} ${state.from} =`),
+          el('span', { class: 'result-value' }, [el('strong', {}, fmt(out, 6)), el('span', { class: 'result-unit' }, ' ' + state.to)]),
+        ]),
+      ])
+    )
+  }
+
+  function renderForm() {
+    clear(formEl)
+    const catSelect = el(
+      'select',
+      {
+        onChange: (e) => {
+          state.category = e.target.value
+          state.from = units()[0]
+          state.to = units()[1]
+          renderForm()
+          renderResults()
+        },
+      },
+      categoryNames.map((c) => el('option', { value: c, selected: c === state.category }, c))
+    )
+    const fromSelect = el(
+      'select',
+      { onChange: (e) => { state.from = e.target.value; renderResults() } },
+      units().map((u) => el('option', { value: u, selected: u === state.from }, u))
+    )
+    const toSelect = el(
+      'select',
+      { onChange: (e) => { state.to = e.target.value; renderResults() } },
+      units().map((u) => el('option', { value: u, selected: u === state.to }, u))
+    )
+    const valueInput = el('input', {
+      type: 'number', step: 'any', value: state.value, inputmode: 'decimal',
+      onInput: (e) => { state.value = e.target.value; renderResults() },
+    })
+    formEl.appendChild(el('label', { class: 'field' }, [el('span', { class: 'field-label' }, 'Categoría'), catSelect]))
+    formEl.appendChild(el('label', { class: 'field' }, [el('span', { class: 'field-label' }, 'Tengo'), fromSelect]))
+    formEl.appendChild(el('label', { class: 'field' }, [el('span', { class: 'field-label' }, 'Quiero'), toSelect]))
+    formEl.appendChild(el('label', { class: 'field' }, [el('span', { class: 'field-label' }, 'Valor'), valueInput]))
+  }
+
+  renderForm()
+  renderResults()
+  container.appendChild(formEl)
+  container.appendChild(resultsEl)
+}
+
+function mountTemperatureConverter(container) {
+  clear(container)
+  const state = { from: 'F', to: 'C', value: 100 }
+  const labels = { F: '°Fahrenheit', C: '°Celsius', K: 'Kelvin' }
+  const formEl = el('div', { class: 'calc-form' })
+  const resultsEl = el('div', { class: 'calc-results' })
+
+  function renderResults() {
+    clear(resultsEl)
+    const out = convertTemperature(Number(state.value) || 0, state.from, state.to)
+    resultsEl.appendChild(
+      el('div', { class: 'result-card' }, [
+        el('div', { class: 'result-row' }, [
+          el('span', { class: 'result-label' }, `${fmt(Number(state.value) || 0, 2)} ${labels[state.from]} =`),
+          el('span', { class: 'result-value' }, [el('strong', {}, fmt(out, 3)), el('span', { class: 'result-unit' }, ' ' + labels[state.to])]),
+        ]),
+      ])
+    )
+  }
+  function renderForm() {
+    clear(formEl)
+    const opts = (selected) => Object.keys(labels).map((k) => el('option', { value: k, selected: k === selected }, labels[k]))
+    const fromSelect = el('select', { onChange: (e) => { state.from = e.target.value; renderResults() } }, opts(state.from))
+    const toSelect = el('select', { onChange: (e) => { state.to = e.target.value; renderResults() } }, opts(state.to))
+    const valueInput = el('input', {
+      type: 'number', step: 'any', value: state.value, inputmode: 'decimal',
+      onInput: (e) => { state.value = e.target.value; renderResults() },
+    })
+    formEl.appendChild(el('label', { class: 'field' }, [el('span', { class: 'field-label' }, 'Tengo'), fromSelect]))
+    formEl.appendChild(el('label', { class: 'field' }, [el('span', { class: 'field-label' }, 'Quiero'), toSelect]))
+    formEl.appendChild(el('label', { class: 'field' }, [el('span', { class: 'field-label' }, 'Valor'), valueInput]))
+  }
+  renderForm()
+  renderResults()
+  container.appendChild(formEl)
+  container.appendChild(resultsEl)
+}
 
 export const section9 = {
   id: 'general',
@@ -164,17 +269,14 @@ export const section9 = {
     {
       id: 'unit-converter',
       title: 'Conversor de Unidades',
-      inputs: [
-        { type: 'select', id: 'category', label: 'Categoría', options: categories.map((c) => ({ value: c, label: c })), default: categories[0] },
-        { type: 'number', id: 'value', label: 'Valor', step: 'any', default: 1 },
-      ],
-      compute(v) {
-        const rows = CONVERSIONS.filter((c) => c.category === v.category)
-        const val = v.value ?? 1
-        return {
-          results: rows.map((r) => ({ label: `${val} ${r.from} →`, value: val * r.factor, unit: r.to, digits: 5 })),
-        }
-      },
+      custom: true,
+      mount: mountUnitConverter,
+    },
+    {
+      id: 'temperature-converter',
+      title: 'Conversor de Temperatura',
+      custom: true,
+      mount: mountTemperatureConverter,
     },
     {
       id: 'viscosity-converter',

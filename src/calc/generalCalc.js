@@ -1,7 +1,10 @@
 // Section 9 — Formulas and Conversions.
 
+// Standard oilfield buoyancy factor, using steel density ≈ 65.5 lb/gal.
+// (The older "1 - 0.015·ppg" approximation is equivalent to 1/65.5≈0.01527
+// rounded to 0.015; this form matches reference tools more closely.)
 export function buoyancyFactor(mudWeightPpg) {
-  return 1 - 0.015 * mudWeightPpg
+  return (65.5 - mudWeightPpg) / 65.5
 }
 
 export function apparentWeightInFluid(airWeightLb, mudWeightPpg) {
