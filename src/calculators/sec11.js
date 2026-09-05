@@ -1,5 +1,6 @@
 import { n2TotalVolumeScf, n2BottomHolePressure, co2LiquidRate } from '../calc/nitrogenCalc.js'
 import { N2_PROPERTIES, CO2_PROPERTIES } from '../data/nitrogen.js'
+import { flow, lengthFt, lengthIn, pressure, pressureResult, volumeResult, weightResult } from '../ui/fieldHelpers.js'
 
 export const section11 = {
   id: 'nitrogen',
@@ -12,8 +13,8 @@ export const section11 = {
       id: 'n2-pipeline',
       title: 'Volumen de N2 para Testeo/Purga de Línea',
       inputs: [
-        { type: 'number', id: 'id', label: 'Diámetro interior de línea', unit: 'in', step: 0.001, default: 4.0 },
-        { type: 'number', id: 'length', label: 'Longitud', unit: 'ft', step: 1, default: 5000 },
+        lengthIn('id', 'Diámetro interior de línea', { step: 0.001, default: 4.0 }),
+        lengthFt('length', 'Longitud', { step: 1, default: 5000 }),
         { type: 'number', id: 'pressure', label: 'Presión', unit: 'psia', step: 10, default: 1000 },
         { type: 'number', id: 'temp', label: 'Temperatura', unit: '°F', step: 1, default: 100 },
       ],
@@ -22,7 +23,7 @@ export const section11 = {
         const out = n2TotalVolumeScf(v.id, v.length, v.pressure, v.temp ?? 60)
         return {
           results: [
-            { label: 'Volumen del sistema', value: out.volBbl, unit: 'bbl', digits: 3 },
+            volumeResult('Volumen del sistema', out.volBbl, { digits: 3 }),
             { label: 'Multiplicador de volumen (VM)', value: out.vm, unit: 'SCF/bbl', digits: 1 },
             { label: 'Volumen total de N2', value: out.totalScf, unit: 'SCF', digits: 0 },
           ],
@@ -33,8 +34,8 @@ export const section11 = {
       id: 'n2-bhp',
       title: 'Presión de Fondo — Columna de N2',
       inputs: [
-        { type: 'number', id: 'whp', label: 'Presión en cabeza (WHP)', unit: 'psi', step: 10, default: 2000 },
-        { type: 'number', id: 'depth', label: 'Profundidad', unit: 'ft', step: 10, default: 8000 },
+        pressure('whp', 'Presión en cabeza (WHP)', { step: 10, default: 2000 }),
+        lengthFt('depth', 'Profundidad', { step: 10, default: 8000 }),
       ],
       compute(v) {
         if (!v.whp || !v.depth) throw new Error('Completá WHP y profundidad.')
@@ -42,7 +43,7 @@ export const section11 = {
         return {
           results: [
             { label: 'Relación de presión (PR)', value: out.pr, unit: '', digits: 3 },
-            { label: 'Presión de fondo (BHP)', value: out.bhp, unit: 'psi', digits: 0 },
+            pressureResult('Presión de fondo (BHP)', out.bhp, { digits: 0 }),
           ],
         }
       },
@@ -52,7 +53,7 @@ export const section11 = {
       title: 'Tasa de CO2 Líquido',
       inputs: [
         { type: 'number', id: 'scfPerBbl', label: 'Relación de tratamiento', unit: 'SCF CO2/bbl', step: 1, default: 500 },
-        { type: 'number', id: 'bpm', label: 'Caudal de bombeo', unit: 'bpm', step: 0.1, default: 10 },
+        flow('bpm', 'Caudal de bombeo', { step: 0.1, default: 10 }),
       ],
       compute(v) {
         if (!v.scfPerBbl || !v.bpm) throw new Error('Completá ambos campos.')
@@ -146,7 +147,7 @@ export const section11 = {
             { label: 'N2 — 1 galón líquido', value: N2_PROPERTIES.scfPerGalLiquid, unit: 'SCF', digits: 1 },
             { label: 'CO2 — Peso molecular', value: CO2_PROPERTIES.molecularWeight, unit: '', digits: 0 },
             { label: 'CO2 — Punto crítico', value: CO2_PROPERTIES.criticalTempF, unit: '°F', digits: 1 },
-            { label: 'CO2 — 1 galón líquido', value: CO2_PROPERTIES.lbPerGal, unit: 'lb', digits: 2 },
+            weightResult('CO2 — 1 galón líquido', CO2_PROPERTIES.lbPerGal, { digits: 2 }),
             { label: 'CO2 — 1 barril líquido', value: CO2_PROPERTIES.scfPerBblLiquid, unit: 'SCF', digits: 0 },
           ],
         }

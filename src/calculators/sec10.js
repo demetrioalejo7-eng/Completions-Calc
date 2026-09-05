@@ -9,6 +9,7 @@ import {
 import { CACL2_TABLE, NACL_TABLE, KCL_TABLE, ppgFromPct, pctFromPpg } from '../data/salts.js'
 import { PACKER_TUBING_WEIGHT_PSI } from '../data/misc.js'
 import { bariteWaterMudAt, bariteOilMudAt } from '../data/misc.js'
+import { density, densityResult, lengthFt, lengthIn, lengthInResult, pressureResult, volumeResult, weight, weightResult } from '../ui/fieldHelpers.js'
 
 const saltSets = {
   cacl2: { table: CACL2_TABLE, pctKey: 'pctAnhydrous', label: 'Cloruro de Calcio (CaCl2)' },
@@ -32,9 +33,9 @@ export const section10 = {
           { value: 'triplexDouble', label: 'Triplex, doble efecto' },
           { value: 'triplexSingle', label: 'Triplex, simple efecto' },
         ], default: 'duplex' },
-        { type: 'number', id: 'liner', label: 'Diámetro de camisa (liner)', unit: 'in', step: 0.01, default: 5.0 },
-        { type: 'number', id: 'rod', label: 'Diámetro de vástago (rod)', unit: 'in', step: 0.01, default: 2.0 },
-        { type: 'number', id: 'stroke', label: 'Carrera (stroke)', unit: 'in', step: 0.1, default: 12 },
+        lengthIn('liner', 'Diámetro de camisa (liner)', { step: 0.01, default: 5.0 }),
+        lengthIn('rod', 'Diámetro de vástago (rod)', { step: 0.01, default: 2.0 }),
+        lengthIn('stroke', 'Carrera (stroke)', { step: 0.1, default: 12 }),
         { type: 'number', id: 'efficiency', label: 'Eficiencia', unit: '%', step: 1, default: 90 },
         { type: 'number', id: 'spm', label: 'Emboladas / min (SPM)', step: 1, default: 60 },
       ],
@@ -46,7 +47,7 @@ export const section10 = {
         else if (v.pumpType === 'triplexSingle') bblPerCycle = triplexSingleActingBblPerStroke(v.liner, v.stroke, eff)
         else bblPerCycle = duplexBblPerCycle(v.liner, v.rod || 0, v.stroke, eff)
         const results = [
-          { label: 'Barriles por ciclo/embolada', value: bblPerCycle, unit: 'bbl', digits: 5 },
+          volumeResult('Barriles por ciclo/embolada', bblPerCycle, { digits: 5 }),
           { label: 'Pies³ por ciclo/embolada', value: bblPerCycle * 5.6146, unit: 'ft³', digits: 4 },
         ]
         if (v.spm) {
@@ -88,14 +89,14 @@ export const section10 = {
       inputs: [
         { type: 'number', id: 'wellTemp', label: 'Temperatura de pozo (T1)', unit: '°F', step: 1, default: 200 },
         { type: 'number', id: 'surfaceTemp', label: 'Temperatura de referencia (T2)', unit: '°F', step: 1, default: 80 },
-        { type: 'number', id: 'targetDensity', label: 'Densidad requerida a T1', unit: 'lb/gal', step: 0.01, default: 10 },
+        density('targetDensity', 'Densidad requerida a T1', { step: 0.01, default: 10 }),
       ],
       compute(v) {
         if (v.wellTemp == null || v.surfaceTemp == null || !v.targetDensity) throw new Error('Completá todos los campos.')
         const change = densityChangeWithTemp(v.wellTemp, v.surfaceTemp)
         return {
           results: [
-            { label: 'Cambio de densidad', value: change, unit: 'lb/gal', digits: 3 },
+            densityResult('Cambio de densidad', change, { digits: 3 }),
             { label: `Densidad requerida a ${v.surfaceTemp}°F`, value: v.targetDensity + change, unit: 'lb/gal', digits: 3 },
           ],
         }
@@ -107,7 +108,7 @@ export const section10 = {
       inputs: [
         { type: 'number', id: 'bht', label: 'Temperatura de fondo (BHT)', unit: '°F', step: 1, default: 220 },
         { type: 'number', id: 'surfaceT', label: 'Temperatura de superficie', unit: '°F', step: 1, default: 80 },
-        { type: 'number', id: 'length', label: 'Longitud de tubería', unit: 'ft', step: 1, default: 8000 },
+        lengthFt('length', 'Longitud de tubería', { step: 1, default: 8000 }),
       ],
       compute(v) {
         if (v.bht == null || v.surfaceT == null || !v.length) throw new Error('Completá todos los campos.')
@@ -116,7 +117,7 @@ export const section10 = {
           results: [
             { label: 'ΔT', value: out.deltaT, unit: '°F', digits: 2 },
             { label: 'Cambio por cada 1000 ft', value: out.cPer1000Ft, unit: 'in/1000ft', digits: 3 },
-            { label: 'Cambio total de longitud', value: out.totalStretchIn, unit: 'in', digits: 2 },
+            lengthInResult('Cambio total de longitud', out.totalStretchIn, { digits: 2 }),
           ],
           notes: [out.totalStretchIn >= 0 ? 'Valor positivo = elongación.' : 'Valor negativo = contracción.'],
         }
@@ -128,8 +129,8 @@ export const section10 = {
       inputs: [
         { type: 'select', id: 'casing', label: 'Casing / Tubing EUE', options: PACKER_TUBING_WEIGHT_PSI.map((r, i) => ({ value: String(i), label: `${r.casingOD}"` })), default: '2' },
         { type: 'select', id: 'eue', label: 'Conexión de tubing', options: [{ value: 'eue2', label: '2" EUE' }, { value: 'eue25', label: '2 1/2" EUE' }], default: 'eue2' },
-        { type: 'number', id: 'tubingWeight', label: 'Peso de tubing en el packer', unit: 'lb', step: 100, default: 10000 },
-        { type: 'number', id: 'depth', label: 'Profundidad del packer', unit: 'ft', step: 1, default: 7000 },
+        weight('tubingWeight', 'Peso de tubing en el packer', { step: 100, default: 10000 }),
+        lengthFt('depth', 'Profundidad del packer', { step: 1, default: 7000 }),
         { type: 'number', id: 'annulusGrad', label: 'Gradiente del fluido del anular', unit: 'psi/ft', step: 0.001, default: 0.519 },
         { type: 'number', id: 'tubingGrad', label: 'Gradiente del fluido de tubing', unit: 'psi/ft', step: 0.001, default: 0.438 },
       ],
@@ -145,12 +146,12 @@ export const section10 = {
         })
         return {
           results: [
-            { label: 'psi por 1000 lb de peso', value: psiPer1000, unit: 'psi', digits: 0 },
-            { label: 'Por peso de tubing', value: out.fromTubingWeight, unit: 'psi', digits: 1 },
-            { label: 'Por fluido de anular', value: out.fromAnnulusFluid, unit: 'psi', digits: 1 },
-            { label: 'Presión total hacia abajo', value: out.downward, unit: 'psi', digits: 1 },
-            { label: 'Por fluido de tubing', value: out.fromTubingFluid, unit: 'psi', digits: 1 },
-            { label: 'Presión diferencial', value: out.differential, unit: 'psi', digits: 1 },
+            pressureResult('psi por 1000 lb de peso', psiPer1000, { digits: 0 }),
+            pressureResult('Por peso de tubing', out.fromTubingWeight, { digits: 1 }),
+            pressureResult('Por fluido de anular', out.fromAnnulusFluid, { digits: 1 }),
+            pressureResult('Presión total hacia abajo', out.downward, { digits: 1 }),
+            pressureResult('Por fluido de tubing', out.fromTubingFluid, { digits: 1 }),
+            pressureResult('Presión diferencial', out.differential, { digits: 1 }),
           ],
           notes: ['No aplica a retenedores tipo "upside down".'],
         }
@@ -161,7 +162,7 @@ export const section10 = {
       title: 'Tapón de Barita (Barite Plug)',
       inputs: [
         { type: 'select', id: 'mudType', label: 'Base del lodo', options: [{ value: 'water', label: 'Base agua' }, { value: 'oil', label: 'Base aceite' }], default: 'water' },
-        { type: 'number', id: 'ppg', label: 'Densidad de slurry deseada', unit: 'lb/gal', step: 0.1, default: 18 },
+        density('ppg', 'Densidad de slurry deseada', { step: 0.1, default: 18 }),
         { type: 'number', id: 'bbls', label: 'Barriles a preparar', step: 0.1, default: 10 },
       ],
       compute(v) {
@@ -172,8 +173,8 @@ export const section10 = {
           return {
             results: [
               { label: 'Diesel', value: out.dieselGalPerBbl * n, unit: 'gal', digits: 1 },
-              { label: 'MCS-A (humectante)', value: out.mcsaLbPerBbl * n, unit: 'lb', digits: 2 },
-              { label: 'Barita', value: out.bariteLbPerBbl * n, unit: 'lb', digits: 0 },
+              weightResult('MCS-A (humectante)', out.mcsaLbPerBbl * n, { digits: 2 }),
+              weightResult('Barita', out.bariteLbPerBbl * n, { digits: 0 }),
             ],
           }
         }
@@ -181,8 +182,8 @@ export const section10 = {
         return {
           results: [
             { label: 'Agua', value: out.galWaterPerBbl * n, unit: 'gal', digits: 1 },
-            { label: 'Fosfato / dispersante', value: out.phosphateLbPerBbl * n, unit: 'lb', digits: 2 },
-            { label: 'Barita', value: out.bariteLbPerBbl * n, unit: 'lb', digits: 0 },
+            weightResult('Fosfato / dispersante', out.phosphateLbPerBbl * n, { digits: 2 }),
+            weightResult('Barita', out.bariteLbPerBbl * n, { digits: 0 }),
           ],
         }
       },

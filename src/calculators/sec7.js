@@ -2,6 +2,7 @@ import { slurryProperties, sandFillUp } from '../calc/proppantCalc.js'
 import { annulusFactors, capacityFactors } from '../calc/geometry.js'
 import { PROPPANT_TRUE_DENSITY, SAND_BULK_DENSITY_PPG } from '../data/proppant.js'
 import { ALL_PIPES } from '../data/pipes.js'
+import { densityResult, lengthIn, weightPerLengthResult } from '../ui/fieldHelpers.js'
 
 export const section7 = {
   id: 'proppant',
@@ -33,7 +34,7 @@ export const section7 = {
             { label: 'Gal slurry / gal fluido limpio', value: out.slurryGalPerFluidGal, unit: '', digits: 4 },
             { label: 'Fracción de fluido', value: out.fluidFraction * 100, unit: '%', digits: 2 },
             { label: 'Fracción de proppant', value: out.proppantFraction * 100, unit: '%', digits: 2 },
-            { label: 'Proppant por galón de slurry', value: out.proppantLbPerGalSlurry, unit: 'lb/gal', digits: 3 },
+            densityResult('Proppant por galón de slurry', out.proppantLbPerGalSlurry, { digits: 3 }),
             { label: 'Proppant por barril de slurry', value: out.proppantLbPerBblSlurry, unit: 'lb/bbl', digits: 1 },
           ],
         }
@@ -44,7 +45,7 @@ export const section7 = {
       title: 'Fill-Up de Arena en Pozo (Hole)',
       description: 'Cantidad de arena (20-40 mesh) para llenar un tramo de pozo vacío o el anular pozo-tubería.',
       inputs: [
-        { type: 'number', id: 'holeD', label: 'Diámetro de pozo', unit: 'in', step: 0.001, default: 8.5 },
+        lengthIn('holeD', 'Diámetro de pozo', { step: 0.001, default: 8.5 }),
         {
           type: 'pipePreset',
           id: 'pipe',
@@ -61,7 +62,7 @@ export const section7 = {
         const out = sandFillUp(f.galPerFt, v.bulkDensity || SAND_BULK_DENSITY_PPG)
         return {
           results: [
-            { label: '# Arena / pie lineal', value: out.lbPerLinFt, unit: 'lb/ft', digits: 3 },
+            weightPerLengthResult('# Arena / pie lineal', out.lbPerLinFt, { digits: 3 }),
             { label: 'Pie lineal / # arena', value: out.linFtPerLb, unit: 'ft/lb', digits: 4 },
           ],
         }

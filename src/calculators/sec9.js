@@ -16,6 +16,7 @@ import { capacityFactors, annulusFactors } from '../calc/geometry.js'
 import { ALL_PIPES } from '../data/pipes.js'
 import { UNIT_CATEGORIES, convertTemperature, VISCOSITY_TABLE } from '../data/units.js'
 import { el, fmt, clear } from '../ui/dom.js'
+import { density, lengthFt, lengthFtResult, lengthIn, pressure, pressureResult, volumeResult, weight, weightPerLength, weightResult } from '../ui/fieldHelpers.js'
 
 const categoryNames = Object.keys(UNIT_CATEGORIES)
 
@@ -134,15 +135,15 @@ export const section9 = {
       id: 'buoyancy',
       title: 'Factor de Boyancia y Peso Aparente',
       inputs: [
-        { type: 'number', id: 'mudWeight', label: 'Peso del fluido', unit: 'lb/gal', step: 0.01, default: 10 },
-        { type: 'number', id: 'airWeight', label: 'Peso al aire (opcional)', unit: 'lb', step: 1 },
+        density('mudWeight', 'Peso del fluido', { step: 0.01, default: 10 }),
+        weight('airWeight', 'Peso al aire (opcional)', { step: 1 }),
       ],
       compute(v) {
         if (!v.mudWeight) throw new Error('Ingresá el peso del fluido.')
         const bf = buoyancyFactor(v.mudWeight)
         const results = [{ label: 'Factor de boyancia', value: bf, unit: '', digits: 4 }]
         if (v.airWeight) {
-          results.push({ label: 'Peso aparente en fluido', value: apparentWeightInFluid(v.airWeight, v.mudWeight), unit: 'lb', digits: 1 })
+          results.push(weightResult('Peso aparente en fluido', apparentWeightInFluid(v.airWeight, v.mudWeight), { digits: 1 }))
         }
         return { results }
       },
@@ -151,14 +152,14 @@ export const section9 = {
       id: 'hydrostatic',
       title: 'Presión Hidrostática',
       inputs: [
-        { type: 'number', id: 'ppg', label: 'Peso del fluido', unit: 'lb/gal', step: 0.01, default: 9 },
-        { type: 'number', id: 'height', label: 'Altura de columna', unit: 'ft', step: 1, default: 5000 },
+        density('ppg', 'Peso del fluido', { step: 0.01, default: 9 }),
+        lengthFt('height', 'Altura de columna', { step: 1, default: 5000 }),
       ],
       compute(v) {
         if (!v.ppg) throw new Error('Ingresá el peso del fluido.')
         const psiPerFt = 0.052 * v.ppg
         const results = [{ label: 'Gradiente', value: psiPerFt, unit: 'psi/ft', digits: 4 }]
-        if (v.height) results.push({ label: 'Presión hidrostática', value: hydrostaticPressure(v.ppg, v.height), unit: 'psi', digits: 1 })
+        if (v.height) results.push(pressureResult('Presión hidrostática', hydrostaticPressure(v.ppg, v.height), { digits: 1 }))
         return { results }
       },
     },
@@ -166,11 +167,11 @@ export const section9 = {
       id: 'treatment-hydraulics',
       title: 'Hidráulica de Tratamiento (Frac)',
       inputs: [
-        { type: 'number', id: 'isip', label: 'ISIP', unit: 'psi', step: 1, default: 3000 },
-        { type: 'number', id: 'ppg', label: 'Peso del fluido', unit: 'lb/gal', step: 0.01, default: 9 },
-        { type: 'number', id: 'depth', label: 'Profundidad', unit: 'ft', step: 1, default: 8000 },
-        { type: 'number', id: 'pf', label: 'Fricción en tubería (Pf)', unit: 'psi', step: 1, default: 0 },
-        { type: 'number', id: 'ppf', label: 'Fricción de perforaciones (Ppf)', unit: 'psi', step: 1, default: 0 },
+        pressure('isip', 'ISIP', { step: 1, default: 3000 }),
+        density('ppg', 'Peso del fluido', { step: 0.01, default: 9 }),
+        lengthFt('depth', 'Profundidad', { step: 1, default: 8000 }),
+        pressure('pf', 'Fricción en tubería (Pf)', { step: 1, default: 0 }),
+        pressure('ppf', 'Fricción de perforaciones (Ppf)', { step: 1, default: 0 }),
       ],
       compute(v) {
         if (!v.isip || !v.depth) throw new Error('Completá ISIP y profundidad.')
@@ -180,9 +181,9 @@ export const section9 = {
         const fg = fractureGradient(v.isip, ph, v.depth)
         return {
           results: [
-            { label: 'Presión hidrostática (Ph)', value: ph, unit: 'psi', digits: 1 },
-            { label: 'BHFP (presión de frac. de fondo)', value: bhfp, unit: 'psi', digits: 1 },
-            { label: 'STP (presión de superficie)', value: stp, unit: 'psi', digits: 1 },
+            pressureResult('Presión hidrostática (Ph)', ph, { digits: 1 }),
+            pressureResult('BHFP (presión de frac. de fondo)', bhfp, { digits: 1 }),
+            pressureResult('STP (presión de superficie)', stp, { digits: 1 }),
             { label: 'Gradiente de fractura', value: fg, unit: 'psi/ft', digits: 4 },
           ],
         }
@@ -214,7 +215,7 @@ export const section9 = {
           type: 'pipePreset', id: 'workString', label: 'Sarta de trabajo (ID)', dataset: ALL_PIPES,
           odField: 'wsOd', idField: 'wsId',
         },
-        { type: 'number', id: 'annulusD', label: 'Diámetro exterior del anular (pozo o ID casing)', unit: 'in', step: 0.001, default: 8.5 },
+        lengthIn('annulusD', 'Diámetro exterior del anular (pozo o ID casing)', { step: 0.001, default: 8.5 }),
       ],
       compute(v) {
         if (!v.totalCuFt || !v.wsId || !v.annulusD) throw new Error('Completá todos los campos.')
@@ -225,7 +226,7 @@ export const section9 = {
           results: [
             { label: 'Capacidad sarta de trabajo', value: cfWs, unit: 'ft³/ft', digits: 5 },
             { label: 'Capacidad anular', value: cfAnnulus, unit: 'ft³/ft', digits: 5 },
-            { label: 'Altura del tapón (sarta adentro)', value: height, unit: 'ft', digits: 1 },
+            lengthFtResult('Altura del tapón (sarta adentro)', height, { digits: 1 }),
           ],
         }
       },
@@ -236,12 +237,12 @@ export const section9 = {
       description: 'Fórmula estándar de flujo radial en régimen permanente, unidades de campo.',
       inputs: [
         { type: 'number', id: 'k', label: 'Permeabilidad (k)', unit: 'md', step: 0.1, default: 50 },
-        { type: 'number', id: 'h', label: 'Espesor de la formación (h)', unit: 'ft', step: 0.1, default: 20 },
-        { type: 'number', id: 'dp', label: 'Pe − Pwf', unit: 'psi', step: 1, default: 500 },
+        lengthFt('h', 'Espesor de la formación (h)', { step: 0.1, default: 20 }),
+        pressure('dp', 'Pe − Pwf', { step: 1, default: 500 }),
         { type: 'number', id: 'mu', label: 'Viscosidad del petróleo', unit: 'cp', step: 0.01, default: 2 },
         { type: 'number', id: 'bo', label: 'Factor volumétrico (Bo)', unit: 'rb/stb', step: 0.01, default: 1.2 },
-        { type: 'number', id: 're', label: 'Radio de drenaje (re)', unit: 'ft', step: 1, default: 1000 },
-        { type: 'number', id: 'rw', label: 'Radio de pozo (rw)', unit: 'ft', step: 0.01, default: 0.354 },
+        lengthFt('re', 'Radio de drenaje (re)', { step: 1, default: 1000 }),
+        lengthFt('rw', 'Radio de pozo (rw)', { step: 0.01, default: 0.354 }),
       ],
       compute(v) {
         if (!v.k || !v.h || !v.mu || !v.bo || !v.re || !v.rw) throw new Error('Completá todos los campos.')
@@ -253,15 +254,15 @@ export const section9 = {
       id: 'pipe-displacement',
       title: 'Desplazamiento de Tubería (metal)',
       inputs: [
-        { type: 'number', id: 'wt', label: 'Peso con acoples', unit: 'lb/ft', step: 0.01, default: 15.5 },
-        { type: 'number', id: 'depth', label: 'Profundidad / longitud', unit: 'ft', step: 1, default: 5000 },
+        weightPerLength('wt', 'Peso con acoples', { step: 0.01, default: 15.5 }),
+        lengthFt('depth', 'Profundidad / longitud', { step: 1, default: 5000 }),
       ],
       compute(v) {
         if (!v.wt || !v.depth) throw new Error('Completá peso y profundidad.')
         return {
           results: [
             { label: 'Desplazamiento', value: pipeDisplacementCuFt(v.wt, v.depth), unit: 'ft³', digits: 2 },
-            { label: 'Desplazamiento', value: pipeDisplacementBbl(v.wt, v.depth), unit: 'bbl', digits: 3 },
+            volumeResult('Desplazamiento', pipeDisplacementBbl(v.wt, v.depth), { digits: 3 }),
           ],
         }
       },

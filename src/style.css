@@ -209,6 +209,37 @@ a {
   color: var(--text);
 }
 
+.unit-field-row {
+  display: grid;
+  grid-template-columns: 1fr 118px;
+  gap: 8px;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+select.unit-select {
+  padding: 11px 6px;
+  font-size: 12.5px;
+}
+
+.result-value-unit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+select.unit-select-output {
+  width: auto;
+  min-width: 0;
+  padding: 4px 6px;
+  font-size: 11.5px;
+  border-radius: 8px;
+}
+
 input[type='number'],
 select {
   background: var(--bg-elev);

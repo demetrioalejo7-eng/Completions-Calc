@@ -65,6 +65,10 @@ export const UNIT_CATEGORIES = {
     'Metros² (m²)': 10.7639,
     'Acres': 43560,
   },
+  'Peso / Longitud': {
+    'Lb/ft': 1,
+    'kg/m': 1 / 0.671969,
+  },
   Velocidad: {
     'Pies/min (ft/min)': 1,
     'Pies/seg (ft/s)': 60,

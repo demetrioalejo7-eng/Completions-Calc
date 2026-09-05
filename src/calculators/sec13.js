@@ -1,6 +1,7 @@
 import { proppantRatioFromVolumes, perforationFriction, hydraulicHorsepower, PROPPANT_MESH_PRESETS, GAL_PER_LB_WATER } from '../calc/fracturing.js'
 import { stokesSettlingVelocityFtPerMin } from '../calc/generalCalc.js'
 import { PROPPANT_TRUE_DENSITY } from '../data/proppant.js'
+import { density, flow, lengthIn, lengthInResult, pressure, pressureResult, volume, weightResult } from '../ui/fieldHelpers.js'
 
 export const section13 = {
   id: 'fracturing',
@@ -22,8 +23,8 @@ export const section13 = {
           options: PROPPANT_TRUE_DENSITY.map((p) => ({ value: p.id, label: `${p.label} (SG ${p.sg})` })),
           default: 'sand',
         },
-        { type: 'number', id: 'slurryVol', label: 'Volumen de slurry', unit: 'bbl', step: 0.1, default: 15 },
-        { type: 'number', id: 'cleanVol', label: 'Volumen de fluido limpio', unit: 'bbl', step: 0.1, default: 10 },
+        volume('slurryVol', 'Volumen de slurry', { step: 0.1, default: 15 }),
+        volume('cleanVol', 'Volumen de fluido limpio', { step: 0.1, default: 10 }),
       ],
       compute(v) {
         if (!v.slurryVol || !v.cleanVol) throw new Error('Completá ambos volúmenes.')
@@ -32,7 +33,7 @@ export const section13 = {
         return {
           results: [
             { label: 'Volumen de proppant', value: out.proppantVolGal, unit: 'gal', digits: 2 },
-            { label: 'Proppant total', value: out.proppantTotalLb, unit: 'lb', digits: 1 },
+            weightResult('Proppant total', out.proppantTotalLb, { digits: 1 }),
             { label: 'Proppant Ratio', value: out.proppantRatioPsa, unit: 'lb/gal (psa)', digits: 3 },
           ],
         }
@@ -43,7 +44,7 @@ export const section13 = {
       title: 'Velocidad de Bolas Selladoras (Ball Sealers)',
       description: 'Velocidad terminal (Ley de Stokes). Positiva = sube, negativa = cae, según densidades relativas.',
       inputs: [
-        { type: 'number', id: 'diameter', label: 'Diámetro de la bola', unit: 'in', step: 0.01, default: 0.875 },
+        lengthIn('diameter', 'Diámetro de la bola', { step: 0.01, default: 0.875 }),
         { type: 'number', id: 'ballSg', label: 'Gravedad específica de la bola', step: 0.01, default: 1.2 },
         { type: 'number', id: 'fluidSg', label: 'Gravedad específica del fluido', step: 0.01, default: 1.0 },
         { type: 'number', id: 'viscosity', label: 'Viscosidad del fluido', unit: 'cP', step: 0.1, default: 1 },
@@ -63,24 +64,24 @@ export const section13 = {
       id: 'perforation-friction',
       title: 'Fricción de Perforaciones',
       inputs: [
-        { type: 'number', id: 'rate', label: 'Caudal', unit: 'bbl/min', step: 0.1, default: 10 },
-        { type: 'number', id: 'density', label: 'Densidad del fluido', unit: 'lb/gal', step: 0.01, default: 8.3454 },
+        flow('rate', 'Caudal', { step: 0.1, default: 10 }),
+        density('density', 'Densidad del fluido', { step: 0.01, default: 8.3454 }),
         { type: 'number', id: 'n', label: 'Perforaciones abiertas', step: 1, default: 20 },
-        { type: 'number', id: 'diameter', label: 'Diámetro de perforación', unit: 'in', step: 0.01, default: 0.5 },
+        lengthIn('diameter', 'Diámetro de perforación', { step: 0.01, default: 0.5 }),
         { type: 'number', id: 'cd', label: 'Coeficiente de descarga (Cd)', step: 0.01, default: 0.85 },
       ],
       compute(v) {
         if (!v.rate || !v.density || !v.n || !v.diameter || !v.cd) throw new Error('Completá todos los campos.')
         const dp = perforationFriction(v.rate, v.density, v.n, v.diameter, v.cd)
-        return { results: [{ label: 'Presión de fricción', value: dp, unit: 'psi', digits: 2 }] }
+        return { results: [pressureResult('Presión de fricción', dp, { digits: 2 })] }
       },
     },
     {
       id: 'hydraulic-power',
       title: 'Potencia Hidráulica (HHP)',
       inputs: [
-        { type: 'number', id: 'pressure', label: 'Presión de tratamiento (STP)', unit: 'psi', step: 10, default: 5000 },
-        { type: 'number', id: 'rate', label: 'Caudal', unit: 'bbl/min', step: 0.1, default: 40 },
+        pressure('pressure', 'Presión de tratamiento (STP)', { step: 10, default: 5000 }),
+        flow('rate', 'Caudal', { step: 0.1, default: 40 }),
       ],
       compute(v) {
         if (!v.pressure || !v.rate) throw new Error('Completá presión y caudal.')
@@ -118,7 +119,7 @@ export const section13 = {
         const vel = stokesSettlingVelocityFtPerMin(mesh.diameterIn, proppantPpg, fluidPpg, v.viscosity)
         return {
           results: [
-            { label: 'Diámetro usado', value: mesh.diameterIn, unit: 'in', digits: 4 },
+            lengthInResult('Diámetro usado', mesh.diameterIn, { digits: 4 }),
             { label: 'Velocidad de asentamiento', value: Math.abs(vel), unit: 'ft/min', digits: 3 },
           ],
         }

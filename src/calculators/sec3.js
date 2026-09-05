@@ -1,5 +1,6 @@
 import { multipleStringsFactors, mixedAnnulusFactors, totalsFromFactors } from '../calc/geometry.js'
 import { ALL_PIPES } from '../data/pipes.js'
+import { lengthFt, lengthIn } from '../ui/fieldHelpers.js'
 
 export const section3 = {
   id: 'multiple-strings',
@@ -14,7 +15,7 @@ export const section3 = {
       description:
         'Para pozo: ingresá el diámetro directamente. Para casing: usá el ID como diámetro exterior.',
       inputs: [
-        { type: 'number', id: 'outerD', label: 'Diámetro exterior (pozo o ID de casing)', unit: 'in', step: 0.001, default: 8.5 },
+        lengthIn('outerD', 'Diámetro exterior (pozo o ID de casing)', { step: 0.001, default: 8.5 }),
         {
           type: 'pipePreset',
           id: 'string',
@@ -24,7 +25,7 @@ export const section3 = {
           idField: 'stringId',
         },
         { type: 'number', id: 'n', label: 'Cantidad de sartas (n)', step: 1, default: 2 },
-        { type: 'number', id: 'length', label: 'Longitud', unit: 'ft', step: 1, default: 1000 },
+        lengthFt('length', 'Longitud', { step: 1, default: 1000 }),
       ],
       compute(v) {
         if (!v.outerD || !v.stringOd || !v.n) throw new Error('Completá todos los campos.')
@@ -53,12 +54,12 @@ export const section3 = {
       title: 'Múltiple Anular (sartas de distinto tamaño)',
       description: 'Hasta 4 tuberías de OD distinto dentro del mismo pozo/casing (dejá en 0 las que no uses).',
       inputs: [
-        { type: 'number', id: 'outerD', label: 'Diámetro exterior (pozo o ID de casing)', unit: 'in', step: 0.001, default: 8.5 },
-        { type: 'number', id: 'od1', label: 'Tubería interior 1 — OD', unit: 'in', step: 0.001, default: 2.375 },
-        { type: 'number', id: 'od2', label: 'Tubería interior 2 — OD', unit: 'in', step: 0.001, default: 1.0 },
-        { type: 'number', id: 'od3', label: 'Tubería interior 3 — OD', unit: 'in', step: 0.001, default: 0 },
-        { type: 'number', id: 'od4', label: 'Tubería interior 4 — OD', unit: 'in', step: 0.001, default: 0 },
-        { type: 'number', id: 'length', label: 'Longitud', unit: 'ft', step: 1, default: 1000 },
+        lengthIn('outerD', 'Diámetro exterior (pozo o ID de casing)', { step: 0.001, default: 8.5 }),
+        lengthIn('od1', 'Tubería interior 1 — OD', { step: 0.001, default: 2.375 }),
+        lengthIn('od2', 'Tubería interior 2 — OD', { step: 0.001, default: 1.0 }),
+        lengthIn('od3', 'Tubería interior 3 — OD', { step: 0.001, default: 0 }),
+        lengthIn('od4', 'Tubería interior 4 — OD', { step: 0.001, default: 0 }),
+        lengthFt('length', 'Longitud', { step: 1, default: 1000 }),
       ],
       compute(v) {
         if (!v.outerD) throw new Error('Ingresá el diámetro exterior.')

@@ -8,6 +8,7 @@ import {
 import { ALL_PIPES } from '../data/pipes.js'
 import { PIPE_GRADES } from '../data/strengths.js'
 import { TUBING_STRENGTH, CASING_STRENGTH, DRILLPIPE_STRENGTH } from '../data/strengthTables.js'
+import { lengthInResult, pressureResult, weightResult } from '../ui/fieldHelpers.js'
 
 function rowLabel(r) {
   return `${r.odLabel}" OD — ${r.grade} — ${r.wt} lb/ft`
@@ -30,18 +31,18 @@ function tableCalculator(id, title, dataset) {
     compute(v) {
       const r = dataset[Number(v.row ?? 0)]
       const results = [
-        { label: 'OD', value: r.od, unit: 'in', digits: 3 },
-        { label: 'ID', value: r.id, unit: 'in', digits: 3 },
+        lengthInResult('OD', r.od, { digits: 3 }),
+        lengthInResult('ID', r.id, { digits: 3 }),
       ]
-      if (r.drift) results.push({ label: 'Diámetro de drift', value: r.drift, unit: 'in', digits: 3 })
-      if (r.couplingOd) results.push({ label: 'OD de coupling', value: r.couplingOd, unit: 'in', digits: 3 })
+      if (r.drift) results.push(lengthInResult('Diámetro de drift', r.drift, { digits: 3 }))
+      if (r.couplingOd) results.push(lengthInResult('OD de coupling', r.couplingOd, { digits: 3 }))
       results.push(
-        { label: 'Colapso', value: r.collapse, unit: 'psi', digits: 0 },
-        { label: 'Presión interna de fluencia (burst)', value: r.internalYield, unit: 'psi', digits: 0 }
+        pressureResult('Colapso', r.collapse, { digits: 0 }),
+        pressureResult('Presión interna de fluencia (burst)', r.internalYield, { digits: 0 })
       )
-      if (r.jointShort) results.push({ label: 'Resistencia de junta (rosca corta)', value: r.jointShort, unit: 'lb', digits: 0 })
-      if (r.jointLong) results.push({ label: 'Resistencia de junta (rosca larga)', value: r.jointLong, unit: 'lb', digits: 0 })
-      if (r.jointStrength) results.push({ label: 'Resistencia de junta', value: r.jointStrength, unit: 'lb', digits: 0 })
+      if (r.jointShort) results.push(weightResult('Resistencia de junta (rosca corta)', r.jointShort, { digits: 0 }))
+      if (r.jointLong) results.push(weightResult('Resistencia de junta (rosca larga)', r.jointLong, { digits: 0 }))
+      if (r.jointStrength) results.push(weightResult('Resistencia de junta', r.jointStrength, { digits: 0 }))
       return { results }
     },
   }
@@ -65,9 +66,9 @@ function drillPipeCalculator() {
       const r = DRILLPIPE_STRENGTH[Number(v.row ?? 0)]
       const grades = ['D', 'E', 'G', 'S135']
       const results = [
-        { label: 'OD', value: r.od, unit: 'in', digits: 3 },
-        { label: 'ID', value: r.id, unit: 'in', digits: 3 },
-        { label: 'ID en el upset', value: r.idUpset, unit: 'in', digits: 3 },
+        lengthInResult('OD', r.od, { digits: 3 }),
+        lengthInResult('ID', r.id, { digits: 3 }),
+        lengthInResult('ID en el upset', r.idUpset, { digits: 3 }),
       ]
       for (const g of grades) {
         if (r.collapse[g] != null) results.push({ label: `Colapso, Grado ${g}`, value: r.collapse[g], unit: 'psi', digits: 0 })
@@ -127,9 +128,9 @@ export const section4 = {
         const area = crossSectionalArea(v.od, v.id)
         return {
           results: [
-            { label: 'Presión interna de estallido (Barlow)', value: burst, unit: 'psi', digits: 0 },
-            { label: 'Colapso — estimación elástica', value: collapseElastic, unit: 'psi', digits: 0 },
-            { label: 'Colapso — límite de fluencia (pared gruesa)', value: collapseYield, unit: 'psi', digits: 0 },
+            pressureResult('Presión interna de estallido (Barlow)', burst, { digits: 0 }),
+            pressureResult('Colapso — estimación elástica', collapseElastic, { digits: 0 }),
+            pressureResult('Colapso — límite de fluencia (pared gruesa)', collapseYield, { digits: 0 }),
             { label: 'Área de sección de acero', value: area, unit: 'in²', digits: 3 },
             { label: 'Resistencia a la tensión del cuerpo', value: bodyYield / 1000, unit: 'klb', digits: 1 },
           ],

@@ -10,6 +10,16 @@ import {
   flowAreaAnnular,
 } from '../calc/geometry.js'
 import { ALL_PIPES } from '../data/pipes.js'
+import {
+  lengthIn,
+  lengthFt,
+  weightPerLength,
+  weightResult,
+  volumeResult,
+  lengthInResult,
+  weightPerLengthResult,
+  flow,
+} from '../ui/fieldHelpers.js'
 
 function capacityResults(id, lengthFt) {
   if (!id || id <= 0) throw new Error('Ingresá un diámetro interior (ID) mayor a cero.')
@@ -25,7 +35,7 @@ function capacityResults(id, lengthFt) {
   if (lengthFt) {
     const t = totalsFromFactors(f, lengthFt)
     results.push(
-      { label: `Volumen total (${lengthFt} ft)`, value: t.bbl, unit: 'bbl', digits: 2 },
+      volumeResult(`Volumen total (${lengthFt} ft)`, t.bbl),
       { label: `Volumen total (${lengthFt} ft)`, value: t.cuft, unit: 'ft³', digits: 2 },
       { label: `Volumen total (${lengthFt} ft)`, value: t.gal, unit: 'gal', digits: 1 }
     )
@@ -56,7 +66,7 @@ export const section1 = {
           idField: 'id',
           wtField: 'wt',
         },
-        { type: 'number', id: 'length', label: 'Longitud', unit: 'ft', step: 1, default: 1000 },
+        lengthFt('length', 'Longitud', { default: 1000 }),
       ],
       compute(v) {
         return { results: capacityResults(v.id, v.length) }
@@ -67,8 +77,8 @@ export const section1 = {
       title: 'Capacidad de Pozo (Hole)',
       description: 'Capacidad de un hoyo circular a partir de su diámetro.',
       inputs: [
-        { type: 'number', id: 'diameter', label: 'Diámetro de pozo', unit: 'in', step: 0.001, default: 8.5 },
-        { type: 'number', id: 'length', label: 'Longitud', unit: 'ft', step: 1, default: 1000 },
+        lengthIn('diameter', 'Diámetro de pozo', { default: 8.5 }),
+        lengthFt('length', 'Longitud', { default: 1000 }),
       ],
       compute(v) {
         return { results: capacityResults(v.diameter, v.length) }
@@ -89,8 +99,8 @@ export const section1 = {
           idField: 'id',
           wtField: 'wt',
         },
-        { type: 'number', id: 'weight', label: 'Peso (si no cargaste ID)', unit: 'lb/ft', step: 0.01 },
-        { type: 'number', id: 'length', label: 'Longitud', unit: 'ft', step: 1, default: 1000 },
+        weightPerLength('weight', 'Peso (si no cargaste ID)'),
+        lengthFt('length', 'Longitud', { default: 1000 }),
         {
           type: 'select',
           id: 'method',
@@ -111,22 +121,22 @@ export const section1 = {
         const wt = steelWeightPerFt(v.od, id)
         const length = v.length || 0
         const results = [
-          { label: 'ID', value: id, unit: 'in', digits: 3 },
-          { label: 'Peso de acero', value: wt, unit: 'lb/ft', digits: 2 },
-          { label: 'Masa total', value: wt * length, unit: 'lb', digits: 1 },
+          lengthInResult('ID', id),
+          weightPerLengthResult('Peso de acero', wt),
+          weightResult('Masa total', wt * length),
         ]
         if (v.method === 'capped') {
           const f = externalDisplacementFactors(v.od)
           const t = totalsFromFactors(f, length)
           results.push(
-            { label: 'Volumen desplazado (OD completo)', value: t.bbl, unit: 'bbl', digits: 4 },
+            volumeResult('Volumen desplazado (OD completo)', t.bbl),
             { label: 'Volumen desplazado (OD completo)', value: t.gal, unit: 'gal', digits: 2 }
           )
         } else {
           const f = metalDisplacementFactors(v.od, id)
           const t = totalsFromFactors(f, length)
           results.push(
-            { label: 'Volumen de acero', value: t.bbl, unit: 'bbl', digits: 4 },
+            volumeResult('Volumen de acero', t.bbl),
             { label: 'Volumen de acero', value: t.gal, unit: 'gal', digits: 2 }
           )
         }
@@ -156,8 +166,8 @@ export const section1 = {
           odField: 'od',
           idField: 'id',
         },
-        { type: 'number', id: 'outerD', label: 'Diámetro exterior del anular (si aplica)', unit: 'in', step: 0.001, default: 8.5 },
-        { type: 'number', id: 'rate', label: 'Caudal', unit: 'bbl/min', step: 0.1, default: 10 },
+        lengthIn('outerD', 'Diámetro exterior del anular (si aplica)', { default: 8.5 }),
+        flow('rate', 'Caudal', { default: 10 }),
       ],
       compute(v) {
         if (!v.rate) throw new Error('Ingresá el caudal.')

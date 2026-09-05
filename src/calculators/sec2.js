@@ -1,5 +1,6 @@
 import { annulusFactors, totalsFromFactors } from '../calc/geometry.js'
 import { ALL_PIPES } from '../data/pipes.js'
+import { lengthIn, lengthFt, volumeResult } from '../ui/fieldHelpers.js'
 
 function annulusResults(outerD, innerD, lengthFt) {
   if (!outerD || !innerD) throw new Error('Completá ambos diámetros.')
@@ -16,7 +17,7 @@ function annulusResults(outerD, innerD, lengthFt) {
   if (lengthFt) {
     const t = totalsFromFactors(f, lengthFt)
     results.push(
-      { label: `Volumen anular total (${lengthFt} ft)`, value: t.bbl, unit: 'bbl', digits: 2 },
+      volumeResult(`Volumen anular total (${lengthFt} ft)`, t.bbl),
       { label: `Volumen anular total (${lengthFt} ft)`, value: t.gal, unit: 'gal', digits: 1 }
     )
   }
@@ -35,7 +36,7 @@ export const section2 = {
       title: 'Anular: Tubería dentro de Pozo (Hole)',
       description: 'D = diámetro del pozo. d = OD de la tubería.',
       inputs: [
-        { type: 'number', id: 'holeD', label: 'Diámetro de pozo (D)', unit: 'in', step: 0.001, default: 8.5 },
+        lengthIn('holeD', 'Diámetro de pozo (D)', { default: 8.5 }),
         {
           type: 'pipePreset',
           id: 'pipe',
@@ -44,7 +45,7 @@ export const section2 = {
           odField: 'pipeOd',
           idField: 'pipeId',
         },
-        { type: 'number', id: 'length', label: 'Longitud', unit: 'ft', step: 1, default: 1000 },
+        lengthFt('length', 'Longitud', { default: 1000 }),
       ],
       compute(v) {
         return { results: annulusResults(v.holeD, v.pipeOd, v.length) }
@@ -71,7 +72,7 @@ export const section2 = {
           odField: 'innerOd',
           idField: 'innerId',
         },
-        { type: 'number', id: 'length', label: 'Longitud', unit: 'ft', step: 1, default: 1000 },
+        lengthFt('length', 'Longitud', { default: 1000 }),
       ],
       compute(v) {
         return { results: annulusResults(v.outerId, v.innerOd, v.length) }
