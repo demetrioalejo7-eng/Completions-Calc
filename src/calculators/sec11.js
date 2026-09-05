@@ -39,8 +39,8 @@ export const section11 = {
           results: [
             volumeResult('Volumen del sistema', out.volBbl, { digits: 3 }),
             { label: 'Multiplicador de volumen (VM)', value: out.vm, unit: 'SCF/bbl', digits: 1 },
-            { label: 'Volumen total de N2 (gaseoso, estándar)', value: out.totalScf, unit: 'SCF', digits: 0 },
-            { label: 'Volumen total de N2 (líquido)', value: liquidGal, unit: 'gal', digits: 1 },
+            { label: 'Volumen total de N2 (gaseoso, estándar)', value: out.totalScf, category: 'Volumen de gas (estándar)', canonicalUnit: 'SCF', unit: 'SCF', digits: 0 },
+            { label: 'Volumen total de N2 (líquido)', value: liquidGal, category: 'Volumen', canonicalUnit: 'Galones US (gal)', unit: 'gal', digits: 1 },
           ],
         }
       },
@@ -75,8 +75,8 @@ export const section11 = {
         const out = co2LiquidRate(v.scfPerBbl, v.bpm)
         return {
           results: [
-            { label: 'Tasa de CO2 líquido', value: out.gpm, unit: 'gal/min', digits: 2 },
-            { label: 'Tasa de CO2 líquido', value: out.bpm, unit: 'bbl/min', digits: 4 },
+            { label: 'Tasa de CO2 líquido', value: out.gpm, category: 'Caudal', canonicalUnit: 'Galones/min (gpm)', unit: 'gal/min', digits: 2 },
+            { label: 'Tasa de CO2 líquido', value: out.bpm, category: 'Caudal', canonicalUnit: 'Barriles/min (bpm)', unit: 'bbl/min', digits: 4 },
           ],
         }
       },
@@ -102,15 +102,15 @@ export const section11 = {
         if (v.mode === 'liq') {
           return {
             results: [
-              { label: 'N2 líquido', value: v.value, unit: 'gal', digits: 3 },
-              { label: 'Volumen estándar', value: v.value * N2_PROPERTIES.scfPerGalLiquid, unit: 'SCF', digits: 2 },
+              { label: 'N2 líquido', value: v.value, category: 'Volumen', canonicalUnit: 'Galones US (gal)', unit: 'gal', digits: 3 },
+              { label: 'Volumen estándar', value: v.value * N2_PROPERTIES.scfPerGalLiquid, category: 'Volumen de gas (estándar)', canonicalUnit: 'SCF', unit: 'SCF', digits: 2 },
             ],
           }
         }
         return {
           results: [
-            { label: 'Volumen estándar', value: v.value, unit: 'SCF', digits: 2 },
-            { label: 'N2 líquido', value: v.value / N2_PROPERTIES.scfPerGalLiquid, unit: 'gal', digits: 4 },
+            { label: 'Volumen estándar', value: v.value, category: 'Volumen de gas (estándar)', canonicalUnit: 'SCF', unit: 'SCF', digits: 2 },
+            { label: 'N2 líquido', value: v.value / N2_PROPERTIES.scfPerGalLiquid, category: 'Volumen', canonicalUnit: 'Galones US (gal)', unit: 'gal', digits: 4 },
           ],
         }
       },
@@ -142,9 +142,9 @@ export const section11 = {
         const scf = liqGal * CO2_PROPERTIES.scfPerGalLiquid
         return {
           results: [
-            { label: 'Masa líquida', value: massTon, unit: 'ton', digits: 3 },
-            { label: 'Volumen líquido', value: liqGal, unit: 'gal', digits: 1 },
-            { label: 'Volumen gaseoso estándar', value: scf, unit: 'SCF', digits: 0 },
+            { label: 'Masa líquida', value: massTon, category: 'Peso / Masa', canonicalUnit: 'Toneladas cortas (short ton)', unit: 'ton', digits: 3 },
+            { label: 'Volumen líquido', value: liqGal, category: 'Volumen', canonicalUnit: 'Galones US (gal)', unit: 'gal', digits: 1 },
+            { label: 'Volumen gaseoso estándar', value: scf, category: 'Volumen de gas (estándar)', canonicalUnit: 'SCF', unit: 'SCF', digits: 0 },
           ],
         }
       },
@@ -158,12 +158,12 @@ export const section11 = {
           results: [
             { label: 'N2 — Peso molecular', value: N2_PROPERTIES.molecularWeight, unit: '', digits: 3 },
             { label: 'N2 — Punto de ebullición', value: N2_PROPERTIES.boilingPointF, unit: '°F', digits: 2 },
-            { label: 'N2 — 1 lb líquido', value: N2_PROPERTIES.scfPerLbLiquid, unit: 'SCF', digits: 2 },
-            { label: 'N2 — 1 galón líquido', value: N2_PROPERTIES.scfPerGalLiquid, unit: 'SCF', digits: 1 },
+            { label: 'N2 — 1 lb líquido', value: N2_PROPERTIES.scfPerLbLiquid, category: 'Volumen de gas (estándar)', canonicalUnit: 'SCF', unit: 'SCF', digits: 2 },
+            { label: 'N2 — 1 galón líquido', value: N2_PROPERTIES.scfPerGalLiquid, category: 'Volumen de gas (estándar)', canonicalUnit: 'SCF', unit: 'SCF', digits: 1 },
             { label: 'CO2 — Peso molecular', value: CO2_PROPERTIES.molecularWeight, unit: '', digits: 0 },
             { label: 'CO2 — Punto crítico', value: CO2_PROPERTIES.criticalTempF, unit: '°F', digits: 1 },
             weightResult('CO2 — 1 galón líquido', CO2_PROPERTIES.lbPerGal, { digits: 2 }),
-            { label: 'CO2 — 1 barril líquido', value: CO2_PROPERTIES.scfPerBblLiquid, unit: 'SCF', digits: 0 },
+            { label: 'CO2 — 1 barril líquido', value: CO2_PROPERTIES.scfPerBblLiquid, category: 'Volumen de gas (estándar)', canonicalUnit: 'SCF', unit: 'SCF', digits: 0 },
           ],
         }
       },

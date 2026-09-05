@@ -34,9 +34,9 @@ export const section8 = {
         const t = verticalCylinderTotal(v.diameter, v.height || 1)
         return {
           results: [
-            { label: 'Capacidad por pie de altura', value: 23.501 * (v.diameter / 2) ** 2, unit: 'gal/ft', digits: 2 },
-            { label: `Capacidad total (${v.height || 1} ft)`, value: t.gal, unit: 'gal', digits: 1 },
-            { label: `Capacidad total (${v.height || 1} ft)`, value: t.bbl, unit: 'bbl', digits: 2 },
+            { label: 'Capacidad por pie de altura', value: 23.501 * (v.diameter / 2) ** 2, category: 'Capacidad lineal', canonicalUnit: 'Galones/pie (gal/ft)', unit: 'gal/ft', digits: 2 },
+            { label: `Capacidad total (${v.height || 1} ft)`, value: t.gal, category: 'Volumen', canonicalUnit: 'Galones US (gal)', unit: 'gal', digits: 1 },
+            { label: `Capacidad total (${v.height || 1} ft)`, value: t.bbl, category: 'Volumen', canonicalUnit: 'Barriles (bbl)', unit: 'bbl', digits: 2 },
           ],
         }
       },
@@ -55,7 +55,7 @@ export const section8 = {
         const t = v.heads === 'dished' ? horizontalDishedHeadsTotal(v.diameter, v.length) : horizontalFlatHeadsTotal(v.diameter, v.length)
         return {
           results: [
-            { label: 'Capacidad total', value: t.gal, unit: 'gal', digits: 1 },
+            { label: 'Capacidad total', value: t.gal, category: 'Volumen', canonicalUnit: 'Galones US (gal)', unit: 'gal', digits: 1 },
             volumeResult('Capacidad total', t.bbl, { digits: 2 }),
           ],
         }
@@ -85,7 +85,7 @@ export const section8 = {
         }
         return {
           results: [
-            { label: 'Volumen de líquido', value: gal, unit: 'gal', digits: 1 },
+            { label: 'Volumen de líquido', value: gal, category: 'Volumen', canonicalUnit: 'Galones US (gal)', unit: 'gal', digits: 1 },
             volumeResult('Volumen de líquido', gal / 42, { digits: 2 }),
           ],
           notes: note ? [note] : [],
@@ -100,7 +100,7 @@ export const section8 = {
       compute(v) {
         if (!v.diameter) throw new Error('Ingresá el diámetro.')
         const t = sphericalTankTotal(v.diameter)
-        return { results: [{ label: 'Capacidad', value: t.gal, unit: 'gal', digits: 1 }, volumeResult('Capacidad', t.bbl, { digits: 2 })] }
+        return { results: [{ label: 'Capacidad', value: t.gal, category: 'Volumen', canonicalUnit: 'Galones US (gal)', unit: 'gal', digits: 1 }, volumeResult('Capacidad', t.bbl, { digits: 2 })] }
       },
     },
     {
@@ -117,8 +117,8 @@ export const section8 = {
         const gal = rectangularTankGal(v.length, v.width, v.height || 1)
         return {
           results: [
-            { label: `Capacidad (${v.height || 1} ft)`, value: gal, unit: 'gal', digits: 1 },
-            { label: `Capacidad (${v.height || 1} ft)`, value: gal / 42, unit: 'bbl', digits: 2 },
+            { label: `Capacidad (${v.height || 1} ft)`, value: gal, category: 'Volumen', canonicalUnit: 'Galones US (gal)', unit: 'gal', digits: 1 },
+            { label: `Capacidad (${v.height || 1} ft)`, value: gal / 42, category: 'Volumen', canonicalUnit: 'Barriles (bbl)', unit: 'bbl', digits: 2 },
             { label: 'Barriles por pulgada de profundidad', value: 0.0148 * v.length * v.width, unit: 'bbl/in', digits: 4 },
           ],
         }
@@ -141,13 +141,13 @@ export const section8 = {
         if (!v.topL || !v.topW || !v.bottomL || !v.bottomW || !v.height) throw new Error('Completá todos los campos.')
         const totalCuFt = slopedPitCuFt(v.topL, v.topW, v.bottomL, v.bottomW, v.height)
         const results = [
-          { label: 'Volumen total', value: totalCuFt, unit: 'ft³', digits: 1 },
+          { label: 'Volumen total', value: totalCuFt, category: 'Volumen', canonicalUnit: 'Pies cúbicos (ft³)', unit: 'ft³', digits: 1 },
           volumeResult('Volumen total', totalCuFt / CUFT_PER_BBL, { digits: 2 }),
         ]
         if (v.fluidHeight) {
           const fluidCuFt = slopedPitPartialCuFt(v.topL, v.topW, v.bottomL, v.bottomW, v.height, v.fluidHeight)
           results.push(
-            { label: 'Volumen de líquido', value: fluidCuFt, unit: 'ft³', digits: 1 },
+            { label: 'Volumen de líquido', value: fluidCuFt, category: 'Volumen', canonicalUnit: 'Pies cúbicos (ft³)', unit: 'ft³', digits: 1 },
             volumeResult('Volumen de líquido', fluidCuFt / CUFT_PER_BBL, { digits: 2 })
           )
         }
@@ -169,13 +169,13 @@ export const section8 = {
         if (!v.topDia || !v.bottomDia || !v.height) throw new Error('Completá todos los campos.')
         const totalCuFt = slopedCylinderCuFt(v.topDia, v.bottomDia, v.height)
         const results = [
-          { label: 'Volumen total', value: totalCuFt, unit: 'ft³', digits: 1 },
+          { label: 'Volumen total', value: totalCuFt, category: 'Volumen', canonicalUnit: 'Pies cúbicos (ft³)', unit: 'ft³', digits: 1 },
           volumeResult('Volumen total', totalCuFt / CUFT_PER_BBL, { digits: 2 }),
         ]
         if (v.fluidHeight) {
           const fluidCuFt = slopedCylinderPartialCuFt(v.topDia, v.bottomDia, v.height, v.fluidHeight)
           results.push(
-            { label: 'Volumen de líquido', value: fluidCuFt, unit: 'ft³', digits: 1 },
+            { label: 'Volumen de líquido', value: fluidCuFt, category: 'Volumen', canonicalUnit: 'Pies cúbicos (ft³)', unit: 'ft³', digits: 1 },
             volumeResult('Volumen de líquido', fluidCuFt / CUFT_PER_BBL, { digits: 2 })
           )
         }

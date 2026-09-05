@@ -25,19 +25,19 @@ function capacityResults(id, lengthFt) {
   if (!id || id <= 0) throw new Error('Ingresá un diámetro interior (ID) mayor a cero.')
   const f = capacityFactors(id)
   const results = [
-    { label: 'Barriles / pie lineal', value: f.bblPerFt, unit: 'bbl/ft', digits: 5 },
+    { label: 'Barriles / pie lineal', value: f.bblPerFt, category: 'Capacidad lineal', canonicalUnit: 'Barriles/pie (bbl/ft)', unit: 'bbl/ft', digits: 5 },
     { label: 'Pie lineal / barril', value: f.ftPerBbl, unit: 'ft/bbl', digits: 1 },
-    { label: 'Pies³ / pie lineal', value: f.cuftPerFt, unit: 'ft³/ft', digits: 5 },
+    { label: 'Pies³ / pie lineal', value: f.cuftPerFt, category: 'Capacidad lineal', canonicalUnit: 'Pies³/pie (ft³/ft)', unit: 'ft³/ft', digits: 5 },
     { label: 'Pie lineal / pie³', value: f.ftPerCuft, unit: 'ft/ft³', digits: 1 },
-    { label: 'Galones / pie lineal', value: f.galPerFt, unit: 'gal/ft', digits: 4 },
+    { label: 'Galones / pie lineal', value: f.galPerFt, category: 'Capacidad lineal', canonicalUnit: 'Galones/pie (gal/ft)', unit: 'gal/ft', digits: 4 },
     { label: 'Pie lineal / galón', value: f.ftPerGal, unit: 'ft/gal', digits: 1 },
   ]
   if (lengthFt) {
     const t = totalsFromFactors(f, lengthFt)
     results.push(
       volumeResult(`Volumen total (${lengthFt} ft)`, t.bbl),
-      { label: `Volumen total (${lengthFt} ft)`, value: t.cuft, unit: 'ft³', digits: 2 },
-      { label: `Volumen total (${lengthFt} ft)`, value: t.gal, unit: 'gal', digits: 1 }
+      { label: `Volumen total (${lengthFt} ft)`, value: t.cuft, category: 'Volumen', canonicalUnit: 'Pies cúbicos (ft³)', unit: 'ft³', digits: 2 },
+      { label: `Volumen total (${lengthFt} ft)`, value: t.gal, category: 'Volumen', canonicalUnit: 'Galones US (gal)', unit: 'gal', digits: 1 }
     )
   }
   return results
@@ -133,14 +133,14 @@ export const section1 = {
           const t = totalsFromFactors(f, length)
           results.push(
             volumeResult('Volumen desplazado (OD completo)', t.bbl),
-            { label: 'Volumen desplazado (OD completo)', value: t.gal, unit: 'gal', digits: 2 }
+            { label: 'Volumen desplazado (OD completo)', value: t.gal, category: 'Volumen', canonicalUnit: 'Galones US (gal)', unit: 'gal', digits: 2 }
           )
         } else {
           const f = metalDisplacementFactors(v.od, id)
           const t = totalsFromFactors(f, length)
           results.push(
             volumeResult('Volumen de acero', t.bbl),
-            { label: 'Volumen de acero', value: t.gal, unit: 'gal', digits: 2 }
+            { label: 'Volumen de acero', value: t.gal, category: 'Volumen', canonicalUnit: 'Galones US (gal)', unit: 'gal', digits: 2 }
           )
         }
         return { results }
@@ -186,8 +186,8 @@ export const section1 = {
         const vel = fluidVelocityFtPerMin(v.rate, area)
         return {
           results: [
-            { label: 'Área de flujo', value: area, unit: 'in²', digits: 4 },
-            { label: 'Velocidad del fluido', value: vel, unit: 'ft/min', digits: 2 },
+            { label: 'Área de flujo', value: area, category: 'Área', canonicalUnit: 'Pulgadas² (in²)', unit: 'in²', digits: 4 },
+            { label: 'Velocidad del fluido', value: vel, category: 'Velocidad', canonicalUnit: 'Pies/min (ft/min)', unit: 'ft/min', digits: 2 },
           ],
         }
       },

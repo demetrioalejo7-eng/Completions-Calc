@@ -52,12 +52,12 @@ export const section10 = {
         else bblPerCycle = duplexBblPerCycle(v.liner, v.rod || 0, v.stroke, eff)
         const results = [
           volumeResult('Barriles por ciclo/embolada', bblPerCycle, { digits: 5 }),
-          { label: 'Pies³ por ciclo/embolada', value: bblPerCycle * 5.6146, unit: 'ft³', digits: 4 },
+          { label: 'Pies³ por ciclo/embolada', value: bblPerCycle * 5.6146, category: 'Volumen', canonicalUnit: 'Pies cúbicos (ft³)', unit: 'ft³', digits: 4 },
         ]
         if (v.spm) {
           results.push(
-            { label: 'Caudal', value: bblPerCycle * v.spm, unit: 'bbl/min', digits: 3 },
-            { label: 'Caudal', value: bblPerCycle * v.spm * 42, unit: 'gal/min', digits: 1 }
+            { label: 'Caudal', value: bblPerCycle * v.spm, category: 'Caudal', canonicalUnit: 'Barriles/min (bpm)', unit: 'bbl/min', digits: 3 },
+            { label: 'Caudal', value: bblPerCycle * v.spm * 42, category: 'Caudal', canonicalUnit: 'Galones/min (gpm)', unit: 'gal/min', digits: 1 }
           )
         }
         return { results }
@@ -112,12 +112,12 @@ export const section10 = {
         const rodLoadLbf = psi * plungerAreaIn2
         return {
           results: [
-            { label: 'Caudal máximo', value: gpm, unit: 'gpm', digits: 0 },
-            { label: 'Caudal máximo', value: bpm, unit: 'bpm', digits: 3 },
+            { label: 'Caudal máximo', value: gpm, category: 'Caudal', canonicalUnit: 'Galones/min (gpm)', unit: 'gpm', digits: 0 },
+            { label: 'Caudal máximo', value: bpm, category: 'Caudal', canonicalUnit: 'Barriles/min (bpm)', unit: 'bpm', digits: 3 },
             pressureResult('Presión máxima', psi, { digits: 0 }),
-            { label: 'Potencia hidráulica (HHP)', value: hhp, unit: 'hp', digits: 0 },
-            { label: 'Potencia de entrada requerida (BHP)', value: col.bhp, unit: 'hp', digits: 0 },
-            { label: 'Carga de vástago a esta presión', value: rodLoadLbf, unit: 'lbf', digits: 0 },
+            { label: 'Potencia hidráulica (HHP)', value: hhp, category: 'Potencia', canonicalUnit: 'Caballos de fuerza (HP)', unit: 'hp', digits: 0 },
+            { label: 'Potencia de entrada requerida (BHP)', value: col.bhp, category: 'Potencia', canonicalUnit: 'Caballos de fuerza (HP)', unit: 'hp', digits: 0 },
+            { label: 'Carga de vástago a esta presión', value: rodLoadLbf, category: 'Peso / Masa', canonicalUnit: 'Libras (lb)', unit: 'lbf', digits: 0 },
             { label: '% de la carga máxima de vástago', value: (rodLoadLbf / model.maxRodLoadLbf) * 100, unit: '%', digits: 1 },
           ],
         }
@@ -142,7 +142,7 @@ export const section10 = {
         const s = saltSets[v.salt]
         if (v.value == null) throw new Error('Ingresá un valor.')
         if (v.mode === 'pctToPpg') {
-          return { results: [{ label: `${s.label} — densidad`, value: ppgFromPct(s.table, s.pctKey, v.value), unit: 'lb/gal', digits: 3 }] }
+          return { results: [{ label: `${s.label} — densidad`, value: ppgFromPct(s.table, s.pctKey, v.value), category: 'Densidad', canonicalUnit: 'Lb/galón (ppg)', unit: 'lb/gal', digits: 3 }] }
         }
         return { results: [{ label: `${s.label} — concentración`, value: pctFromPpg(s.table, s.pctKey, v.value), unit: '% en peso', digits: 2 }] }
       },
@@ -161,7 +161,7 @@ export const section10 = {
         return {
           results: [
             densityResult('Cambio de densidad', change, { digits: 3 }),
-            { label: `Densidad requerida a ${v.surfaceTemp}°F`, value: v.targetDensity + change, unit: 'lb/gal', digits: 3 },
+            { label: `Densidad requerida a ${v.surfaceTemp}°F`, value: v.targetDensity + change, category: 'Densidad', canonicalUnit: 'Lb/galón (ppg)', unit: 'lb/gal', digits: 3 },
           ],
         }
       },
@@ -236,7 +236,7 @@ export const section10 = {
           const out = bariteOilMudAt(v.ppg)
           return {
             results: [
-              { label: 'Diesel', value: out.dieselGalPerBbl * n, unit: 'gal', digits: 1 },
+              { label: 'Diesel', value: out.dieselGalPerBbl * n, category: 'Volumen', canonicalUnit: 'Galones US (gal)', unit: 'gal', digits: 1 },
               weightResult('MCS-A (humectante)', out.mcsaLbPerBbl * n, { digits: 2 }),
               weightResult('Barita', out.bariteLbPerBbl * n, { digits: 0 }),
             ],
@@ -245,7 +245,7 @@ export const section10 = {
         const out = bariteWaterMudAt(v.ppg)
         return {
           results: [
-            { label: 'Agua', value: out.galWaterPerBbl * n, unit: 'gal', digits: 1 },
+            { label: 'Agua', value: out.galWaterPerBbl * n, category: 'Volumen', canonicalUnit: 'Galones US (gal)', unit: 'gal', digits: 1 },
             weightResult('Fosfato / dispersante', out.phosphateLbPerBbl * n, { digits: 2 }),
             weightResult('Barita', out.bariteLbPerBbl * n, { digits: 0 }),
           ],

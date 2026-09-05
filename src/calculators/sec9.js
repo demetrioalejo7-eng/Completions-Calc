@@ -158,7 +158,7 @@ export const section9 = {
       compute(v) {
         if (!v.ppg) throw new Error('Ingresá el peso del fluido.')
         const psiPerFt = 0.052 * v.ppg
-        const results = [{ label: 'Gradiente', value: psiPerFt, unit: 'psi/ft', digits: 4 }]
+        const results = [{ label: 'Gradiente', value: psiPerFt, category: 'Gradiente de presión', canonicalUnit: 'PSI/pie (psi/ft)', unit: 'psi/ft', digits: 4 }]
         if (v.height) results.push(pressureResult('Presión hidrostática', hydrostaticPressure(v.ppg, v.height), { digits: 1 }))
         return { results }
       },
@@ -184,7 +184,7 @@ export const section9 = {
             pressureResult('Presión hidrostática (Ph)', ph, { digits: 1 }),
             pressureResult('BHFP (presión de frac. de fondo)', bhfp, { digits: 1 }),
             pressureResult('STP (presión de superficie)', stp, { digits: 1 }),
-            { label: 'Gradiente de fractura', value: fg, unit: 'psi/ft', digits: 4 },
+            { label: 'Gradiente de fractura', value: fg, category: 'Gradiente de presión', canonicalUnit: 'PSI/pie (psi/ft)', unit: 'psi/ft', digits: 4 },
           ],
         }
       },
@@ -225,8 +225,8 @@ export const section9 = {
         const height = balancedPlugHeight(v.totalCuFt, cfWs, cfAnnulus)
         return {
           results: [
-            { label: 'Capacidad sarta de trabajo', value: cfWs, unit: 'ft³/ft', digits: 5 },
-            { label: 'Capacidad anular', value: cfAnnulus, unit: 'ft³/ft', digits: 5 },
+            { label: 'Capacidad sarta de trabajo', value: cfWs, category: 'Capacidad lineal', canonicalUnit: 'Pies³/pie (ft³/ft)', unit: 'ft³/ft', digits: 5 },
+            { label: 'Capacidad anular', value: cfAnnulus, category: 'Capacidad lineal', canonicalUnit: 'Pies³/pie (ft³/ft)', unit: 'ft³/ft', digits: 5 },
             lengthFtResult('Altura del tapón (sarta adentro)', height, { digits: 1 }),
           ],
         }
@@ -248,7 +248,7 @@ export const section9 = {
       compute(v) {
         if (!v.k || !v.h || !v.mu || !v.bo || !v.re || !v.rw) throw new Error('Completá todos los campos.')
         const q = darcyOilRateBblDay(v.k, v.h, v.dp, v.mu, v.bo, v.re, v.rw)
-        return { results: [{ label: 'Caudal estimado', value: q, unit: 'bbl/día', digits: 1 }] }
+        return { results: [{ label: 'Caudal estimado', value: q, category: 'Caudal', canonicalUnit: 'Barriles/día (bpd)', unit: 'bbl/día', digits: 1 }] }
       },
     },
     {
@@ -262,7 +262,7 @@ export const section9 = {
         if (!v.wt || !v.depth) throw new Error('Completá peso y profundidad.')
         return {
           results: [
-            { label: 'Desplazamiento', value: pipeDisplacementCuFt(v.wt, v.depth), unit: 'ft³', digits: 2 },
+            { label: 'Desplazamiento', value: pipeDisplacementCuFt(v.wt, v.depth), category: 'Volumen', canonicalUnit: 'Pies cúbicos (ft³)', unit: 'ft³', digits: 2 },
             volumeResult('Desplazamiento', pipeDisplacementBbl(v.wt, v.depth), { digits: 3 }),
           ],
         }

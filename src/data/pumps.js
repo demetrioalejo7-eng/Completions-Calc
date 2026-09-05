@@ -36,4 +36,31 @@ export const QWS2500_SD = {
   ],
 }
 
-export const PUMP_MODELS = [QWS2500_SD]
+// SERVA TPB/C/D600 — intermittent-duty, single-acting triplex plunger pump.
+// Source: SERVA TPB/C/D600 Service Manual (P/N A08012930E REV:N1),
+// "TPB/C/D 600 Pump Performance Data 2". Based on 90% ME / 100% VE. TPB,
+// TPC (longer frame) and TPD share the same fluid-end performance data.
+export const TPBCD600 = {
+  id: 'tpbcd600',
+  label: 'SERVA TPB/C/D600 (Triplex)',
+  maxBhp: 600,
+  strokeIn: 6,
+  gearRatio: 4.6,
+  maxRodLoadLbf: 106000,
+  speedColumns: [
+    { spm: 50, rpm: 230, bhp: 253 },
+    { spm: 120, rpm: 552, bhp: 600 },
+    { spm: 200, rpm: 920, bhp: 600 },
+    { spm: 300, rpm: 1380, bhp: 600 },
+    { spm: 450, rpm: 2070, bhp: 600 },
+  ],
+  plungerRows: [
+    { plungerIn: 2.75, gpr: 0.46, gpm: [23, 56, 93, 139, 208], psi: [16836, 16665, 9999, 6666, 4444] },
+    { plungerIn: 3, gpr: 0.55, gpm: [28, 66, 110, 165, 248], psi: [15000, 14003, 8402, 5601, 3734] },
+    { plungerIn: 3.5, gpr: 0.75, gpm: [37, 90, 150, 225, 337], psi: [10394, 10288, 6173, 4115, 2744] },
+    { plungerIn: 4, gpr: 0.98, gpm: [49, 118, 196, 294, 441], psi: [7958, 7877, 4726, 3151, 2100] },
+    { plungerIn: 4.5, gpr: 1.24, gpm: [62, 149, 248, 372, 558], psi: [6288, 6224, 3734, 2489, 1660] },
+  ],
+}
+
+export const PUMP_MODELS = [QWS2500_SD, TPBCD600]

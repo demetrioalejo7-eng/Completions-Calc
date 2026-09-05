@@ -1,4 +1,5 @@
-import { el, fmt, clear } from '../ui/dom.js'
+import { el, clear } from '../ui/dom.js'
+import { resultValueNode } from '../ui/form.js'
 import { slurryDesign } from '../calc/cementCalc.js'
 import { CEMENT_CLASSES, CEMENT_ADDITIVES, WATER_TYPES, nacl_avf } from '../data/cement.js'
 
@@ -12,6 +13,10 @@ function mountCementCalculator(container) {
     totalVolume: 100,
     totalVolumeUnit: 'sk',
     additives: [{ additiveId: CEMENT_ADDITIVES[0].id, pct: 8 }],
+    outUnits: {},
+  }
+  const setOutUnit = (k, v) => {
+    state.outUnits[k] = v
   }
 
   const formEl = el('div', { class: 'calc-form' })
@@ -56,7 +61,7 @@ function mountCementCalculator(container) {
       rows.push(
         { label: 'Rendimiento (Yield)', value: out.yieldGal, unit: 'gal/sk', digits: 3 },
         { label: 'Rendimiento (Yield)', value: out.yieldCuft, unit: 'ft³/sk', digits: 3 },
-        { label: 'Densidad de verificación', value: out.checkDensityPpg, unit: 'lb/gal', digits: 3 },
+        { label: 'Densidad de verificación', value: out.checkDensityPpg, category: 'Densidad', canonicalUnit: 'Lb/galón (ppg)', unit: 'lb/gal', digits: 3 },
         { label: 'Peso total de la lechada', value: out.totalLb, unit: 'lb/sk', digits: 1 }
       )
 
@@ -71,9 +76,9 @@ function mountCementCalculator(container) {
       }
       if (sacks) {
         rows.push({ label: 'Sacos necesarios', value: sacks, unit: 'sacos', digits: 1 })
-        rows.push({ label: 'Agua total necesaria', value: sacks * out.waterGal, unit: 'gal', digits: 0 })
+        rows.push({ label: 'Agua total necesaria', value: sacks * out.waterGal, category: 'Volumen', canonicalUnit: 'Galones US (gal)', unit: 'gal', digits: 0 })
         if (state.saltPct > 0) {
-          rows.push({ label: 'Sal total necesaria', value: sacks * out.saltLb, unit: 'lb', digits: 0 })
+          rows.push({ label: 'Sal total necesaria', value: sacks * out.saltLb, category: 'Peso / Masa', canonicalUnit: 'Libras (lb)', unit: 'lb', digits: 0 })
         }
       }
 
@@ -81,13 +86,10 @@ function mountCementCalculator(container) {
         el(
           'div',
           { class: 'result-card' },
-          rows.map((r) =>
+          rows.map((r, i) =>
             el('div', { class: 'result-row' }, [
               el('span', { class: 'result-label' }, r.label),
-              el('span', { class: 'result-value' }, [
-                el('strong', {}, fmt(r.value, r.digits ?? 4)),
-                el('span', { class: 'result-unit' }, ' ' + r.unit),
-              ]),
+              resultValueNode(r, r.label + '_' + i, state.outUnits, setOutUnit, renderResults),
             ])
           )
         )

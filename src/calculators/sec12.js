@@ -41,8 +41,8 @@ export const section12 = {
           results: [
             lengthInResult('ID calculado', out.id, { digits: 3 }),
             weightPerLengthResult('Peso calculado', out.weightPerFt, { digits: 3 }),
-            { label: 'Área de tubing (acero)', value: out.tubingArea, unit: 'in²', digits: 4 },
-            { label: 'Área de flujo', value: out.flowArea, unit: 'in²', digits: 4 },
+            { label: 'Área de tubing (acero)', value: out.tubingArea, category: 'Área', canonicalUnit: 'Pulgadas² (in²)', unit: 'in²', digits: 4 },
+            { label: 'Área de flujo', value: out.flowArea, category: 'Área', canonicalUnit: 'Pulgadas² (in²)', unit: 'in²', digits: 4 },
           ],
         }
       },
@@ -75,9 +75,9 @@ export const section12 = {
           results: [
             lengthInResult('ID calculado', out.id, { digits: 3 }),
             weightPerLengthResult('Peso calculado', out.weightPerFt, { digits: 3 }),
-            { label: 'Capacidad interior', value: cap.bblPerFt, unit: 'bbl/ft', digits: 5 },
+            { label: 'Capacidad interior', value: cap.bblPerFt, category: 'Capacidad lineal', canonicalUnit: 'Barriles/pie (bbl/ft)', unit: 'bbl/ft', digits: 5 },
             { label: 'Fill-Up interior', value: cap.ftPerBbl, unit: 'ft/bbl', digits: 1 },
-            { label: 'Desplazamiento externo (OD completo)', value: ext.bblPerFt, unit: 'bbl/ft', digits: 5 },
+            { label: 'Desplazamiento externo (OD completo)', value: ext.bblPerFt, category: 'Capacidad lineal', canonicalUnit: 'Barriles/pie (bbl/ft)', unit: 'bbl/ft', digits: 5 },
           ],
         }
       },
@@ -170,7 +170,7 @@ export const section12 = {
       ],
       compute(v) {
         if (!v.whtp || !v.od) throw new Error('Completá presión y OD.')
-        return { results: [{ label: 'Fuerza de snubbing', value: snubbingForce(v.whtp, v.od), unit: 'lbf', digits: 1 }] }
+        return { results: [{ label: 'Fuerza de snubbing', value: snubbingForce(v.whtp, v.od), category: 'Peso / Masa', canonicalUnit: 'Libras (lb)', unit: 'lbf', digits: 1 }] }
       },
     },
     {
@@ -229,10 +229,10 @@ export const section12 = {
           results.push({ label: 'Presión de prueba (Hydrotest)', value: 'No publicado por el fabricante', unit: '', digits: 0, isText: true })
         }
         results.push(
-          { label: 'Resistencia torsional — fluencia', value: r.torsionalYield, unit: 'ft-lb', digits: 0 },
-          { label: 'Resistencia torsional — última', value: r.torsionalUltimate, unit: 'ft-lb', digits: 0 },
-          { label: 'Desplazamiento externo', value: r.extBbl, unit: 'bbl/1000ft', digits: 2 },
-          { label: 'Capacidad interna', value: r.intBbl, unit: 'bbl/1000ft', digits: 2 }
+          { label: 'Resistencia torsional — fluencia', value: r.torsionalYield, category: 'Torque', canonicalUnit: 'Pie-libra (ft-lb)', unit: 'ft-lb', digits: 0 },
+          { label: 'Resistencia torsional — última', value: r.torsionalUltimate, category: 'Torque', canonicalUnit: 'Pie-libra (ft-lb)', unit: 'ft-lb', digits: 0 },
+          { label: 'Desplazamiento externo', value: r.extBbl, category: 'Capacidad lineal', canonicalUnit: 'Barriles/1000 pies (bbl/1000ft)', unit: 'bbl/1000ft', digits: 2 },
+          { label: 'Capacidad interna', value: r.intBbl, category: 'Capacidad lineal', canonicalUnit: 'Barriles/1000 pies (bbl/1000ft)', unit: 'bbl/1000ft', digits: 2 }
         )
         return { results }
       },

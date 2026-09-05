@@ -88,13 +88,19 @@ export const section13 = {
         const out = solveProppantSlurry({ ...knowns, sg: preset.sg })
         const volUnit = isRate ? 'bpm' : 'bbl'
         const volDigits = isRate ? 3 : 2
+        const volCategory = isRate
+          ? { category: 'Caudal', canonicalUnit: 'Barriles/min (bpm)' }
+          : { category: 'Volumen', canonicalUnit: 'Barriles (bbl)' }
+        const propVolCategory = isRate
+          ? { category: 'Caudal', canonicalUnit: 'Galones/min (gpm)' }
+          : { category: 'Volumen', canonicalUnit: 'Galones US (gal)' }
         return {
           results: [
-            { label: isRate ? 'Caudal de slurry' : 'Volumen de slurry', value: out.slurry, unit: volUnit, digits: volDigits },
-            { label: isRate ? 'Caudal de fluido limpio' : 'Volumen de fluido limpio', value: out.clean, unit: volUnit, digits: volDigits },
-            { label: 'Volumen de proppant', value: out.proppantVolGal, unit: isRate ? 'gal/min' : 'gal', digits: 2 },
-            { label: 'Proppant Total', value: out.proppantTotalLb, unit: isRate ? 'lb/min' : 'lb', digits: 1 },
-            { label: 'Proppant Ratio', value: out.proppantRatioPsa, unit: 'lb/gal (psa)', digits: 3 },
+            { label: isRate ? 'Caudal de slurry' : 'Volumen de slurry', value: out.slurry, ...volCategory, unit: volUnit, digits: volDigits },
+            { label: isRate ? 'Caudal de fluido limpio' : 'Volumen de fluido limpio', value: out.clean, ...volCategory, unit: volUnit, digits: volDigits },
+            { label: 'Volumen de proppant', value: out.proppantVolGal, ...propVolCategory, unit: isRate ? 'gal/min' : 'gal', digits: 2 },
+            { label: 'Proppant Total', value: out.proppantTotalLb, ...(isRate ? {} : { category: 'Peso / Masa', canonicalUnit: 'Libras (lb)' }), unit: isRate ? 'lb/min' : 'lb', digits: 1 },
+            { label: 'Proppant Ratio', value: out.proppantRatioPsa, category: 'Densidad', canonicalUnit: 'Lb/galón (ppg)', unit: 'lb/gal (psa)', digits: 3 },
           ],
         }
       },
@@ -115,7 +121,7 @@ export const section13 = {
         const fluidPpg = v.fluidSg * GAL_PER_LB_WATER
         const vel = stokesSettlingVelocityFtPerMin(v.diameter, ballPpg, fluidPpg, v.viscosity)
         return {
-          results: [{ label: 'Velocidad', value: vel, unit: 'ft/min', digits: 2 }],
+          results: [{ label: 'Velocidad', value: vel, category: 'Velocidad', canonicalUnit: 'Pies/min (ft/min)', unit: 'ft/min', digits: 2 }],
           notes: [vel >= 0 ? 'La bola cae (más densa que el fluido).' : 'La bola sube / flota (menos densa que el fluido).'],
         }
       },
@@ -146,7 +152,7 @@ export const section13 = {
       ],
       compute(v) {
         if (!v.pressure || !v.rate) throw new Error('Completá presión y caudal.')
-        return { results: [{ label: 'Potencia hidráulica', value: hydraulicHorsepower(v.pressure, v.rate), unit: 'hp', digits: 1 }] }
+        return { results: [{ label: 'Potencia hidráulica', value: hydraulicHorsepower(v.pressure, v.rate), category: 'Potencia', canonicalUnit: 'Caballos de fuerza (HP)', unit: 'hp', digits: 1 }] }
       },
     },
     {
@@ -181,7 +187,7 @@ export const section13 = {
         return {
           results: [
             lengthInResult('Diámetro usado', mesh.diameterIn, { digits: 4 }),
-            { label: 'Velocidad de asentamiento', value: Math.abs(vel), unit: 'ft/min', digits: 3 },
+            { label: 'Velocidad de asentamiento', value: Math.abs(vel), category: 'Velocidad', canonicalUnit: 'Pies/min (ft/min)', unit: 'ft/min', digits: 3 },
           ],
         }
       },

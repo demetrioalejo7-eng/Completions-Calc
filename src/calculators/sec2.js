@@ -7,18 +7,18 @@ function annulusResults(outerD, innerD, lengthFt) {
   if (innerD >= outerD) throw new Error('El diámetro interior debe ser menor que el exterior.')
   const f = annulusFactors(outerD, innerD)
   const results = [
-    { label: 'Barriles / pie lineal', value: f.bblPerFt, unit: 'bbl/ft', digits: 5 },
+    { label: 'Barriles / pie lineal', value: f.bblPerFt, category: 'Capacidad lineal', canonicalUnit: 'Barriles/pie (bbl/ft)', unit: 'bbl/ft', digits: 5 },
     { label: 'Pie lineal / barril', value: f.ftPerBbl, unit: 'ft/bbl', digits: 1 },
-    { label: 'Pies³ / pie lineal', value: f.cuftPerFt, unit: 'ft³/ft', digits: 5 },
+    { label: 'Pies³ / pie lineal', value: f.cuftPerFt, category: 'Capacidad lineal', canonicalUnit: 'Pies³/pie (ft³/ft)', unit: 'ft³/ft', digits: 5 },
     { label: 'Pie lineal / pie³', value: f.ftPerCuft, unit: 'ft/ft³', digits: 1 },
-    { label: 'Galones / pie lineal', value: f.galPerFt, unit: 'gal/ft', digits: 4 },
+    { label: 'Galones / pie lineal', value: f.galPerFt, category: 'Capacidad lineal', canonicalUnit: 'Galones/pie (gal/ft)', unit: 'gal/ft', digits: 4 },
     { label: 'Pie lineal / galón', value: f.ftPerGal, unit: 'ft/gal', digits: 1 },
   ]
   if (lengthFt) {
     const t = totalsFromFactors(f, lengthFt)
     results.push(
       volumeResult(`Volumen anular total (${lengthFt} ft)`, t.bbl),
-      { label: `Volumen anular total (${lengthFt} ft)`, value: t.gal, unit: 'gal', digits: 1 }
+      { label: `Volumen anular total (${lengthFt} ft)`, value: t.gal, category: 'Volumen', canonicalUnit: 'Galones US (gal)', unit: 'gal', digits: 1 }
     )
   }
   return results

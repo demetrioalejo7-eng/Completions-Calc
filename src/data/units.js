@@ -35,6 +35,7 @@ export const UNIT_CATEGORIES = {
     'Libras (lb)': 1,
     'Kilogramos (kg)': 2.20462,
     'Gramos (g)': 0.00220462,
+    'Kilolibras (klb)': 1000,
     'Toneladas cortas (short ton)': 2000,
     'Toneladas largas (long ton)': 2240,
     'Toneladas métricas (t)': 2204.62,
@@ -48,6 +49,7 @@ export const UNIT_CATEGORIES = {
   Caudal: {
     'Barriles/min (bpm)': 1,
     'Barriles/hora': 1 / 60,
+    'Barriles/día (bpd)': 1 / 1440,
     'Galones/min (gpm)': 1 / 42,
     'Pies³/min': 1 / 5.6146,
     'Pies³/seg': 60 / 5.6146,
@@ -75,6 +77,30 @@ export const UNIT_CATEGORIES = {
     'Metros/seg (m/s)': 196.85,
     'Millas/hora (mph)': 88,
     'km/hora': 54.6807,
+  },
+  Torque: {
+    'Pie-libra (ft-lb)': 1,
+    'Newton-metro (N·m)': 1.35582,
+    'Pulgada-libra (in-lb)': 1 / 12,
+    'kgf·m': 0.138255,
+  },
+  'Capacidad lineal': {
+    'Barriles/pie (bbl/ft)': 1,
+    'Galones/pie (gal/ft)': 1 / 42,
+    'Pies³/pie (ft³/ft)': 1 / 5.6146,
+    'Litros/metro (L/m)': 1 / 521.63,
+    'Barriles/1000 pies (bbl/1000ft)': 1 / 1000,
+  },
+  'Gradiente de presión': {
+    'PSI/pie (psi/ft)': 1,
+    'kPa/m': 22.6203,
+    'kg/cm²/m': 0.230670,
+    'Bar/m': 0.226203,
+  },
+  'Volumen de gas (estándar)': {
+    SCF: 1,
+    'Metros³ estándar (Nm³)': 1 / 35.3147,
+    'Miles de SCF (MSCF)': 1 / 1000,
   },
 }
 

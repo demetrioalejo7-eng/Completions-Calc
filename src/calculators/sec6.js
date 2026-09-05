@@ -34,8 +34,8 @@ export const section6 = {
         const val = volumeStrongFromDilute(v.volDilute, v.pctDilute, v.sgDilute, v.pctStrong, v.sgStrong)
         return {
           results: [
-            { label: 'Volumen de ácido fuerte necesario', value: val, unit: 'gal', digits: 1 },
-            { label: 'Agua necesaria (aprox.)', value: v.volDilute - val, unit: 'gal', digits: 1 },
+            { label: 'Volumen de ácido fuerte necesario', value: val, category: 'Volumen', canonicalUnit: 'Galones US (gal)', unit: 'gal', digits: 1 },
+            { label: 'Agua necesaria (aprox.)', value: v.volDilute - val, category: 'Volumen', canonicalUnit: 'Galones US (gal)', unit: 'gal', digits: 1 },
           ],
           notes: [sgHelperNote()],
         }
@@ -56,8 +56,8 @@ export const section6 = {
         const val = volumeDiluteFromStrong(v.volStrong, v.pctStrong, v.sgStrong, v.pctDilute, v.sgDilute)
         return {
           results: [
-            { label: 'Volumen de ácido diluido obtenible', value: val, unit: 'gal', digits: 1 },
-            { label: 'Agua a agregar', value: val - v.volStrong, unit: 'gal', digits: 1 },
+            { label: 'Volumen de ácido diluido obtenible', value: val, category: 'Volumen', canonicalUnit: 'Galones US (gal)', unit: 'gal', digits: 1 },
+            { label: 'Agua a agregar', value: val - v.volStrong, category: 'Volumen', canonicalUnit: 'Galones US (gal)', unit: 'gal', digits: 1 },
           ],
         }
       },
@@ -77,8 +77,8 @@ export const section6 = {
         const water = waterToDilute(v.volDesired, v.desiredPct, v.sgDesired, v.origPct, v.sgOrig)
         return {
           results: [
-            { label: 'Agua necesaria', value: water, unit: 'gal', digits: 1 },
-            { label: 'Ácido original necesario', value: v.volDesired - water, unit: 'gal', digits: 1 },
+            { label: 'Agua necesaria', value: water, category: 'Volumen', canonicalUnit: 'Galones US (gal)', unit: 'gal', digits: 1 },
+            { label: 'Ácido original necesario', value: v.volDesired - water, category: 'Volumen', canonicalUnit: 'Galones US (gal)', unit: 'gal', digits: 1 },
           ],
         }
       },
@@ -103,7 +103,7 @@ export const section6 = {
           v.volOrig, v.origPct, v.sgOrig,
           v.strongPct, v.sgStrong
         )
-        return { results: [{ label: 'Ácido fuerte a agregar', value: val, unit: 'gal', digits: 1 }] }
+        return { results: [{ label: 'Ácido fuerte a agregar', value: val, category: 'Volumen', canonicalUnit: 'Galones US (gal)', unit: 'gal', digits: 1 }] }
       },
     },
     {
@@ -118,7 +118,7 @@ export const section6 = {
         return {
           results: [
             { label: 'Gravedad específica interpolada', value: sg, unit: '', digits: 4 },
-            { label: 'Peso', value: sg * 8.3453, unit: 'lb/gal', digits: 3 },
+            { label: 'Peso', value: sg * 8.3453, category: 'Densidad', canonicalUnit: 'Lb/galón (ppg)', unit: 'lb/gal', digits: 3 },
           ],
           notes: HCL_STANDARD.map((h) => `${h.pct}% → SG ${h.sg} (${h.ppg} lb/gal)`),
         }

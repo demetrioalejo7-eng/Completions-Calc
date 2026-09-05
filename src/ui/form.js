@@ -74,7 +74,7 @@ function unitNumberInput(spec, values, setValue, rerenderAll) {
 // A result row's displayed unit is switchable when it carries `category` +
 // `canonicalUnit`. Selection is kept in `values['__outunit_<key>']` so it
 // survives result re-renders triggered by input changes.
-function resultValueNode(r, key, values, setValue, rerenderResultsOnly) {
+export function resultValueNode(r, key, values, setValue, rerenderResultsOnly) {
   if (typeof r.value === 'string') {
     return el('span', { class: 'result-value' }, [el('strong', {}, r.value)])
   }

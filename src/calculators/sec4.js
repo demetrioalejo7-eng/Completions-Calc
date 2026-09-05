@@ -73,13 +73,13 @@ function drillPipeCalculator() {
         lengthInResult('ID en el upset', r.idUpset, { digits: 3 }),
       ]
       for (const g of grades) {
-        if (r.collapse[g] != null) results.push({ label: `Colapso, Grado ${g}`, value: r.collapse[g], unit: 'psi', digits: 0 })
+        if (r.collapse[g] != null) results.push({ label: `Colapso, Grado ${g}`, value: r.collapse[g], category: 'Presión', canonicalUnit: 'PSI', unit: 'psi', digits: 0 })
       }
       for (const g of grades) {
-        if (r.internalYield[g] != null) results.push({ label: `Presión interna de fluencia, Grado ${g}`, value: r.internalYield[g], unit: 'psi', digits: 0 })
+        if (r.internalYield[g] != null) results.push({ label: `Presión interna de fluencia, Grado ${g}`, value: r.internalYield[g], category: 'Presión', canonicalUnit: 'PSI', unit: 'psi', digits: 0 })
       }
       for (const g of grades) {
-        if (r.tensile[g] != null) results.push({ label: `Resistencia a la tensión, Grado ${g}`, value: r.tensile[g], unit: 'lb', digits: 0 })
+        if (r.tensile[g] != null) results.push({ label: `Resistencia a la tensión, Grado ${g}`, value: r.tensile[g], category: 'Peso / Masa', canonicalUnit: 'Libras (lb)', unit: 'lb', digits: 0 })
       }
       return { results }
     },
@@ -134,8 +134,8 @@ export const section4 = {
             pressureResult('Presión interna de estallido (Barlow)', burst, { digits: 0 }),
             pressureResult('Colapso — estimación elástica', collapseElastic, { digits: 0 }),
             pressureResult('Colapso — límite de fluencia (pared gruesa)', collapseYield, { digits: 0 }),
-            { label: 'Área de sección de acero', value: area, unit: 'in²', digits: 3 },
-            { label: 'Resistencia a la tensión del cuerpo', value: bodyYield / 1000, unit: 'klb', digits: 1 },
+            { label: 'Área de sección de acero', value: area, category: 'Área', canonicalUnit: 'Pulgadas² (in²)', unit: 'in²', digits: 3 },
+            { label: 'Resistencia a la tensión del cuerpo', value: bodyYield / 1000, category: 'Peso / Masa', canonicalUnit: 'Kilolibras (klb)', unit: 'klb', digits: 1 },
           ],
           notes: [
             'El colapso real API 5C3 usa 4 regímenes (fluencia, plástico, transición, elástico); acá se muestran las dos cotas (fluencia y elástica) — el valor de diseño real está entre ambas. Usá esto solo como referencia de campo.',
