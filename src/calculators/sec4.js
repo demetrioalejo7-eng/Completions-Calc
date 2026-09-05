@@ -19,6 +19,7 @@ function tableCalculator(id, title, dataset) {
     id,
     title,
     description: 'Valores tabulados del handbook API por tamaño y grado (no son fórmulas estimadas).',
+    diagram: { kind: 'wallThickness', labels: { od: 'OD', id: 'ID', t: 't' } },
     inputs: [
       {
         type: 'select',
@@ -53,6 +54,7 @@ function drillPipeCalculator() {
     id: 'drillpipe-strength',
     title: 'Drill Pipe — Tabla API (grados D/E/G/S-135)',
     description: 'Valores tabulados del handbook por tamaño, para cada grado de acero de drill pipe.',
+    diagram: { kind: 'wallThickness', labels: { od: 'OD', id: 'ID', t: 't' } },
     inputs: [
       {
         type: 'select',
@@ -100,6 +102,7 @@ export const section4 = {
       title: 'Estimador para Tamaño Personalizado',
       description:
         'Para tamaños que no están en la tabla API. Usa OD, ID y la resistencia de fluencia mínima del grado (fórmulas de Barlow / API 5C3 elástica).',
+      diagram: { kind: 'wallThickness', labels: { od: 'OD', id: 'ID', t: 't' } },
       inputs: [
         {
           type: 'pipePreset',

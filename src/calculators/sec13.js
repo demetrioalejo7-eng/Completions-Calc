@@ -63,6 +63,7 @@ export const section13 = {
     {
       id: 'perforation-friction',
       title: 'Fricción de Perforaciones',
+      diagram: { kind: 'pipeCrossSection', labels: { od: 'd', id: null } },
       inputs: [
         flow('rate', 'Caudal', { step: 0.1, default: 10 }),
         density('density', 'Densidad del fluido', { step: 0.01, default: 8.3454 }),

@@ -1,6 +1,6 @@
 import { ctDimensions, reelCapacityFt, goosenecRadius, snubbingForce } from '../calc/coiledTubing.js'
 import { externalDisplacementFactors, capacityFactors, totalsFromFactors } from '../calc/geometry.js'
-import { CT_GRADES, CT_DIMENSIONS, ctRowForGrade } from '../data/ctStrength.js'
+import { CT_GRADES, CT_DIMENSIONS, ctRowForGrade, CT_MANUFACTURERS } from '../data/ctStrength.js'
 import { lengthFtResult, lengthIn, lengthInResult, pressure, pressureResult, weight, weightPerLengthResult, weightResult } from '../ui/fieldHelpers.js'
 
 function ctSizeLabel(row) {
@@ -18,6 +18,7 @@ export const section12 = {
     {
       id: 'ct-dimensions',
       title: 'Dimensiones de Coiled Tubing',
+      diagram: { kind: 'wallThickness', labels: { od: 'OD', id: 'ID', t: 't' } },
       inputs: [
         {
           type: 'sizePreset',
@@ -49,6 +50,7 @@ export const section12 = {
     {
       id: 'ct-displacement',
       title: 'Desplazamiento de Coiled Tubing',
+      diagram: { kind: 'wallThickness', labels: { od: 'OD', id: 'ID', t: 't' } },
       inputs: [
         {
           type: 'sizePreset',
@@ -84,6 +86,7 @@ export const section12 = {
       id: 'reel-length',
       title: 'Longitud de Carrete',
       description: 'Longitud de CT que entra en un carrete según su geometría.',
+      diagram: { kind: 'reelSide', labels: { spool: 'OD carrete', core: 'Core', width: 'Ancho' } },
       inputs: [
         lengthIn('spoolOD', 'OD del carrete (bridas)', { step: 0.1, default: 90 }),
         lengthIn('coreDia', 'Diámetro del núcleo (core)', { step: 0.1, default: 48 }),
@@ -109,6 +112,7 @@ export const section12 = {
       id: 'reel-weight',
       title: 'Peso de Carrete Cargado',
       description: 'Peso total estimado del carrete con el coiled tubing enrollado.',
+      diagram: { kind: 'reelSide', labels: { spool: 'OD carrete', core: 'Core', width: 'Ancho' } },
       inputs: [
         lengthIn('spoolOD', 'OD del carrete (bridas)', { step: 0.1, default: 90 }),
         lengthIn('coreDia', 'Diámetro del núcleo (core)', { step: 0.1, default: 48 }),
@@ -146,6 +150,7 @@ export const section12 = {
     {
       id: 'gooseneck-radius',
       title: 'Radio de Gooseneck',
+      diagram: { kind: 'goosenecArc', labels: { c: 'C', h: 'h', r: 'R' } },
       inputs: [
         lengthIn('arcWidth', 'Ancho del arco, C', { step: 0.1, default: 114 }),
         lengthIn('arcHeight', 'Altura del arco, h', { step: 0.1, default: 50 }),
@@ -158,6 +163,7 @@ export const section12 = {
     {
       id: 'snubbing-force',
       title: 'Fuerza de Snubbing',
+      diagram: { kind: 'pipeCrossSection', labels: { od: 'OD', id: null } },
       inputs: [
         pressure('whtp', 'Presión en cabeza de pozo (WHTP)', { step: 10, default: 8000 }),
         lengthIn('od', 'OD del coiled tubing', { step: 0.001, default: 2.375 }),
@@ -171,43 +177,64 @@ export const section12 = {
       id: 'ct-strength-table',
       title: 'Resistencia de Coiled Tubing — Tabla de Fabricante',
       description:
-        'Tamaños y grados estándar (datasheet FET DuraCoil; físicamente equivalente a los grados Tenaris BlueCoil HT-95/110/125 usuales en la industria).',
+        'Tamaños y grados según hoja de datos publicada por el fabricante seleccionado (FET Global DuraCoil o Tenaris BlueCoil).',
+      diagram: { kind: 'wallThickness', labels: { od: 'OD', id: 'ID', t: 't' } },
       inputs: [
         {
           type: 'select',
-          id: 'row',
-          label: 'Tamaño (OD x espesor)',
-          options: CT_DIMENSIONS.map((r, i) => ({ value: String(i), label: ctSizeLabel(r) })),
-          default: '0',
+          id: 'manufacturer',
+          label: 'Fabricante',
+          options: CT_MANUFACTURERS.map((m) => ({ value: m.id, label: m.label })),
+          default: 'fet',
+          rerenderForm: true,
         },
-        {
-          type: 'select',
-          id: 'grade',
-          label: 'Grado',
-          options: CT_GRADES.map((g) => ({ value: g.id, label: g.label })),
-          default: 'DC-95',
+        (values) => {
+          const mfr = CT_MANUFACTURERS.find((m) => m.id === values.manufacturer) || CT_MANUFACTURERS[0]
+          return {
+            type: 'select',
+            id: 'row',
+            label: 'Tamaño (OD x espesor)',
+            options: mfr.sizeRows.map((r, i) => ({ value: String(i), label: ctSizeLabel(r) })),
+            default: '0',
+          }
+        },
+        (values) => {
+          const mfr = CT_MANUFACTURERS.find((m) => m.id === values.manufacturer) || CT_MANUFACTURERS[0]
+          return {
+            type: 'select',
+            id: 'grade',
+            label: 'Grado',
+            options: mfr.grades.map((g) => ({ value: g.id, label: g.label })),
+            default: mfr.grades[0].id,
+            rerenderForm: true,
+          }
         },
       ],
       compute(v) {
-        const row = CT_DIMENSIONS[Number(v.row ?? 0)]
-        const grade = CT_GRADES.find((g) => g.id === v.grade) || CT_GRADES[0]
-        const r = ctRowForGrade(row, grade)
-        return {
-          results: [
-            lengthInResult('OD', r.od, { digits: 3 }),
-            lengthInResult('Espesor de pared', r.wall, { digits: 3 }),
-            lengthInResult('ID', r.id, { digits: 3 }),
-            weightPerLengthResult('Peso nominal', r.weight, { digits: 2 }),
-            weightResult('Carga de fluencia axial (Yield Load)', r.yieldLoad, { digits: 0 }),
-            weightResult('Carga de rotura (Tensile Load)', r.tensileLoad, { digits: 0 }),
-            pressureResult('Presión de fluencia interna (Yield Pressure)', r.yieldPressure, { digits: 0 }),
-            pressureResult('Presión de prueba (Hydrotest, 90% Yp)', r.hydrotestPressure, { digits: 0 }),
-            { label: 'Resistencia torsional — fluencia', value: r.torsionalYield, unit: 'ft-lb', digits: 0 },
-            { label: 'Resistencia torsional — última', value: r.torsionalUltimate, unit: 'ft-lb', digits: 0 },
-            { label: 'Desplazamiento externo', value: r.extBbl, unit: 'bbl/1000ft', digits: 2 },
-            { label: 'Capacidad interna', value: r.intBbl, unit: 'bbl/1000ft', digits: 2 },
-          ],
+        const mfr = CT_MANUFACTURERS.find((m) => m.id === v.manufacturer) || CT_MANUFACTURERS[0]
+        const grade = mfr.grades.find((g) => g.id === v.grade) || mfr.grades[0]
+        const r = grade.rows[Number(v.row ?? 0)] || grade.rows[0]
+        const results = [
+          lengthInResult('OD', r.od, { digits: 3 }),
+          lengthInResult('Espesor de pared', r.wall, { digits: 3 }),
+          lengthInResult('ID', r.id, { digits: 3 }),
+          weightPerLengthResult('Peso nominal', r.weight, { digits: 2 }),
+          weightResult('Carga de fluencia axial (Yield Load)', r.yieldLoad, { digits: 0 }),
+          weightResult('Carga de rotura (Tensile Load)', r.tensileLoad, { digits: 0 }),
+          pressureResult('Presión de fluencia interna (Yield Pressure)', r.yieldPressure, { digits: 0 }),
+        ]
+        if (r.hydrotestPressure !== undefined) {
+          results.push(pressureResult('Presión de prueba (Hydrotest, 90% Yp)', r.hydrotestPressure, { digits: 0 }))
+        } else {
+          results.push({ label: 'Presión de prueba (Hydrotest)', value: 'No publicado por el fabricante', unit: '', digits: 0, isText: true })
         }
+        results.push(
+          { label: 'Resistencia torsional — fluencia', value: r.torsionalYield, unit: 'ft-lb', digits: 0 },
+          { label: 'Resistencia torsional — última', value: r.torsionalUltimate, unit: 'ft-lb', digits: 0 },
+          { label: 'Desplazamiento externo', value: r.extBbl, unit: 'bbl/1000ft', digits: 2 },
+          { label: 'Capacidad interna', value: r.intBbl, unit: 'bbl/1000ft', digits: 2 }
+        )
+        return { results }
       },
     },
   ],

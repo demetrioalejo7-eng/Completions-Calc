@@ -35,6 +35,7 @@ export const section2 = {
       id: 'pipe-hole-annulus',
       title: 'Anular: Tubería dentro de Pozo (Hole)',
       description: 'D = diámetro del pozo. d = OD de la tubería.',
+      diagram: { kind: 'annulusCrossSection', labels: { outer: 'D', inner: 'd' } },
       inputs: [
         lengthIn('holeD', 'Diámetro de pozo (D)', { default: 8.5 }),
         {
@@ -55,6 +56,7 @@ export const section2 = {
       id: 'pipe-pipe-annulus',
       title: 'Anular: Tubería dentro de Tubería/Casing',
       description: 'D = ID de la tubería exterior. d = OD de la tubería interior.',
+      diagram: { kind: 'annulusCrossSection', labels: { outer: 'D', inner: 'd' } },
       inputs: [
         {
           type: 'pipePreset',

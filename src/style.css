@@ -96,7 +96,36 @@ a {
 }
 
 .grid-icon {
-  font-size: 26px;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(56, 217, 169, 0.12);
+  color: var(--accent);
+}
+
+.grid-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.header-icon {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(56, 217, 169, 0.12);
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.header-icon svg {
+  width: 20px;
+  height: 20px;
 }
 
 .grid-title {
@@ -174,6 +203,32 @@ a {
   color: var(--text-dim);
   margin: 0 0 14px;
   line-height: 1.45;
+}
+
+.dim-diagram {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px 12px;
+  margin: 0 0 14px;
+  color: var(--accent);
+}
+
+.dim-svg {
+  width: 100%;
+  height: 130px;
+  display: block;
+}
+
+.dim-legend {
+  margin: 6px 0 0;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.dim-legend strong {
+  color: var(--text);
 }
 
 .calc-form {

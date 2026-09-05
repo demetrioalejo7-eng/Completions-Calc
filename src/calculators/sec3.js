@@ -14,6 +14,7 @@ export const section3 = {
       title: 'Volumen entre Sartas de Tubing y Pozo/Casing',
       description:
         'Para pozo: ingresá el diámetro directamente. Para casing: usá el ID como diámetro exterior.',
+      diagram: { kind: 'multiStringCrossSection', labels: { outer: 'D', inner: 'd' } },
       inputs: [
         lengthIn('outerD', 'Diámetro exterior (pozo o ID de casing)', { step: 0.001, default: 8.5 }),
         {
@@ -53,6 +54,7 @@ export const section3 = {
       id: 'multiple-annulus',
       title: 'Múltiple Anular (sartas de distinto tamaño)',
       description: 'Hasta 4 tuberías de OD distinto dentro del mismo pozo/casing (dejá en 0 las que no uses).',
+      diagram: { kind: 'multiStringCrossSection', labels: { outer: 'D', inner: 'od1-4' } },
       inputs: [
         lengthIn('outerD', 'Diámetro exterior (pozo o ID de casing)', { step: 0.001, default: 8.5 }),
         lengthIn('od1', 'Tubería interior 1 — OD', { step: 0.001, default: 2.375 }),

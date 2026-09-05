@@ -1,6 +1,7 @@
 import { el, fmt, clear } from './dom.js'
 import { pipeLabel } from '../data/pipes.js'
 import { UNIT_CATEGORIES } from '../data/units.js'
+import { diagramMarkup } from './diagrams.js'
 
 function numberInput(spec, value, onChange) {
   const input = el('input', {
@@ -74,6 +75,9 @@ function unitNumberInput(spec, values, setValue, rerenderAll) {
 // `canonicalUnit`. Selection is kept in `values['__outunit_<key>']` so it
 // survives result re-renders triggered by input changes.
 function resultValueNode(r, key, values, setValue, rerenderResultsOnly) {
+  if (typeof r.value === 'string') {
+    return el('span', { class: 'result-value' }, [el('strong', {}, r.value)])
+  }
   if (!r.category || !UNIT_CATEGORIES[r.category]) {
     return el('span', { class: 'result-value' }, [
       el('strong', {}, fmt(r.value, r.digits ?? 4)),
@@ -192,7 +196,9 @@ function checkboxInput(spec, value, onChange) {
 export function renderCalculatorForm(container, calc) {
   clear(container)
   const values = {}
-  for (const input of calc.inputs) {
+  for (const rawInput of calc.inputs) {
+    if (typeof rawInput === 'function') continue
+    const input = rawInput
     values[input.id] = input.default ?? null
     if (input.type === 'pipePreset') {
       values[input.odField] = input.odDefault ?? null
@@ -237,7 +243,8 @@ export function renderCalculatorForm(container, calc) {
 
   function renderForm() {
     clear(formEl)
-    for (const input of calc.inputs) {
+    for (const rawInput of calc.inputs) {
+      const input = typeof rawInput === 'function' ? rawInput(values) : rawInput
       let node
       if (input.type === 'number') {
         node = numberInput(input, values[input.id], (v) => {
@@ -252,6 +259,7 @@ export function renderCalculatorForm(container, calc) {
       } else if (input.type === 'select') {
         node = selectInput(input, values[input.id], (v) => {
           setValue(input.id, v)
+          if (input.rerenderForm) renderForm()
           renderResults()
         })
       } else if (input.type === 'checkbox') {
@@ -284,6 +292,10 @@ export function renderCalculatorForm(container, calc) {
   renderResults()
 
   container.appendChild(formEl)
+  const diagram = diagramMarkup(calc.diagram)
+  if (diagram) {
+    container.insertBefore(el('div', { html: diagram }), formEl)
+  }
   if (calc.description) {
     container.insertBefore(el('p', { class: 'calc-description' }, calc.description), formEl)
   }

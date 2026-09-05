@@ -1,12 +1,14 @@
 import { el, clear } from './ui/dom.js'
 import { renderCalculatorForm } from './ui/form.js'
 import { SECTIONS, findSection, findCalculator } from './calculators/index.js'
+import { sectionIconMarkup } from './ui/icons.js'
 
-function header({ title, backHref, subtitle }) {
+function header({ title, backHref, subtitle, icon }) {
   return el('header', { class: 'app-header' }, [
     backHref
       ? el('a', { href: backHref, class: 'back-link', 'aria-label': 'Volver' }, '←')
       : el('span', { class: 'back-spacer' }),
+    icon ? el('span', { class: 'header-icon', html: icon }) : null,
     el('div', { class: 'header-titles' }, [
       el('h1', {}, title),
       subtitle ? el('p', { class: 'header-subtitle' }, subtitle) : null,
@@ -24,7 +26,7 @@ export function renderHome(root) {
     { class: 'grid' },
     SECTIONS.map((s) =>
       el('a', { href: `#/s/${s.id}`, class: 'grid-card' }, [
-        el('span', { class: 'grid-icon' }, s.icon),
+        el('span', { class: 'grid-icon', html: sectionIconMarkup(s.id) }),
         el('span', { class: 'grid-title' }, s.title),
         el('span', { class: 'grid-summary' }, s.summary),
       ])
@@ -48,7 +50,7 @@ export function renderSection(root, sectionId) {
     return
   }
   root.appendChild(
-    header({ title: `${section.icon} ${section.title}`, subtitle: section.summary, backHref: '#/' })
+    header({ title: section.title, subtitle: section.summary, backHref: '#/', icon: sectionIconMarkup(section.id) })
   )
   const list = el(
     'div',

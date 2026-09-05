@@ -56,6 +56,7 @@ export const section1 = {
       title: 'Capacidad de Tubing / Casing / Drill Pipe / Coiled Tubing',
       description:
         'Elegí un tamaño estándar de la tabla o ingresá el OD/ID manualmente. La capacidad depende solo del ID.',
+      diagram: { kind: 'pipeCrossSection', labels: { od: 'OD', id: 'ID' } },
       inputs: [
         {
           type: 'pipePreset',
@@ -76,6 +77,7 @@ export const section1 = {
       id: 'hole-capacity',
       title: 'Capacidad de Pozo (Hole)',
       description: 'Capacidad de un hoyo circular a partir de su diámetro.',
+      diagram: { kind: 'pipeCrossSection', labels: { od: 'D', id: null } },
       inputs: [
         lengthIn('diameter', 'Diámetro de pozo', { default: 8.5 }),
         lengthFt('length', 'Longitud', { default: 1000 }),
@@ -89,6 +91,7 @@ export const section1 = {
       title: 'Desplazamiento de Metal',
       description:
         'Volumen que desplaza la tubería. "Extremo abierto" usa solo el volumen de acero; "Extremo cerrado (capped)" usa el OD completo (p. ej. corrida con tapón o broca). Completá ID o Peso (el que tengas).',
+      diagram: { kind: 'wallThickness', labels: { od: 'OD', id: 'ID', t: 't' } },
       inputs: [
         {
           type: 'pipePreset',
@@ -147,6 +150,7 @@ export const section1 = {
       id: 'fluid-velocity',
       title: 'Velocidad de Fluido',
       description: 'Velocidad del fluido dentro de la tubería (tubular) o en el anular, según el caudal.',
+      diagram: { kind: 'annulusCrossSection', labels: { outer: 'D', inner: 'd' } },
       inputs: [
         {
           type: 'select',

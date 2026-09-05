@@ -12,6 +12,7 @@ export const section11 = {
     {
       id: 'n2-pipeline',
       title: 'Volumen de N2 para Testeo/Purga de Línea',
+      diagram: { kind: 'pipeCrossSection', labels: { od: 'd', id: null } },
       inputs: [
         lengthIn('id', 'Diámetro interior de línea', { step: 0.001, default: 4.0 }),
         lengthFt('length', 'Longitud', { step: 1, default: 5000 }),

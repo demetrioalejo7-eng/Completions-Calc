@@ -209,6 +209,7 @@ export const section9 = {
       id: 'balanced-plug',
       title: 'Tapón Balanceado (Balanced Plug)',
       description: 'Altura de la lechada con la sarta de trabajo adentro, dado el volumen total de cemento.',
+      diagram: { kind: 'annulusCrossSection', labels: { outer: 'D', inner: 'd' } },
       inputs: [
         { type: 'number', id: 'totalCuFt', label: 'Volumen total de lechada', unit: 'ft³', step: 0.1, default: 50 },
         {

@@ -24,6 +24,7 @@ export const section8 = {
     {
       id: 'vertical-tank',
       title: 'Tanque Vertical Cilíndrico',
+      diagram: { kind: 'verticalCylinder', labels: { d: 'D', h: 'h', partial: true } },
       inputs: [
         lengthFt('diameter', 'Diámetro interior', { step: 0.01, default: 10 }),
         lengthFt('height', 'Altura de líquido', { step: 0.01, default: 8 }),
@@ -43,6 +44,7 @@ export const section8 = {
     {
       id: 'horizontal-tank',
       title: 'Tanque Horizontal Cilíndrico',
+      diagram: { kind: 'horizontalCylinder', labels: { d: 'D', l: 'L' } },
       inputs: [
         lengthFt('diameter', 'Diámetro interior', { step: 0.01, default: 8 }),
         lengthFt('length', 'Longitud', { step: 0.01, default: 20 }),
@@ -63,6 +65,7 @@ export const section8 = {
       id: 'horizontal-partial',
       title: 'Tanque Horizontal — Llenado Parcial',
       description: 'Cabezas planas. Válido hasta la mitad del tanque; para más de la mitad, calculá el vacío y restá del total.',
+      diagram: { kind: 'horizontalCylinder', labels: { d: 'D', l: 'L', partial: true } },
       inputs: [
         lengthIn('diameterIn', 'Diámetro interior', { step: 0.1, default: 144 }),
         lengthIn('lengthIn', 'Longitud', { step: 0.1, default: 96 }),
@@ -92,6 +95,7 @@ export const section8 = {
     {
       id: 'spherical-tank',
       title: 'Tanque Esférico',
+      diagram: { kind: 'sphere', labels: { d: 'D' } },
       inputs: [lengthFt('diameter', 'Diámetro', { step: 0.01, default: 20 })],
       compute(v) {
         if (!v.diameter) throw new Error('Ingresá el diámetro.')
@@ -102,6 +106,7 @@ export const section8 = {
     {
       id: 'rectangular-tank',
       title: 'Tanque / Pit Rectangular',
+      diagram: { kind: 'rectTank', labels: { l: 'L', w: 'W', h: 'H' } },
       inputs: [
         lengthFt('length', 'Largo', { step: 0.01, default: 20 }),
         lengthFt('width', 'Ancho', { step: 0.01, default: 10 }),
@@ -123,6 +128,7 @@ export const section8 = {
       id: 'sloped-pit',
       title: 'Pit con Taludes (Sloped Pit)',
       description: 'Pileta con paredes inclinadas, distinta medida arriba y abajo.',
+      diagram: { kind: 'slopedTrapezoid', labels: { top: 'Wt', bottom: 'Wb', h: 'h', l: 'L' } },
       inputs: [
         lengthFt('topL', 'Largo arriba', { step: 0.1, default: 30 }),
         lengthFt('topW', 'Ancho arriba', { step: 0.1, default: 20 }),
@@ -152,6 +158,7 @@ export const section8 = {
       id: 'sloped-cylinder',
       title: 'Tanque Cónico (Sloped Cylinder)',
       description: 'Tanque cilíndrico con distinto diámetro arriba y abajo (tronco de cono).',
+      diagram: { kind: 'slopedCylinder', labels: { top: 'Dt', bottom: 'Db', h: 'h' } },
       inputs: [
         lengthFt('topDia', 'Diámetro arriba', { step: 0.1, default: 20 }),
         lengthFt('bottomDia', 'Diámetro abajo', { step: 0.1, default: 15 }),

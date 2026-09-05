@@ -44,6 +44,7 @@ export const section7 = {
       id: 'sand-fillup-hole',
       title: 'Fill-Up de Arena en Pozo (Hole)',
       description: 'Cantidad de arena (20-40 mesh) para llenar un tramo de pozo vacío o el anular pozo-tubería.',
+      diagram: { kind: 'annulusCrossSection', labels: { outer: 'D', inner: 'd (0 = pozo vacío)' } },
       inputs: [
         lengthIn('holeD', 'Diámetro de pozo', { step: 0.001, default: 8.5 }),
         {
