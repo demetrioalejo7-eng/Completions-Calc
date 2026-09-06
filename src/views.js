@@ -33,13 +33,6 @@ export function renderHome(root) {
     )
   )
   root.appendChild(grid)
-  root.appendChild(
-    el(
-      'footer',
-      { class: 'app-footer' },
-      `Basado en el handbook de completions — ${SECTIONS.length} secciones, cálculos por fórmula.`
-    )
-  )
 }
 
 export function renderSection(root, sectionId) {
