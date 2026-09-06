@@ -46,7 +46,6 @@ function capacityResults(id, lengthFt) {
 export const section1 = {
   id: 'capacity',
   title: 'Capacidad',
-  icon: '🛢️',
   summary: 'Capacidad interior de tubing, casing, drill pipe, coiled tubing y pozo.',
   formulaNote:
     'Bbl/ft = 0.0009714·D² · Cu Ft/ft = 0.005454·D² · Gal/ft = 0.0408·D² (D = diámetro interior, in)',

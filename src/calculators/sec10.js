@@ -22,7 +22,6 @@ const saltSets = {
 export const section10 = {
   id: 'misc',
   title: 'Misceláneos',
-  icon: '🧰',
   summary: 'Salida de bombas, salmueras, estiramiento de tubería, presión en packers y tapones de barita.',
   formulaNote: 'Bbl/ciclo (duplex, doble efecto) = π·L·(2D² − d²) / 19404 (D=camisa, d=vástago, L=carrera, todo en pulgadas).',
   calculators: [

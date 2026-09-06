@@ -26,7 +26,6 @@ function proppantFieldSpec(id, isRate) {
 export const section13 = {
   id: 'fracturing',
   title: 'Fracturing',
-  icon: '💥',
   summary: 'Relación slurry/proppant, fricción de perforaciones, potencia hidráulica y velocidad de asentamiento.',
   formulaNote:
     'Proppant Ratio (psa) = Proppant Total(lb) / (Vol. limpio(bbl)·42). Fricción de perforación: ΔP=0.2369·Q²·ρ/(N²·D⁴·Cd²). HHP = STP·BPM/40.8.',

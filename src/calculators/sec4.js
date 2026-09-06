@@ -89,7 +89,6 @@ function drillPipeCalculator() {
 export const section4 = {
   id: 'strength',
   title: 'Dimensiones y Resistencias',
-  icon: '📐',
   summary: 'Tablas API de colapso, estallido y resistencia por tamaño/grado, y estimador para tamaños personalizados.',
   formulaNote:
     'Las calculadoras "Tabla API" usan valores tabulados reales del handbook. El "Estimador" usa Barlow (estallido) y la fórmula elástica API 5C3 (colapso) para tamaños que no están en la tabla.',

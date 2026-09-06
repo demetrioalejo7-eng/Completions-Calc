@@ -1,20 +1,24 @@
 :root {
-  --bg: #0b1f2e;
-  --bg-elev: #12293b;
-  --bg-card: #16324a;
-  --border: #24435c;
-  --text: #eaf3f8;
-  --text-dim: #9fb7c6;
-  --accent: #38d9a9;
-  --accent-dark: #1e9c78;
-  --danger: #ff7a7a;
+  --bg: #0a0a0a;
+  --bg-elev: #161616;
+  --bg-card: #1c1c1c;
+  --border: #333333;
+  --text: #f5f5f5;
+  --text-dim: #9a9a9a;
+  --accent: #ffffff;
+  --accent-contrast: #0a0a0a;
   --radius: 14px;
-  --card-shadow: none;
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   color-scheme: dark;
 }
 
 * {
   box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -57,7 +61,13 @@ a {
   justify-content: center;
   border-radius: 999px;
   background: var(--bg-elev);
+  border: 1px solid var(--border);
   flex-shrink: 0;
+  transition: transform 0.12s ease;
+}
+
+.back-link:active {
+  transform: scale(0.92);
 }
 
 .back-spacer {
@@ -93,17 +103,23 @@ a {
   flex-direction: column;
   gap: 6px;
   min-height: 108px;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.grid-card:active {
+  transform: scale(0.97);
+  border-color: var(--text-dim);
 }
 
 .grid-icon {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 10px;
-  background: rgba(56, 217, 169, 0.12);
-  color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .grid-icon svg {
@@ -112,14 +128,14 @@ a {
 }
 
 .header-icon {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 10px;
-  background: rgba(56, 217, 169, 0.12);
-  color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
   flex-shrink: 0;
 }
 
@@ -155,6 +171,12 @@ a {
   grid-template-columns: 1fr auto;
   align-items: center;
   column-gap: 8px;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.list-item:active {
+  transform: scale(0.98);
+  border-color: var(--text-dim);
 }
 
 .list-item-title {
@@ -298,12 +320,14 @@ select {
   font-size: 15px;
   width: 100%;
   appearance: none;
+  transition: border-color 0.12s ease;
 }
 
 input[type='number']:focus,
 select:focus {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
+  border-color: var(--accent);
 }
 
 input[type='checkbox'] {
@@ -343,20 +367,31 @@ input[type='checkbox'] {
 .btn-secondary {
   background: var(--bg-elev);
   border: 1px solid var(--border);
-  color: var(--accent);
+  color: var(--text);
   border-radius: 10px;
   padding: 10px;
   font-size: 14px;
   font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.12s ease, transform 0.12s ease;
+}
+
+.btn-secondary:active {
+  transform: scale(0.98);
+  border-color: var(--text-dim);
 }
 
 .btn-icon {
   background: transparent;
   border: none;
-  color: var(--danger);
+  color: var(--text-dim);
   font-size: 18px;
   padding: 8px;
   cursor: pointer;
+}
+
+.btn-icon:active {
+  color: var(--text);
 }
 
 .calc-results {
@@ -409,30 +444,38 @@ input[type='checkbox'] {
 }
 
 .note-error {
-  color: var(--danger);
+  color: var(--text);
+  font-weight: 600;
+  border-left: 3px solid var(--text);
+  padding-left: 10px;
+  margin-left: 0;
 }
 
 @media (prefers-color-scheme: light) {
   :root:not([data-theme='dark']) {
-    --bg: #f2f6f8;
-    --bg-elev: #ffffff;
+    --bg: #ffffff;
+    --bg-elev: #f4f4f4;
     --bg-card: #ffffff;
-    --border: #dbe6ec;
-    --text: #10222c;
-    --text-dim: #5c7684;
-    --card-shadow: 0 1px 2px rgba(16, 34, 44, 0.06);
+    --border: #e0e0e0;
+    --text: #0a0a0a;
+    --text-dim: #6b6b6b;
+    --accent: #0a0a0a;
+    --accent-contrast: #ffffff;
+    --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
     color-scheme: light;
   }
 }
 
 :root[data-theme='light'] {
-  --bg: #f2f6f8;
-  --bg-elev: #ffffff;
+  --bg: #ffffff;
+  --bg-elev: #f4f4f4;
   --bg-card: #ffffff;
-  --border: #dbe6ec;
-  --text: #10222c;
-  --text-dim: #5c7684;
-  --card-shadow: 0 1px 2px rgba(16, 34, 44, 0.06);
+  --border: #e0e0e0;
+  --text: #0a0a0a;
+  --text-dim: #6b6b6b;
+  --accent: #0a0a0a;
+  --accent-contrast: #ffffff;
+  --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   color-scheme: light;
 }
 

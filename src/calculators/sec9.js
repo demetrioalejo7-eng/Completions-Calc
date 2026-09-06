@@ -127,7 +127,6 @@ function mountTemperatureConverter(container) {
 export const section9 = {
   id: 'general',
   title: 'Fórmulas y Conversiones',
-  icon: '🧮',
   summary: 'Boyancia, presión hidrostática, hidráulica de tratamiento, tapón balanceado, Darcy y conversión de unidades.',
   formulaNote: 'Boyancia = 1 − 0.015·(lb/gal). Ph (psi) = 0.052·(lb/gal)·altura(ft). °API = 141.5/SG − 131.5.',
   calculators: [

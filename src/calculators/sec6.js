@@ -15,7 +15,6 @@ function sgHelperNote() {
 export const section6 = {
   id: 'acid',
   title: 'Ácido',
-  icon: '⚗️',
   summary: 'Dilución y mezcla de ácido clorhídrico (HCl).',
   formulaNote: 'Vol. fuerte = (Vol dil.)(%dil.)(SG dil.) / [(%fuerte)(SG fuerte)]',
   calculators: [

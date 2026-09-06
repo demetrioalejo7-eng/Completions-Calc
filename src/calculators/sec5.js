@@ -220,7 +220,6 @@ function mountCementCalculator(container) {
 export const section5 = {
   id: 'cement',
   title: 'Cemento',
-  icon: '🧱',
   summary: 'Diseño de lechadas de cemento por el método de volumen absoluto.',
   formulaNote:
     'Densidad = peso total / volumen total. Agua (lb/sk) = [sólidos(lb) − densidad·sólidos(gal)] / [densidad·(AVF agua + %sal·AVF sal) − 1 − %sal]',

@@ -12,11 +12,23 @@ import { section11 } from './sec11.js'
 import { section12 } from './sec12.js'
 import { section13 } from './sec13.js'
 
+// Capacidad, Volumen y Altura, Múltiples Sartas y Dimensiones y Resistencias
+// viven en distintos archivos por comodidad de desarrollo, pero se muestran
+// como una única sección en la app.
+const tubulares = {
+  id: 'tubulares',
+  title: 'Tubulares — Capacidades y Resistencias',
+  summary: 'Capacidad interior, volumen anular, múltiples sartas y resistencias API de tubing, casing, drill pipe y coiled tubing.',
+  calculators: [
+    ...section1.calculators,
+    ...section2.calculators,
+    ...section3.calculators,
+    ...section4.calculators,
+  ],
+}
+
 export const SECTIONS = [
-  section1,
-  section2,
-  section3,
-  section4,
+  tubulares,
   section5,
   section6,
   section7,

@@ -6,7 +6,6 @@ import { flow, lengthFt, lengthIn, pressure, pressureResult, volumeResult, weigh
 export const section11 = {
   id: 'nitrogen',
   title: 'Nitrógeno y CO2',
-  icon: '💨',
   summary: 'Volumen de N2 para testeo/purga de líneas, presión de columna de gas y tasa de CO2 líquido.',
   formulaNote: 'Volumen del sistema (bbl) = 0.0009714·d²·Longitud. SCF de N2 total = VM × volumen (VM desde tabla P/T).',
   calculators: [

@@ -5,17 +5,9 @@
 const SVG_OPEN = 'xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"'
 
 const SECTION_ICONS = {
-  // Capacity — pipe cross-section (tubing inside casing)
-  capacity: `<svg ${SVG_OPEN}><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>`,
-
-  // Volume & Height — a vertical vessel with a height gauge beside it
-  'volume-height': `<svg ${SVG_OPEN}><path d="M7 4h6v16H7z"/><ellipse cx="10" cy="4" rx="3" ry="1.3"/><path d="M17 5v14M17 5l-1.6 1.8M17 5l1.6 1.8M17 19l-1.6-1.8M17 19l1.6-1.8"/></svg>`,
-
-  // Multiple Strings — nested casing strings, offset like a well schematic
-  'multiple-strings': `<svg ${SVG_OPEN}><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="3"/></svg>`,
-
-  // Dimensions & Strengths — pipe segment under axial tension
-  strength: `<svg ${SVG_OPEN}><rect x="6" y="9" width="12" height="6" rx="1"/><path d="M6 12H2M2 12l2.4-2M2 12l2.4 2M18 12h4M22 12l-2.4-2M22 12l-2.4 2"/></svg>`,
+  // Tubulares (Capacidades y Resistencias) — pipe cross-section with a
+  // dimension/caliper mark, combining capacity + strength at a glance.
+  tubulares: `<svg ${SVG_OPEN}><circle cx="10" cy="12" r="8"/><circle cx="10" cy="12" r="3.5"/><path d="M20 6v12" stroke-width="1.2"/><path d="M18.6 6h2.8M18.6 18h2.8" stroke-width="1.2"/></svg>`,
 
   // Cement — casing annulus with cement slurry hatching between strings
   cement: `<svg ${SVG_OPEN}><path d="M5 3v18M19 3v18"/><path d="M9 3v18M15 3v18" stroke-dasharray="0"/><path d="M9 5l6 3M9 9l6 3M9 13l6 3M9 17l6 2.5" stroke-width="1.2"/></svg>`,

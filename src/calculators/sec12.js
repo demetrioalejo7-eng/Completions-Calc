@@ -10,7 +10,6 @@ function ctSizeLabel(row) {
 export const section12 = {
   id: 'coiled-tubing',
   title: 'Coiled Tubing',
-  icon: '🌀',
   summary: 'Dimensiones, desplazamiento, capacidad de carrete, gooseneck y fuerza de snubbing.',
   formulaNote:
     'ID = OD − 2·espesor. Peso = 2.673·(OD²−ID²). Capacidad de carrete = (π/4)·(OD_efectivo²−Core²)·Ancho / (OD_CT²·12). Gooseneck: R=(C²+4h²)/(8h). Snubbing: F=WHTP·π/4·OD².',

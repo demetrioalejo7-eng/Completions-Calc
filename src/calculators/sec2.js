@@ -27,7 +27,6 @@ function annulusResults(outerD, innerD, lengthFt) {
 export const section2 = {
   id: 'volume-height',
   title: 'Volumen y Altura',
-  icon: '⭕',
   summary: 'Volumen del espacio anular entre tubería y pozo, o entre dos tuberías.',
   formulaNote: 'Bbl/ft = 0.0009714·(D²-d²)  |  D = diámetro exterior del anular, d = diámetro interior',
   calculators: [

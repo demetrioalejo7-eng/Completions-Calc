@@ -17,7 +17,6 @@ const CUFT_PER_BBL = 5.6146
 export const section8 = {
   id: 'tanks',
   title: 'Tanques y Pits',
-  icon: '🛢',
   summary: 'Capacidad de tanques verticales, horizontales, esféricos, rectangulares y llenado parcial.',
   formulaNote: 'Vertical: CG = 23.501·R²·H. Horizontal (cabezas planas): CG = 5.875·D²·L. Esférico: CG = 3.9168·D³ (D, L, H en pies).',
   calculators: [

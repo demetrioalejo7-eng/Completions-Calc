@@ -7,7 +7,6 @@ import { densityResult, lengthIn, weightPerLengthResult } from '../ui/fieldHelpe
 export const section7 = {
   id: 'proppant',
   title: 'Proppant / Arena',
-  icon: '🏖️',
   summary: 'Propiedades de slurry de fractura y cálculo de fill-up de arena.',
   formulaNote:
     'Slurry/fluido (gal/gal) = 1 + C/ρp, con C = concentración (lb prop/gal fluido) y ρp = densidad verdadera del proppant (lb/gal). #arena/ft = densidad aparente (lb/gal) × gal/ft.',

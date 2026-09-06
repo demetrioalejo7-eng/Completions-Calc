@@ -5,7 +5,6 @@ import { lengthFt, lengthIn } from '../ui/fieldHelpers.js'
 export const section3 = {
   id: 'multiple-strings',
   title: 'Múltiples Sartas',
-  icon: '🧬',
   summary: 'Volumen anular con varias sartas de tubing iguales dentro de un pozo o casing.',
   formulaNote: 'Bbl/ft = 0.0009714·(D² - n·d²)  |  D = ID pozo/casing, d = OD de cada sarta, n = cantidad de sartas',
   calculators: [
