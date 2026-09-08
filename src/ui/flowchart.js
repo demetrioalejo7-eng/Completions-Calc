@@ -19,12 +19,22 @@ function typeBadge(type) {
 }
 
 function diagramImageSrc(contingency) {
+  // In the single-file Claude Artifact build there is no separate asset host,
+  // so the assembly script embeds the images as data URIs on this global map.
+  const embedded = typeof window !== 'undefined' && window.__DIAGRAM_IMAGES__
+  if (embedded && embedded[contingency.order]) return embedded[contingency.order]
   return `${import.meta.env.BASE_URL}contingencias/diagrama-${contingency.order}.jpg`
 }
 
 function openDiagramLightbox(contingency) {
   const overlay = el('div', { class: 'cw-lightbox', role: 'dialog', 'aria-modal': 'true' })
-  const close = () => overlay.remove()
+  const close = () => {
+    overlay.remove()
+    window.removeEventListener('hashchange', close)
+  }
+  // Navigating away (e.g. browser back) while the overlay is open would
+  // otherwise leave it stuck on top of whatever renders next.
+  window.addEventListener('hashchange', close)
   const img = el('img', {
     class: 'cw-lightbox-img',
     src: diagramImageSrc(contingency),
