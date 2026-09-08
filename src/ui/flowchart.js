@@ -18,6 +18,32 @@ function typeBadge(type) {
   return labels[type] || ''
 }
 
+function diagramImageSrc(contingency) {
+  return `${import.meta.env.BASE_URL}contingencias/diagrama-${contingency.order}.jpg`
+}
+
+function openDiagramLightbox(contingency) {
+  const overlay = el('div', { class: 'cw-lightbox', role: 'dialog', 'aria-modal': 'true' })
+  const close = () => overlay.remove()
+  const img = el('img', {
+    class: 'cw-lightbox-img',
+    src: diagramImageSrc(contingency),
+    alt: `Diagrama completo: ${contingency.title}`,
+  })
+  img.addEventListener('error', () => {
+    img.replaceWith(el('p', { class: 'cw-lightbox-error' }, 'No se pudo cargar la imagen del diagrama.'))
+  })
+  overlay.appendChild(
+    el('button', { class: 'cw-lightbox-close', type: 'button', 'aria-label': 'Cerrar', onClick: close }, '✕')
+  )
+  const scroller = el('div', { class: 'cw-lightbox-scroller' }, img)
+  scroller.addEventListener('click', (e) => {
+    if (e.target === scroller || e.target === overlay) close()
+  })
+  overlay.appendChild(scroller)
+  document.body.appendChild(overlay)
+}
+
 export function mountContingencyWizard(container, contingency) {
   clear(container)
   const state = { path: [contingency.start] }
@@ -58,6 +84,14 @@ export function mountContingencyWizard(container, contingency) {
       el('button', { class: 'cw-nav-btn', type: 'button', onClick: restart }, 'Reiniciar'),
     ])
     wrap.appendChild(topBar)
+
+    wrap.appendChild(
+      el(
+        'button',
+        { class: 'cw-view-diagram-btn', type: 'button', onClick: () => openDiagramLightbox(contingency) },
+        'Ver diagrama completo'
+      )
+    )
 
     const toneClass = node.type === 'end' ? ` cw-tone-${node.tone || 'ok'}` : ''
     const card = el('div', { class: `cw-card cw-card--${node.type}${toneClass}` }, [
@@ -130,13 +164,14 @@ export function mountContingencyWizard(container, contingency) {
       refBody.appendChild(el('p', { class: 'cw-ref-title' }, 'Notas'))
       refBody.appendChild(el('ul', { class: 'cw-ref-list' }, contingency.notes.map((t) => el('li', {}, t))))
     }
-    refBody.appendChild(el('p', { class: 'cw-ref-title' }, 'Diagrama original'))
+    refBody.appendChild(el('p', { class: 'cw-ref-title' }, 'Diagrama original (tocá para ampliar)'))
     const img = el('img', {
       class: 'cw-ref-img',
       loading: 'lazy',
-      src: `${import.meta.env.BASE_URL}contingencias/diagrama-${contingency.order}.jpg`,
+      src: diagramImageSrc(contingency),
       alt: `Diagrama original: ${contingency.title}`,
     })
+    img.addEventListener('click', () => openDiagramLightbox(contingency))
     img.addEventListener('error', () => {
       img.replaceWith(el('p', { class: 'note' }, 'No se pudo cargar la imagen del diagrama original.'))
     })

@@ -9,6 +9,7 @@
   --accent-contrast: #0a0a0a;
   --radius: 14px;
   --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  --lightbox-bg: #0a0a0a;
   color-scheme: dark;
 }
 
@@ -462,6 +463,7 @@ input[type='checkbox'] {
     --accent: #0a0a0a;
     --accent-contrast: #ffffff;
     --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    --lightbox-bg: #ffffff;
     color-scheme: light;
   }
 }
@@ -476,6 +478,7 @@ input[type='checkbox'] {
   --accent: #0a0a0a;
   --accent-contrast: #ffffff;
   --card-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --lightbox-bg: #ffffff;
   color-scheme: light;
 }
 
@@ -651,4 +654,60 @@ input[type='checkbox'] {
   width: 100%;
   border-radius: 10px;
   border: 1px solid var(--border);
+  cursor: zoom-in;
+}
+
+.cw-view-diagram-btn {
+  background: var(--bg-elev);
+  border: 1px dashed var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cw-lightbox {
+  position: fixed;
+  inset: 0;
+  background: var(--lightbox-bg);
+  z-index: 100;
+  display: flex;
+}
+
+.cw-lightbox-scroller {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 48px 12px 24px;
+}
+
+.cw-lightbox-img {
+  max-width: none;
+  width: 100%;
+  min-width: 900px;
+  border-radius: 4px;
+}
+
+.cw-lightbox-error {
+  color: var(--text);
+  margin-top: 60px;
+}
+
+.cw-lightbox-close {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text);
+  font-size: 18px;
+  cursor: pointer;
+  z-index: 101;
 }
