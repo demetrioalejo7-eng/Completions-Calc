@@ -1,7 +1,10 @@
 import { solveProppantSlurry, perforationFriction, hydraulicHorsepower, PROPPANT_MESH_PRESETS, GAL_PER_LB_WATER } from '../calc/fracturing.js'
-import { stokesSettlingVelocityFtPerMin } from '../calc/generalCalc.js'
-import { PROPPANT_TRUE_DENSITY } from '../data/proppant.js'
-import { density, flow, lengthIn, lengthInResult, pressure, pressureResult, volume, weightResult } from '../ui/fieldHelpers.js'
+import { settlingVelocity } from '../calc/generalCalc.js'
+import { slurryProperties, sandFillUp } from '../calc/proppantCalc.js'
+import { annulusFactors, capacityFactors } from '../calc/geometry.js'
+import { PROPPANT_TRUE_DENSITY, SAND_BULK_DENSITY_PPG } from '../data/proppant.js'
+import { ALL_PIPES } from '../data/pipes.js'
+import { density, densityResult, flow, lengthIn, lengthInResult, pressure, pressureResult, volume, weightResult, weightPerLengthResult } from '../ui/fieldHelpers.js'
 
 const SOLVE_FIELD_IDS = {
   ratio: ['aVal', 'bVal'],
@@ -25,10 +28,11 @@ function proppantFieldSpec(id, isRate) {
 
 export const section13 = {
   id: 'fracturing',
-  title: 'Fracturing',
-  summary: 'Relación slurry/proppant, fricción de perforaciones, potencia hidráulica y velocidad de asentamiento.',
+  title: 'Fractura',
+  summary:
+    'Relación slurry/proppant, propiedades de slurry, fill-up de arena, fricción de perforaciones, potencia hidráulica y velocidad de asentamiento.',
   formulaNote:
-    'Proppant Ratio (psa) = Proppant Total(lb) / (Vol. limpio(bbl)·42). Fricción de perforación: ΔP=0.2369·Q²·ρ/(N²·D⁴·Cd²). HHP = STP·BPM/40.8.',
+    'Proppant Ratio (psa) = Proppant Total(lb) / (Vol. limpio(bbl)·42). Fricción de perforación: ΔP=0.2369·Q²·ρ/(N²·D⁴·Cd²). HHP = STP·BPM/40.8. Slurry/fluido (gal/gal) = 1 + C/ρp, con C = concentración (lb prop/gal fluido) y ρp = densidad verdadera del proppant (lb/gal). #arena/ft = densidad aparente (lb/gal) × gal/ft. Velocidad de asentamiento: según Re, ley de Stokes (Re<1), intermedia/Allen (1<Re<1000) o Newton (Re>1000).',
   calculators: [
     {
       id: 'proppant-ratio',
@@ -107,7 +111,8 @@ export const section13 = {
     {
       id: 'ball-sealer-velocity',
       title: 'Velocidad de Bolas Selladoras (Ball Sealers)',
-      description: 'Velocidad terminal (Ley de Stokes). Positiva = sube, negativa = cae, según densidades relativas.',
+      description:
+        'Velocidad terminal, con la ley de arrastre correcta según el régimen (laminar/intermedio/turbulento). Positiva = cae, negativa = sube/flota, según densidades relativas.',
       inputs: [
         lengthIn('diameter', 'Diámetro de la bola', { step: 0.01, default: 0.875 }),
         { type: 'number', id: 'ballSg', label: 'Gravedad específica de la bola', step: 0.01, default: 1.2 },
@@ -118,10 +123,13 @@ export const section13 = {
         if (!v.diameter || !v.ballSg || !v.fluidSg || !v.viscosity) throw new Error('Completá todos los campos.')
         const ballPpg = v.ballSg * GAL_PER_LB_WATER
         const fluidPpg = v.fluidSg * GAL_PER_LB_WATER
-        const vel = stokesSettlingVelocityFtPerMin(v.diameter, ballPpg, fluidPpg, v.viscosity)
+        const out = settlingVelocity(v.diameter, ballPpg, fluidPpg, v.viscosity)
         return {
-          results: [{ label: 'Velocidad', value: vel, category: 'Velocidad', canonicalUnit: 'Pies/min (ft/min)', unit: 'ft/min', digits: 2 }],
-          notes: [vel >= 0 ? 'La bola cae (más densa que el fluido).' : 'La bola sube / flota (menos densa que el fluido).'],
+          results: [{ label: 'Velocidad', value: out.velocityFtPerMin, category: 'Velocidad', canonicalUnit: 'Pies/min (ft/min)', unit: 'ft/min', digits: 2 }],
+          notes: [
+            out.velocityFtPerMin >= 0 ? 'La bola cae (más densa que el fluido).' : 'La bola sube / flota (menos densa que el fluido).',
+            `Régimen de arrastre: ${out.regime} (Re ≈ ${out.reynolds.toFixed(1)}).`,
+          ],
         }
       },
     },
@@ -157,7 +165,8 @@ export const section13 = {
     {
       id: 'proppant-settling',
       title: 'Velocidad de Asentamiento de Proppant',
-      description: 'Velocidad terminal de caída del proppant en el fluido (Ley de Stokes).',
+      description:
+        'Velocidad terminal de caída del proppant en el fluido, con la ley de arrastre correcta según el régimen (laminar/intermedio/turbulento) en vez de asumir siempre Stokes.',
       inputs: [
         {
           type: 'select',
@@ -182,11 +191,69 @@ export const section13 = {
         const proppant = PROPPANT_TRUE_DENSITY.find((p) => p.id === v.sgPreset) || PROPPANT_TRUE_DENSITY[0]
         const proppantPpg = proppant.sg * GAL_PER_LB_WATER
         const fluidPpg = v.fluidSg * GAL_PER_LB_WATER
-        const vel = stokesSettlingVelocityFtPerMin(mesh.diameterIn, proppantPpg, fluidPpg, v.viscosity)
+        const out = settlingVelocity(mesh.diameterIn, proppantPpg, fluidPpg, v.viscosity)
         return {
           results: [
             lengthInResult('Diámetro usado', mesh.diameterIn, { digits: 4 }),
-            { label: 'Velocidad de asentamiento', value: Math.abs(vel), category: 'Velocidad', canonicalUnit: 'Pies/min (ft/min)', unit: 'ft/min', digits: 3 },
+            { label: 'Velocidad de asentamiento', value: Math.abs(out.velocityFtPerMin), category: 'Velocidad', canonicalUnit: 'Pies/min (ft/min)', unit: 'ft/min', digits: 3 },
+          ],
+          notes: [`Régimen de arrastre: ${out.regime} (Re ≈ ${out.reynolds.toFixed(1)}).`],
+        }
+      },
+    },
+    {
+      id: 'slurry-properties',
+      title: 'Propiedades del Slurry (Fluido + Proppant)',
+      description: 'A partir de la concentración de proppant (PPA) y su densidad verdadera.',
+      inputs: [
+        { type: 'number', id: 'conc', label: 'Concentración (PPA)', unit: 'lb prop/gal fluido', step: 0.1, default: 2.0 },
+        {
+          type: 'select',
+          id: 'densityPreset',
+          label: 'Proppant',
+          options: PROPPANT_TRUE_DENSITY.map((p) => ({ value: p.id, label: `${p.label} — ${p.ppg} lb/gal` })),
+          default: 'sand',
+        },
+      ],
+      compute(v) {
+        const preset = PROPPANT_TRUE_DENSITY.find((p) => p.id === v.densityPreset)
+        const out = slurryProperties(Number(v.conc), preset.ppg)
+        return {
+          results: [
+            { label: 'Gal slurry / gal fluido limpio', value: out.slurryGalPerFluidGal, unit: '', digits: 4 },
+            { label: 'Fracción de fluido', value: out.fluidFraction * 100, unit: '%', digits: 2 },
+            { label: 'Fracción de proppant', value: out.proppantFraction * 100, unit: '%', digits: 2 },
+            densityResult('Proppant por galón de slurry', out.proppantLbPerGalSlurry, { digits: 3 }),
+            { label: 'Proppant por barril de slurry', value: out.proppantLbPerBblSlurry, unit: 'lb/bbl', digits: 1 },
+          ],
+        }
+      },
+    },
+    {
+      id: 'sand-fillup-hole',
+      title: 'Fill-Up de Arena en Pozo (Hole)',
+      description: 'Cantidad de arena (20-40 mesh) para llenar un tramo de pozo vacío o el anular pozo-tubería.',
+      diagram: { kind: 'annulusCrossSection', labels: { outer: 'D', inner: 'd (0 = pozo vacío)' } },
+      inputs: [
+        lengthIn('holeD', 'Diámetro de pozo', { step: 0.001, default: 8.5 }),
+        {
+          type: 'pipePreset',
+          id: 'pipe',
+          label: 'Tubería dentro del pozo (opcional, 0 = pozo vacío)',
+          dataset: ALL_PIPES,
+          odField: 'pipeOd',
+          idField: 'pipeId',
+        },
+        { type: 'number', id: 'bulkDensity', label: 'Densidad aparente de la arena', unit: 'lb/gal', step: 0.1, default: SAND_BULK_DENSITY_PPG },
+      ],
+      compute(v) {
+        if (!v.holeD) throw new Error('Ingresá el diámetro de pozo.')
+        const f = v.pipeOd && v.pipeOd > 0 ? annulusFactors(v.holeD, v.pipeOd) : capacityFactors(v.holeD)
+        const out = sandFillUp(f.galPerFt, v.bulkDensity || SAND_BULK_DENSITY_PPG)
+        return {
+          results: [
+            weightPerLengthResult('# Arena / pie lineal', out.lbPerLinFt, { digits: 3 }),
+            { label: 'Pie lineal / # arena', value: out.linFtPerLb, unit: 'ft/lb', digits: 4 },
           ],
         }
       },

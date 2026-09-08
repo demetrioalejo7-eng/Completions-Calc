@@ -60,7 +60,7 @@ export const CASING_STRENGTH = [
   { odLabel: '6', od: 6.0, grade: 'F-25', wt: 15.0, id: 5.524, drift: 5.399, couplingOd: 6.625, collapse: 1540, internalYield: 1740, jointShort: 108000, jointLong: null },
   { odLabel: '6', od: 6.0, grade: 'H-40', wt: 18.0, id: 5.424, drift: 5.299, couplingOd: 6.625, collapse: 2780, internalYield: 3360, jointShort: 179000, jointLong: null },
   { odLabel: '6', od: 6.0, grade: 'J-55', wt: 18.0, id: 5.424, drift: 5.299, couplingOd: 6.625, collapse: 3620, internalYield: 4620, jointShort: 239000, jointLong: 279000 },
-  { odLabel: '6', od: 6.0, grade: 'N-80', wt: 18.0, id: 5.524, drift: 5.299, couplingOd: 6.625, collapse: 4740, internalYield: 6720, jointShort: null, jointLong: 323000 },
+  { odLabel: '6', od: 6.0, grade: 'N-80', wt: 18.0, id: 5.424, drift: 5.299, couplingOd: 6.625, collapse: 4740, internalYield: 6720, jointShort: null, jointLong: 323000 },
   { odLabel: '6', od: 6.0, grade: 'N-80', wt: 20.0, id: 5.352, drift: 5.227, couplingOd: 6.625, collapse: 5690, internalYield: 7560, jointShort: null, jointLong: 366000 },
   { odLabel: '6', od: 6.0, grade: 'N-80', wt: 23.0, id: 5.24, drift: 5.115, couplingOd: 6.625, collapse: 7180, internalYield: 8870, jointShort: null, jointLong: 432000 },
   { odLabel: '6', od: 6.0, grade: 'P-110', wt: 23.0, id: 5.24, drift: 5.115, couplingOd: 6.625, collapse: 10380, internalYield: 12190, jointShort: null, jointLong: 565000 },

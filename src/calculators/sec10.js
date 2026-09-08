@@ -19,12 +19,12 @@ const saltSets = {
   kcl: { table: KCL_TABLE, pctKey: 'pct', label: 'Cloruro de Potasio (KCl)' },
 }
 
-export const section10 = {
-  id: 'misc',
-  title: 'Misceláneos',
-  summary: 'Salida de bombas, salmueras, estiramiento de tubería, presión en packers y tapones de barita.',
-  formulaNote: 'Bbl/ciclo (duplex, doble efecto) = π·L·(2D² − d²) / 19404 (D=camisa, d=vástago, L=carrera, todo en pulgadas).',
-  calculators: [
+// Calculadoras de "Misceláneos", fusionadas dentro de la sección "Cálculos
+// Generales" junto con las de sec9.js (ver src/calculators/index.js).
+export const miscFormulaNote =
+  'Bbl/ciclo (duplex, doble efecto) = π·L·(2D² − d²) / 19404 (D=camisa, d=vástago, L=carrera, todo en pulgadas).'
+
+export const miscCalculators = [
     {
       id: 'pump-output',
       title: 'Salida de Bomba (Duplex / Triplex)',
@@ -251,5 +251,4 @@ export const section10 = {
         }
       },
     },
-  ],
-}
+]

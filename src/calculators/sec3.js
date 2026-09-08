@@ -1,6 +1,6 @@
 import { multipleStringsFactors, mixedAnnulusFactors, totalsFromFactors } from '../calc/geometry.js'
 import { ALL_PIPES } from '../data/pipes.js'
-import { lengthFt, lengthIn } from '../ui/fieldHelpers.js'
+import { lengthFt } from '../ui/fieldHelpers.js'
 
 export const section3 = {
   id: 'multiple-strings',
@@ -12,10 +12,20 @@ export const section3 = {
       id: 'multi-string',
       title: 'Volumen entre Sartas de Tubing y Pozo/Casing',
       description:
-        'Para pozo: ingresá el diámetro directamente. Para casing: usá el ID como diámetro exterior.',
+        'Para pozo: elegí "Tamaño personalizado…" e ingresá el diámetro directamente. Para casing: elegí el tamaño y se usa su ID como diámetro exterior.',
       diagram: { kind: 'multiStringCrossSection', labels: { outer: 'D', inner: 'd' } },
       inputs: [
-        lengthIn('outerD', 'Diámetro exterior (pozo o ID de casing)', { step: 0.001, default: 8.5 }),
+        {
+          type: 'pipePreset',
+          id: 'outer',
+          label: 'Pozo o casing exterior (D = ID; para pozo abierto elegí "Tamaño personalizado…")',
+          dataset: ALL_PIPES,
+          odField: 'outerCasingOd',
+          idField: 'outerD',
+          idDefault: 8.5,
+          odLabel: 'OD (referencia)',
+          idLabel: 'D — diámetro exterior del anular',
+        },
         {
           type: 'pipePreset',
           id: 'string',
@@ -55,11 +65,53 @@ export const section3 = {
       description: 'Hasta 4 tuberías de OD distinto dentro del mismo pozo/casing (dejá en 0 las que no uses).',
       diagram: { kind: 'multiStringCrossSection', labels: { outer: 'D', inner: 'od1-4' } },
       inputs: [
-        lengthIn('outerD', 'Diámetro exterior (pozo o ID de casing)', { step: 0.001, default: 8.5 }),
-        lengthIn('od1', 'Tubería interior 1 — OD', { step: 0.001, default: 2.375 }),
-        lengthIn('od2', 'Tubería interior 2 — OD', { step: 0.001, default: 1.0 }),
-        lengthIn('od3', 'Tubería interior 3 — OD', { step: 0.001, default: 0 }),
-        lengthIn('od4', 'Tubería interior 4 — OD', { step: 0.001, default: 0 }),
+        {
+          type: 'pipePreset',
+          id: 'outer',
+          label: 'Pozo o casing exterior (D = ID; para pozo abierto elegí "Tamaño personalizado…")',
+          dataset: ALL_PIPES,
+          odField: 'outerCasingOd',
+          idField: 'outerD',
+          idDefault: 8.5,
+          odLabel: 'OD (referencia)',
+          idLabel: 'D — diámetro exterior del anular',
+        },
+        {
+          type: 'pipePreset',
+          id: 'string1',
+          label: 'Tubería interior 1 (d = OD)',
+          dataset: ALL_PIPES,
+          odField: 'od1',
+          idField: 'od1Id',
+          odDefault: 2.375,
+        },
+        {
+          type: 'pipePreset',
+          id: 'string2',
+          label: 'Tubería interior 2 (d = OD)',
+          dataset: ALL_PIPES,
+          odField: 'od2',
+          idField: 'od2Id',
+          odDefault: 1.0,
+        },
+        {
+          type: 'pipePreset',
+          id: 'string3',
+          label: 'Tubería interior 3 (d = OD, 0 = sin usar)',
+          dataset: ALL_PIPES,
+          odField: 'od3',
+          idField: 'od3Id',
+          odDefault: 0,
+        },
+        {
+          type: 'pipePreset',
+          id: 'string4',
+          label: 'Tubería interior 4 (d = OD, 0 = sin usar)',
+          dataset: ALL_PIPES,
+          odField: 'od4',
+          idField: 'od4Id',
+          odDefault: 0,
+        },
         lengthFt('length', 'Longitud', { step: 1, default: 1000 }),
       ],
       compute(v) {

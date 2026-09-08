@@ -30,3 +30,19 @@ export function goosenecRadius(arcWidth, arcHeight) {
 export function snubbingForce(whtpPsi, odIn) {
   return whtpPsi * (Math.PI / 4) * odIn * odIn
 }
+
+// Standard coiled tubing OD sizes, deduplicated across wall thicknesses —
+// used where only the OD matters (snubbing force, reel length) as opposed
+// to CT_DIMENSIONS (src/data/ctStrength.js) which also carries a row per
+// wall thickness.
+export const CT_OD_SIZES = [
+  { od: 1, label: '1' },
+  { od: 1.25, label: '1 1/4' },
+  { od: 1.5, label: '1 1/2' },
+  { od: 1.75, label: '1 3/4' },
+  { od: 2, label: '2' },
+  { od: 2.375, label: '2 3/8' },
+  { od: 2.625, label: '2 5/8' },
+  { od: 2.875, label: '2 7/8' },
+  { od: 3.5, label: '3 1/2' },
+]

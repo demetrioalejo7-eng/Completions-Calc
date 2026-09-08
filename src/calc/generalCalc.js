@@ -84,15 +84,54 @@ export function pipeDisplacementBbl(wtPerFtWithCplgs, depthFt) {
   return 0.000367 * wtPerFtWithCplgs * depthFt
 }
 
-// Terminal (settling) velocity via Stokes' law — used for proppant/ball
-// sealer settling & rising velocity estimates. d in inches, densities in
-// lb/gal, viscosity in cp. Returns ft/min.
-export function stokesSettlingVelocityFtPerMin(dIn, particlePpg, fluidPpg, viscosityCp) {
+// Terminal (settling/rising) velocity of a sphere in a fluid — used for
+// proppant settling and ball-sealer velocity estimates. d in inches,
+// densities in lb/gal, viscosity in cp.
+//
+// Pure Stokes' law (v = g·d²·Δρ/18μ) is only valid while the particle
+// Reynolds number stays below ~1 (fine grains settling in a viscous
+// fluid). Typical proppant (20/40 to 100 mesh, ~0.006-0.03 in) settling
+// in low-viscosity fracturing fluids (slickwater/water, 1-5 cP) — and
+// ball sealers, which are much larger still — routinely land at
+// Re ≈ 10² to 10⁴, well into the "intermediate" or fully turbulent
+// ("Newton's law") drag regime, where plain Stokes' law overstates the
+// velocity several-fold. This picks the correct classical drag
+// correlation (McCabe & Smith "Unit Operations of Chemical Engineering")
+// based on the Reynolds number the answer actually produces:
+//   Re < 1        Stokes' law:       v = g·d²·Δρ / (18·μ)
+//   1 < Re < 1000  Intermediate law:  v = 0.153·g^0.71·d^1.14·Δρ^0.71 / (ρf^0.29·μ^0.43)
+//   Re > 1000      Newton's law:      v = 1.74·√(g·d·Δρ/ρf)
+// Returns { velocityFtPerMin, regime, reynolds } — velocityFtPerMin is
+// signed: positive = the particle sinks, negative = it rises (it's less
+// dense than the fluid).
+export function settlingVelocity(dIn, particlePpg, fluidPpg, viscosityCp) {
   const dFt = dIn / 12
   const rhoParticle = particlePpg * 7.4805 // lb/ft3
   const rhoFluid = fluidPpg * 7.4805
   const muLbFtSec = viscosityCp * 0.000672
   const g = 32.17 // ft/s2
-  const vFtSec = (g * dFt * dFt * (rhoParticle - rhoFluid)) / (18 * muLbFtSec)
-  return vFtSec * 60
+  const sign = rhoParticle >= rhoFluid ? 1 : -1
+  const deltaRho = Math.abs(rhoParticle - rhoFluid)
+
+  const reynolds = (vFtSec) => (rhoFluid * vFtSec * dFt) / muLbFtSec
+  const toFtPerMin = (vFtSec) => sign * vFtSec * 60
+
+  if (deltaRho === 0) return { velocityFtPerMin: 0, regime: 'Stokes (laminar)', reynolds: 0 }
+
+  const vStokes = (g * dFt * dFt * deltaRho) / (18 * muLbFtSec)
+  const reStokes = reynolds(vStokes)
+  if (reStokes <= 1) {
+    return { velocityFtPerMin: toFtPerMin(vStokes), regime: 'Stokes (laminar)', reynolds: reStokes }
+  }
+
+  const vIntermediate =
+    (0.153 * Math.pow(g, 0.71) * Math.pow(dFt, 1.14) * Math.pow(deltaRho, 0.71)) /
+    (Math.pow(rhoFluid, 0.29) * Math.pow(muLbFtSec, 0.43))
+  const reIntermediate = reynolds(vIntermediate)
+  if (reIntermediate <= 1000) {
+    return { velocityFtPerMin: toFtPerMin(vIntermediate), regime: 'Intermedia (Allen)', reynolds: reIntermediate }
+  }
+
+  const vNewton = 1.74 * Math.sqrt((g * dFt * deltaRho) / rhoFluid)
+  return { velocityFtPerMin: toFtPerMin(vNewton), regime: 'Newton (turbulenta)', reynolds: reynolds(vNewton) }
 }

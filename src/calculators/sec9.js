@@ -17,6 +17,7 @@ import { ALL_PIPES } from '../data/pipes.js'
 import { UNIT_CATEGORIES, convertTemperature, VISCOSITY_TABLE } from '../data/units.js'
 import { el, fmt, clear } from '../ui/dom.js'
 import { density, lengthFt, lengthFtResult, lengthIn, pressure, pressureResult, volumeResult, weight, weightPerLength, weightResult } from '../ui/fieldHelpers.js'
+import { miscCalculators, miscFormulaNote } from './sec10.js'
 
 const categoryNames = Object.keys(UNIT_CATEGORIES)
 
@@ -126,13 +127,14 @@ function mountTemperatureConverter(container) {
 
 export const section9 = {
   id: 'general',
-  title: 'Fórmulas y Conversiones',
-  summary: 'Boyancia, presión hidrostática, hidráulica de tratamiento, tapón balanceado, Darcy y conversión de unidades.',
-  formulaNote: 'Boyancia = 1 − 0.015·(lb/gal). Ph (psi) = 0.052·(lb/gal)·altura(ft). °API = 141.5/SG − 131.5.',
+  title: 'Cálculos Generales',
+  summary:
+    'Flotabilidad, presión hidrostática, hidráulica de tratamiento, tapón balanceado, Darcy, conversión de unidades, salida de bombas, salmueras, estiramiento de tubería, presión en packers y tapones de barita.',
+  formulaNote: `Flotabilidad = 1 − 0.015·(lb/gal). Ph (psi) = 0.052·(lb/gal)·altura(ft). °API = 141.5/SG − 131.5. ${miscFormulaNote}`,
   calculators: [
     {
       id: 'buoyancy',
-      title: 'Factor de Boyancia y Peso Aparente',
+      title: 'Factor de Flotabilidad y Peso Aparente',
       inputs: [
         density('mudWeight', 'Peso del fluido', { step: 0.01, default: 10 }),
         weight('airWeight', 'Peso al aire (opcional)', { step: 1 }),
@@ -140,7 +142,7 @@ export const section9 = {
       compute(v) {
         if (!v.mudWeight) throw new Error('Ingresá el peso del fluido.')
         const bf = buoyancyFactor(v.mudWeight)
-        const results = [{ label: 'Factor de boyancia', value: bf, unit: '', digits: 4 }]
+        const results = [{ label: 'Factor de flotabilidad', value: bf, unit: '', digits: 4 }]
         if (v.airWeight) {
           results.push(weightResult('Peso aparente en fluido', apparentWeightInFluid(v.airWeight, v.mudWeight), { digits: 1 }))
         }
@@ -324,5 +326,6 @@ export const section9 = {
         }
       },
     },
+    ...miscCalculators,
   ],
 }

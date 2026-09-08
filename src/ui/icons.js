@@ -15,17 +15,11 @@ const SECTION_ICONS = {
   // Acid — lab flask used for acid-treatment concentration/volume jobs
   acid: `<svg ${SVG_OPEN}><path d="M10 3h4M10.5 3v5l-4.3 8.6A2 2 0 0 0 8 19.5h8a2 2 0 0 0 1.8-2.9L13.5 8V3"/><path d="M8.4 15h7.2"/></svg>`,
 
-  // Proppant — sand grains packed inside a hydraulic fracture (not a beach)
-  proppant: `<svg ${SVG_OPEN}><path d="M3 12c3-4 6 4 9 0s6 4 9 0"/><circle cx="7" cy="15.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="11" cy="17" r="0.9" fill="currentColor" stroke="none"/><circle cx="15" cy="15.5" r="0.9" fill="currentColor" stroke="none"/><circle cx="9" cy="19" r="0.9" fill="currentColor" stroke="none"/><circle cx="13" cy="19.2" r="0.9" fill="currentColor" stroke="none"/></svg>`,
-
   // Tanks — vertical storage tank on grade with a gauge line
   tanks: `<svg ${SVG_OPEN}><path d="M5 8h14v12H5z"/><path d="M5 8c0-2.2 3.1-4 7-4s7 1.8 7 4"/><path d="M5 12h14M2 20h20"/></svg>`,
 
   // Formulas & Conversions — pressure gauge / instrument dial
   general: `<svg ${SVG_OPEN}><circle cx="12" cy="12" r="9"/><path d="M12 12l4-3.2"/><circle cx="12" cy="12" r="1.1" fill="currentColor" stroke="none"/><path d="M8 6.5l.6 1.1M16 6.5l-.6 1.1M5 12h1.3M17.7 12H19"/></svg>`,
-
-  // Misc — wrench, standard field-toolbox symbol
-  misc: `<svg ${SVG_OPEN}><path d="M14.7 6.3a4 4 0 0 0-5.4 4.9L4 16.5V20h3.5l5.3-5.3a4 4 0 0 0 4.9-5.4l-2.6 2.6-2-2z"/></svg>`,
 
   // Nitrogen — pressurized gas cylinder with valve
   nitrogen: `<svg ${SVG_OPEN}><rect x="8" y="7" width="8" height="14" rx="2"/><path d="M10 7V4.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V7"/><path d="M9.5 2.5h5"/><path d="M8 12h8"/></svg>`,

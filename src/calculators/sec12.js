@@ -1,10 +1,14 @@
-import { ctDimensions, reelCapacityFt, goosenecRadius, snubbingForce } from '../calc/coiledTubing.js'
+import { ctDimensions, reelCapacityFt, goosenecRadius, snubbingForce, CT_OD_SIZES } from '../calc/coiledTubing.js'
 import { externalDisplacementFactors, capacityFactors, totalsFromFactors } from '../calc/geometry.js'
 import { CT_GRADES, CT_DIMENSIONS, ctRowForGrade, CT_MANUFACTURERS } from '../data/ctStrength.js'
 import { lengthFtResult, lengthIn, lengthInResult, pressure, pressureResult, weight, weightPerLengthResult, weightResult } from '../ui/fieldHelpers.js'
 
 function ctSizeLabel(row) {
   return `${row.od}" OD x ${row.wall}" pared (ID ${row.id}", ${row.weight} lb/ft)`
+}
+
+function ctOdLabel(row) {
+  return `${row.label}" OD`
 }
 
 export const section12 = {
@@ -94,8 +98,8 @@ export const section12 = {
           type: 'sizePreset',
           id: 'ctSize',
           label: 'OD estándar de coiled tubing',
-          dataset: CT_DIMENSIONS,
-          labelFn: ctSizeLabel,
+          dataset: CT_OD_SIZES,
+          labelFn: ctOdLabel,
           fields: [{ target: 'ctOD', source: 'od' }],
         },
         lengthIn('ctOD', 'OD del coiled tubing', { step: 0.001, default: 1 }),
@@ -165,6 +169,14 @@ export const section12 = {
       diagram: { kind: 'pipeCrossSection', labels: { od: 'OD', id: null } },
       inputs: [
         pressure('whtp', 'Presión en cabeza de pozo (WHTP)', { step: 10, default: 8000 }),
+        {
+          type: 'sizePreset',
+          id: 'ctSize',
+          label: 'OD estándar de coiled tubing',
+          dataset: CT_OD_SIZES,
+          labelFn: ctOdLabel,
+          fields: [{ target: 'od', source: 'od' }],
+        },
         lengthIn('od', 'OD del coiled tubing', { step: 0.001, default: 2.375 }),
       ],
       compute(v) {
