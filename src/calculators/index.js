@@ -11,6 +11,7 @@ import { section10 } from './sec10.js'
 import { section11 } from './sec11.js'
 import { section12 } from './sec12.js'
 import { section13 } from './sec13.js'
+import { section14 } from './sec14.js'
 
 // Capacidad, Volumen y Altura, Múltiples Sartas y Dimensiones y Resistencias
 // viven en distintos archivos por comodidad de desarrollo, pero se muestran
@@ -38,6 +39,7 @@ export const SECTIONS = [
   section11,
   section12,
   section13,
+  section14,
 ]
 
 export function findSection(sectionId) {

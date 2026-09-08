@@ -35,6 +35,9 @@ const SECTION_ICONS = {
 
   // Fracturing — hydraulic fracture propagating through rock under pressure
   fracturing: `<svg ${SVG_OPEN}><path d="M3 12h5M16 12h5"/><path d="M8 12l2-3 2 6 2-3 2 0" stroke-width="1.8"/><path d="M12 3v3.5M12 17.5V21" stroke-width="1.3"/></svg>`,
+
+  // Contingencias — decision-tree branch, for the interactive flowchart wizards
+  contingencias: `<svg ${SVG_OPEN}><circle cx="5" cy="5" r="2.4"/><circle cx="19" cy="7" r="2.4"/><circle cx="19" cy="17" r="2.4"/><path d="M7.3 6.1 16.8 6.9"/><path d="M6.4 7.2 16.8 15.8"/></svg>`,
 }
 
 export function sectionIconMarkup(sectionId) {
