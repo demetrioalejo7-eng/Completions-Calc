@@ -18,6 +18,9 @@ const SECTION_ICONS = {
   // Tanks — vertical storage tank on grade with a gauge line
   tanks: `<svg ${SVG_OPEN}><path d="M5 8h14v12H5z"/><path d="M5 8c0-2.2 3.1-4 7-4s7 1.8 7 4"/><path d="M5 12h14M2 20h20"/></svg>`,
 
+  // Bridas — flange face, end-on: bore + bolt circle with bolt holes
+  flanges: `<svg ${SVG_OPEN}><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.4"/><circle cx="12" cy="4.6" r="1" fill="currentColor" stroke="none"/><circle cx="19.4" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="19.4" r="1" fill="currentColor" stroke="none"/><circle cx="4.6" cy="12" r="1" fill="currentColor" stroke="none"/></svg>`,
+
   // Formulas & Conversions — pressure gauge / instrument dial
   general: `<svg ${SVG_OPEN}><circle cx="12" cy="12" r="9"/><path d="M12 12l4-3.2"/><circle cx="12" cy="12" r="1.1" fill="currentColor" stroke="none"/><path d="M8 6.5l.6 1.1M16 6.5l-.6 1.1M5 12h1.3M17.7 12H19"/></svg>`,
 

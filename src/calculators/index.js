@@ -5,6 +5,7 @@ import { section4 } from './sec4.js'
 import { section5 } from './sec5.js'
 import { section6 } from './sec6.js'
 import { section8 } from './sec8.js'
+import { secFlanges } from './secFlanges.js'
 import { section9 } from './sec9.js'
 import { section11 } from './sec11.js'
 import { section12 } from './sec12.js'
@@ -28,6 +29,7 @@ const tubulares = {
 
 export const SECTIONS = [
   tubulares,
+  secFlanges,
   section5,
   section6,
   section8,
