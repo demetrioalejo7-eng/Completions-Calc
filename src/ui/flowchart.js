@@ -1,9 +1,13 @@
 import { el, clear } from './dom.js'
+import { buildDiagramSVG } from './diagramRender.js'
 
-const TONE_LABEL = {
-  ok: 'Resultado',
-  escalate: 'Atención / escalar',
-  info: 'Información',
+const svgCache = new Map()
+
+function diagramSVG(contingency) {
+  if (!svgCache.has(contingency.id)) {
+    svgCache.set(contingency.id, buildDiagramSVG(contingency))
+  }
+  return svgCache.get(contingency.id)
 }
 
 function toneIcon(tone) {
@@ -18,14 +22,6 @@ function typeBadge(type) {
   return labels[type] || ''
 }
 
-function diagramImageSrc(contingency) {
-  // In the single-file Claude Artifact build there is no separate asset host,
-  // so the assembly script embeds the images as data URIs on this global map.
-  const embedded = typeof window !== 'undefined' && window.__DIAGRAM_IMAGES__
-  if (embedded && embedded[contingency.order]) return embedded[contingency.order]
-  return `${import.meta.env.BASE_URL}contingencias/diagrama-${contingency.order}.jpg`
-}
-
 function openDiagramLightbox(contingency) {
   const overlay = el('div', { class: 'cw-lightbox', role: 'dialog', 'aria-modal': 'true' })
   const close = () => {
@@ -35,20 +31,14 @@ function openDiagramLightbox(contingency) {
   // Navigating away (e.g. browser back) while the overlay is open would
   // otherwise leave it stuck on top of whatever renders next.
   window.addEventListener('hashchange', close)
-  const img = el('img', {
-    class: 'cw-lightbox-img',
-    src: diagramImageSrc(contingency),
-    alt: `Diagrama completo: ${contingency.title}`,
-  })
-  img.addEventListener('error', () => {
-    img.replaceWith(el('p', { class: 'cw-lightbox-error' }, 'No se pudo cargar la imagen del diagrama.'))
-  })
   overlay.appendChild(
     el('button', { class: 'cw-lightbox-close', type: 'button', 'aria-label': 'Cerrar', onClick: close }, '✕')
   )
-  const scroller = el('div', { class: 'cw-lightbox-scroller' }, img)
+  const { svg } = diagramSVG(contingency)
+  const diagramWrap = el('div', { class: 'cw-diagram-svg', html: svg })
+  const scroller = el('div', { class: 'cw-lightbox-scroller' }, diagramWrap)
   scroller.addEventListener('click', (e) => {
-    if (e.target === scroller || e.target === overlay) close()
+    if (e.target === scroller) close()
   })
   overlay.appendChild(scroller)
   document.body.appendChild(overlay)
@@ -174,18 +164,13 @@ export function mountContingencyWizard(container, contingency) {
       refBody.appendChild(el('p', { class: 'cw-ref-title' }, 'Notas'))
       refBody.appendChild(el('ul', { class: 'cw-ref-list' }, contingency.notes.map((t) => el('li', {}, t))))
     }
-    refBody.appendChild(el('p', { class: 'cw-ref-title' }, 'Diagrama original (tocá para ampliar)'))
-    const img = el('img', {
-      class: 'cw-ref-img',
-      loading: 'lazy',
-      src: diagramImageSrc(contingency),
-      alt: `Diagrama original: ${contingency.title}`,
-    })
-    img.addEventListener('click', () => openDiagramLightbox(contingency))
-    img.addEventListener('error', () => {
-      img.replaceWith(el('p', { class: 'note' }, 'No se pudo cargar la imagen del diagrama original.'))
-    })
-    refBody.appendChild(img)
+    refBody.appendChild(
+      el(
+        'button',
+        { class: 'cw-view-diagram-btn', type: 'button', onClick: () => openDiagramLightbox(contingency) },
+        'Ver diagrama completo'
+      )
+    )
     ref.appendChild(refBody)
     wrap.appendChild(ref)
   }

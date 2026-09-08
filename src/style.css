@@ -649,14 +649,6 @@ input[type='checkbox'] {
   line-height: 1.5;
 }
 
-.cw-ref-img {
-  margin-top: 8px;
-  width: 100%;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  cursor: zoom-in;
-}
-
 .cw-view-diagram-btn {
   background: var(--bg-elev);
   border: 1px dashed var(--border);
@@ -666,6 +658,7 @@ input[type='checkbox'] {
   font-size: 13.5px;
   font-weight: 600;
   cursor: pointer;
+  margin-top: 8px;
 }
 
 .cw-lightbox {
@@ -679,22 +672,23 @@ input[type='checkbox'] {
 .cw-lightbox-scroller {
   flex: 1;
   overflow: auto;
+  /* justify-content:center would center content narrower than the viewport,
+     but for content WIDER than the viewport it pushes the overflow onto the
+     negative (unreachable) side of the scroll range, permanently clipping
+     it. flex-start keeps all content reachable by scrolling either way. */
   display: flex;
   align-items: flex-start;
-  justify-content: center;
+  justify-content: flex-start;
   padding: 48px 12px 24px;
 }
 
-.cw-lightbox-img {
+.cw-diagram-svg {
   max-width: none;
-  width: 100%;
-  min-width: 900px;
-  border-radius: 4px;
 }
 
-.cw-lightbox-error {
-  color: var(--text);
-  margin-top: 60px;
+.cw-diagram-svg svg {
+  display: block;
+  min-width: 640px;
 }
 
 .cw-lightbox-close {
