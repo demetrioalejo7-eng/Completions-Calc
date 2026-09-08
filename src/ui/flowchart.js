@@ -44,7 +44,7 @@ function openDiagramLightbox(contingency) {
   document.body.appendChild(overlay)
 }
 
-export function mountContingencyWizard(container, contingency) {
+export function mountContingencyWizard(container, contingency, groupId) {
   clear(container)
   const state = { path: [contingency.start] }
 
@@ -116,7 +116,10 @@ export function mountContingencyWizard(container, contingency) {
       }
     } else if (node.type === 'end') {
       if (node.link) {
-        actions.appendChild(el('a', { class: 'btn-secondary', href: `#/s/contingencias/${node.link.to}` }, node.link.label))
+        const linkHref = groupId
+          ? `#/s/contingencias/${groupId}/${node.link.to}`
+          : `#/s/contingencias/${node.link.to}`
+        actions.appendChild(el('a', { class: 'btn-secondary', href: linkHref }, node.link.label))
       }
       actions.appendChild(el('button', { class: 'btn-secondary', type: 'button', onClick: restart }, 'Reiniciar diagrama'))
     }

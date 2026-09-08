@@ -1,6 +1,6 @@
 import { el, clear } from './ui/dom.js'
 import { renderCalculatorForm } from './ui/form.js'
-import { SECTIONS, findSection, findCalculator } from './calculators/index.js'
+import { SECTIONS, findSection, findCalculator, findGroup, findCalculatorGroupId } from './calculators/index.js'
 import { sectionIconMarkup } from './ui/icons.js'
 
 function header({ title, backHref, subtitle, icon }) {
@@ -45,6 +45,23 @@ export function renderSection(root, sectionId) {
   root.appendChild(
     header({ title: section.title, subtitle: section.summary, backHref: '#/', icon: sectionIconMarkup(section.id) })
   )
+  if (section.groups) {
+    const grid = el(
+      'div',
+      { class: 'grid' },
+      section.groups.map((g) =>
+        el('a', { href: `#/s/${section.id}/${g.id}`, class: 'grid-card' }, [
+          el('span', { class: 'grid-title' }, g.title),
+          el('span', { class: 'grid-summary' }, g.summary),
+        ])
+      )
+    )
+    root.appendChild(grid)
+    if (section.formulaNote) {
+      root.appendChild(el('p', { class: 'formula-note' }, section.formulaNote))
+    }
+    return
+  }
   const list = el(
     'div',
     { class: 'list' },
@@ -62,6 +79,31 @@ export function renderSection(root, sectionId) {
   }
 }
 
+export function renderGroup(root, sectionId, groupId) {
+  const found = findGroup(sectionId, groupId)
+  clear(root)
+  if (!found) {
+    root.appendChild(header({ title: 'No encontrado', backHref: '#/' }))
+    return
+  }
+  const { section, group } = found
+  root.appendChild(
+    header({ title: group.title, subtitle: group.summary, backHref: `#/s/${section.id}` })
+  )
+  const list = el(
+    'div',
+    { class: 'list' },
+    group.calculators.map((c) =>
+      el('a', { href: `#/s/${section.id}/${group.id}/${c.id}`, class: 'list-item' }, [
+        el('span', { class: 'list-item-title' }, c.title),
+        c.description ? el('span', { class: 'list-item-desc' }, c.description) : null,
+        el('span', { class: 'list-item-arrow' }, '›'),
+      ])
+    )
+  )
+  root.appendChild(list)
+}
+
 export function renderCalculator(root, sectionId, calcId) {
   const found = findCalculator(sectionId, calcId)
   clear(root)
@@ -70,8 +112,10 @@ export function renderCalculator(root, sectionId, calcId) {
     return
   }
   const { section, calc } = found
+  const groupId = findCalculatorGroupId(section, calc.id)
+  const backHref = groupId ? `#/s/${section.id}/${groupId}` : `#/s/${section.id}`
   root.appendChild(
-    header({ title: calc.title, backHref: `#/s/${section.id}` })
+    header({ title: calc.title, backHref })
   )
   const body = el('div', { class: 'calc-body' })
   root.appendChild(body)

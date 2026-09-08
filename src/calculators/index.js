@@ -52,3 +52,18 @@ export function findCalculator(sectionId, calcId) {
   const calc = section.calculators.find((c) => c.id === calcId)
   return calc ? { section, calc } : null
 }
+
+export function findGroup(sectionId, groupId) {
+  const section = findSection(sectionId)
+  if (!section || !section.groups) return null
+  const group = section.groups.find((g) => g.id === groupId)
+  return group ? { section, group } : null
+}
+
+// For a calculator that lives inside one of a section's groups, returns that
+// group's id; otherwise null (section has no groups, or the calc is loose).
+export function findCalculatorGroupId(section, calcId) {
+  if (!section.groups) return null
+  const group = section.groups.find((g) => g.calculators.some((c) => c.id === calcId))
+  return group ? group.id : null
+}
