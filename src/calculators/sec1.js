@@ -120,7 +120,13 @@ export const section1 = {
         if (!id && v.weight) id = idFromWeight(v.od, v.weight)
         if (!id) throw new Error('Ingresá el ID o el peso.')
         if (id >= v.od) throw new Error('El ID debe ser menor que el OD.')
-        const wt = steelWeightPerFt(v.od, id)
+        // Preferir el peso nominal de catálogo (de la tubería elegida en la
+        // lista) sobre el peso teórico por geometría: el nominal incluye el
+        // material extra de uniones/upsets y es el que usan las tablas y
+        // otras herramientas de campo, mientras que el teórico (OD²-ID²)
+        // sale sistemáticamente ~3-4% más bajo.
+        const theoreticalWt = steelWeightPerFt(v.od, id)
+        const wt = v.weight || v.wt || theoreticalWt
         const length = v.length || 0
         const results = [
           lengthInResult('ID', id),
@@ -135,11 +141,16 @@ export const section1 = {
             { label: 'Volumen desplazado (OD completo)', value: t.gal, category: 'Volumen', canonicalUnit: 'Galones US (gal)', unit: 'gal', digits: 2 }
           )
         } else {
+          // Escalar el volumen geométrico (OD²-ID²) por la misma proporción
+          // que el peso usado versus el teórico, para que el volumen de
+          // acero sea consistente con el peso nominal de catálogo (que
+          // incluye uniones/upsets) en lugar de solo la sección transversal.
+          const scale = theoreticalWt > 0 ? wt / theoreticalWt : 1
           const f = metalDisplacementFactors(v.od, id)
           const t = totalsFromFactors(f, length)
           results.push(
-            volumeResult('Volumen de acero', t.bbl),
-            { label: 'Volumen de acero', value: t.gal, category: 'Volumen', canonicalUnit: 'Galones US (gal)', unit: 'gal', digits: 2 }
+            volumeResult('Volumen de acero', t.bbl * scale),
+            { label: 'Volumen de acero', value: t.gal * scale, category: 'Volumen', canonicalUnit: 'Galones US (gal)', unit: 'gal', digits: 2 }
           )
         }
         return { results }

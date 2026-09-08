@@ -148,10 +148,17 @@ function pipePresetInput(spec, values, setValue, rerender, onFieldEdit) {
     ]),
     el('div', { class: 'stack' }, [
       unitNumberInput(odSpec, values, setValue, (full) => {
+        // A hand-edited OD no longer matches the preset's cataloged
+        // nominal weight, so drop back to "tamaño personalizado" and clear
+        // it rather than silently keeping a stale, mismatched weight.
+        setValue(presetKey, '')
+        if (spec.wtField) setValue(spec.wtField, null)
         if (full) rerender()
         else onFieldEdit()
       }),
       unitNumberInput(idSpec, values, setValue, (full) => {
+        setValue(presetKey, '')
+        if (spec.wtField) setValue(spec.wtField, null)
         if (full) rerender()
         else onFieldEdit()
       }),
