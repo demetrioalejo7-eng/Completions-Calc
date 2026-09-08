@@ -130,7 +130,7 @@ export function mountContingencyWizard(container, contingency) {
       refBody.appendChild(el('p', { class: 'cw-ref-title' }, 'Notas'))
       refBody.appendChild(el('ul', { class: 'cw-ref-list' }, contingency.notes.map((t) => el('li', {}, t))))
     }
-    refBody.appendChild(el('p', { class: 'cw-ref-title' }, `Diagrama original (${contingency.rev})`))
+    refBody.appendChild(el('p', { class: 'cw-ref-title' }, 'Diagrama original'))
     const img = el('img', {
       class: 'cw-ref-img',
       loading: 'lazy',

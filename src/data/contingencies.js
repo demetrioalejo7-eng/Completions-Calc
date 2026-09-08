@@ -1,4 +1,4 @@
-// Diagramas de contingencia P&P / Fractura (Pluspetrol, Rev 14, 2026-08-28).
+// Diagramas de contingencia P&P / Fractura.
 // Cada diagrama se modela como un grafo de nodos para el asistente interactivo.
 // Tipos de nodo:
 //   start    -> punto de entrada (informativo), un solo botón "Comenzar"
@@ -12,7 +12,6 @@ export const CONTINGENCIES = [
     id: 'perdida-caudal-fallas-equipos',
     order: 1,
     title: 'Pérdida de caudal por fallas de equipos de bombeo',
-    rev: 'REV 11',
     legend: ['Q = Caudal de Fractura', 'AS = Agente de Sostén'],
     notes: [
       'No se deberá iniciar la etapa de fractura sin tener disponible las bombas para asegurar un caudal de 90 BPM.',
@@ -38,7 +37,6 @@ export const CONTINGENCIES = [
     id: 'bajo-caudal-friccion',
     order: 2,
     title: 'Bajo caudal de tratamiento por exceso de fricción',
-    rev: 'REV 14',
     legend: [
       'Q = Caudal de Fractura',
       'QE = Caudal de Fractura Esperado — 9 clusters → 60 bpm, 10 clusters → 70 bpm, 12 clusters → 70 bpm',
@@ -79,7 +77,6 @@ export const CONTINGENCIES = [
     id: 'disminucion-caudal-presion',
     order: 3,
     title: 'Disminución de caudal por incremento de presión',
-    rev: 'REV 13',
     legend: [
       'Q = Caudal de Fractura',
       'P = Presión de Bombeo en Superficie',
@@ -120,7 +117,6 @@ export const CONTINGENCIES = [
     id: 'perdida-linea-alta-presion',
     order: 4,
     title: 'Pérdida en línea de alta presión',
-    rev: 'REV 14',
     legend: [
       'Conjunto Frac Stack – Zipper Manifold',
       'V1: Válvula Maestra Frac Stack (Manual)',
@@ -149,14 +145,14 @@ export const CONTINGENCIES = [
       n4: { type: 'process', text: 'Cerrar válvula VZ2.', next: 'n5' },
       d3: { type: 'decision', text: '¿Pérdida entre V3 y VZ?', branches: [{ label: 'SI', to: 'n4b' }, { label: 'NO', to: 'end2' }] },
       n4b: { type: 'process', text: 'Cerrar Válvula de Maniobra (V3).', next: 'n5' },
-      end2: { type: 'end', tone: 'escalate', text: 'Entregar pozo a Pluspetrol.' },
+      end2: { type: 'end', tone: 'escalate', text: 'Entregar pozo según procedimiento.' },
       n5: { type: 'process', text: 'Alinear para desplazar con isla de pump down. (1)', next: 'n6' },
       n6: { type: 'process', text: 'Presurizar líneas hasta Válvula Sobremaestra (V2).', next: 'n7' },
       n7: { type: 'process', text: 'Abrir V2.', next: 'n8' },
       n8: { type: 'process', text: 'Desplazar a máx. caudal, 1.5 volúmenes de pozo.', next: 'n9' },
       n9: { type: 'process', text: 'Detener el bombeo. Cerrar V2. Descomprimir Línea de bombeo.', next: 'n10' },
       n10: { type: 'process', text: 'Reparar pérdida. Realizar Prueba de Líneas.', next: 'end1' },
-      end1: { type: 'end', tone: 'escalate', text: 'Esperar definición de pasos a seguir por parte de Pluspetrol. (2)' },
+      end1: { type: 'end', tone: 'escalate', text: 'Esperar definición de pasos a seguir. (2)' },
     },
   },
 
@@ -164,7 +160,6 @@ export const CONTINGENCIES = [
     id: 'desplazamiento-isla-pump-down',
     order: 5,
     title: 'Desplazamiento de fractura utilizando la isla de pump down',
-    rev: 'REV 11',
     legend: [],
     notes: [
       'En caso de que por algún problema operativo sea necesario cortar el bombeo con el set de fractura, no habiendo cumplido con la totalidad del desplazamiento programado, se tratará de finalizar el mismo utilizando las bombas del set de pump down.',
@@ -189,7 +184,6 @@ export const CONTINGENCIES = [
     id: 'carrera-plug-and-perf',
     order: 6,
     title: 'Carrera de Plug and Perf (P&P)',
-    rev: 'REV 11',
     legend: ['PP = Profundidad Programada', 'P&P = Plug & Perf', 'PD = Pump Down', 'MTP = Máx. Tensión permitida'],
     notes: [
       '(1) Evaluar recuperar a vertical en caso de espera prolongada.',
@@ -197,7 +191,7 @@ export const CONTINGENCIES = [
       '(4) Revisar BHA y unidad, utilizar BHA slim acordado.',
       '(5) Chequear caudal máximo con la simulación ajustada.',
       '(6) Realizar 2do intento de punzado.',
-      '(7) Seguir el flujograma de secuencia de atasque de la contratista consensuado con Pluspetrol.',
+      '(7) Seguir el flujograma de secuencia de atasque de la contratista consensuado con la operadora.',
     ],
     start: 'start',
     nodes: {
@@ -235,7 +229,6 @@ export const CONTINGENCIES = [
     id: 'falla-punzado',
     order: 7,
     title: 'Falla de Punzado durante PnP',
-    rev: 'REV 11',
     legend: ['PP = Profundidad Programada', 'PnP = Plug & Perf', 'PD = Pump Down', 'WL = WireLine', 'CT = Coiled Tubing', 'Clúster 1: el más cercano al tapón'],
     notes: [
       'Los punzados se realizarán con las paradas previamente calculadas. Una vez retirada la carrera se calcularán las posiciones definitivas de los clusters con sus respectivos offset para reflejarlos en los partes y en OW.',
@@ -268,7 +261,6 @@ export const CONTINGENCIES = [
     id: 'asentamiento-prematuro',
     order: 8,
     title: 'Asentamiento Prematuro durante el PnP — Estrategia Recuperación de metros',
-    rev: 'REV 14',
     legend: [
       'Definición "Para Firme": asentamiento fuera de zona, o haber iniciado la secuencia del flujograma de Atasque (haber tensionado hasta el 67% del Weak Point al menos una ocasión).',
       'Distanciamiento Definido D: 60 m.',
@@ -375,7 +367,6 @@ export const CONTINGENCIES = [
     id: 'flowback-arenamiento',
     order: 9,
     title: 'Flowback en caso de arenamiento',
-    rev: 'REV 11',
     legend: ['(1) Volumen de pozo: volumen desde el punzado más somero hasta boca de pozo.', 'PD = Pump Down'],
     notes: [
       'Previo al inicio de las operaciones, colocar un orificio de 10 mm en un ramal del manifold y 12 mm en el otro, identificándolos. Siempre se debe contar con capacidad para recibir de manera continua un flowback de al menos 2 volúmenes de pozo.',
