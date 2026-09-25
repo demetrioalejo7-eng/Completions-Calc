@@ -1,6 +1,7 @@
 import { ctDimensions, reelCapacityFt, goosenecRadius, snubbingForce, CT_OD_SIZES } from '../calc/coiledTubing.js'
 import { externalDisplacementFactors, capacityFactors, totalsFromFactors } from '../calc/geometry.js'
 import { CT_GRADES, CT_DIMENSIONS, ctRowForGrade, CT_MANUFACTURERS } from '../data/ctStrength.js'
+import { mountCtSimulator } from '../ui/ctSimulator.js'
 import { lengthFtResult, lengthIn, lengthInResult, pressure, pressureResult, weight, weightPerLengthResult, weightResult } from '../ui/fieldHelpers.js'
 
 function ctSizeLabel(row) {
@@ -14,10 +15,17 @@ function ctOdLabel(row) {
 export const section12 = {
   id: 'coiled-tubing',
   title: 'Coiled Tubing',
-  summary: 'Dimensiones, desplazamiento, capacidad de carrete, gooseneck y fuerza de snubbing.',
+  summary: 'Simulador de pesos RIH/POOH, dimensiones, desplazamiento, capacidad de carrete, gooseneck y fuerza de snubbing.',
   formulaNote:
     'ID = OD − 2·espesor. Peso = 2.673·(OD²−ID²). Capacidad de carrete = (π/4)·(OD_efectivo²−Core²)·Ancho / (OD_CT²·12). Gooseneck: R=(C²+4h²)/(8h). Snubbing: F=WHTP·π/4·OD².',
   calculators: [
+    {
+      id: 'ct-weight-sim',
+      title: 'Simulador de pesos RIH / POOH',
+      description: 'Peso esperado en el indicador por profundidad, calibrado con carreras de lavado post-frac.',
+      custom: true,
+      mount: (container) => mountCtSimulator(container),
+    },
     {
       id: 'ct-dimensions',
       title: 'Dimensiones de Coiled Tubing',
