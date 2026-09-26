@@ -705,3 +705,295 @@ input[type='checkbox'] {
   cursor: pointer;
   z-index: 101;
 }
+
+/* ---- Simulador de pesos CT ---------------------------------------------- */
+.ctsim-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.ctsim-card > summary {
+  padding: 13px 14px;
+  font-weight: 600;
+  font-size: 14.5px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.ctsim-card > summary::-webkit-details-marker {
+  display: none;
+}
+
+.ctsim-card > summary::after {
+  content: '▾';
+  float: right;
+  color: var(--text-dim);
+}
+
+.ctsim-card:not([open]) > summary::after {
+  content: '▸';
+}
+
+.ctsim-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 14px 14px;
+}
+
+.calc-results > .ctsim-card {
+  margin-top: 14px;
+}
+
+.ctsim-hint {
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+.ctsim-file {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.ctsim-textarea {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: 13px ui-monospace, SFMono-Regular, Menlo, monospace;
+  width: 100%;
+  resize: vertical;
+}
+
+.ctsim-sec-head,
+.ctsim-sec-row {
+  display: grid;
+  grid-template-columns: 18px 1.1fr 1fr 1fr 32px;
+  gap: 6px;
+  align-items: center;
+}
+
+.ctsim-sec-head {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.ctsim-sec-idx {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.ctsim-sec-row input[type='number'] {
+  padding: 9px 8px;
+  font-size: 14px;
+}
+
+/* chart — categorical slots 1 (blue) & 2 (orange), light & dark steps */
+.ctsim-chart-wrap {
+  --ctsim-rih: #2a78d6;
+  --ctsim-pooh: #eb6834;
+  position: relative;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 8px 6px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .ctsim-chart-wrap {
+    --ctsim-rih: #3987e5;
+    --ctsim-pooh: #d95926;
+  }
+}
+
+:root[data-theme='dark'] .ctsim-chart-wrap {
+  --ctsim-rih: #3987e5;
+  --ctsim-pooh: #d95926;
+}
+
+.ctsim-chart {
+  width: 100%;
+  height: auto;
+  display: block;
+  touch-action: pan-y;
+}
+
+.ctsim-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.ctsim-zero {
+  stroke: var(--text-dim);
+  stroke-width: 1;
+}
+
+.ctsim-tick {
+  font-size: 10px;
+  fill: var(--text-dim);
+}
+
+.ctsim-axis {
+  font-size: 11px;
+  fill: var(--text-dim);
+}
+
+.ctsim-line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.ctsim-rih-stroke {
+  stroke: var(--ctsim-rih);
+}
+
+.ctsim-pooh-stroke {
+  stroke: var(--ctsim-pooh);
+}
+
+.ctsim-rih-fill {
+  fill: var(--ctsim-rih);
+}
+
+.ctsim-pooh-fill {
+  fill: var(--ctsim-pooh);
+}
+
+.ctsim-band {
+  opacity: 0.16;
+}
+
+.ctsim-dot {
+  opacity: 0.55;
+}
+
+.ctsim-lock {
+  stroke: var(--text);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
+
+.ctsim-cross {
+  stroke: var(--text-dim);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.ctsim-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text);
+  padding: 0 6px 6px;
+}
+
+.ctsim-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ctsim-legend-dim {
+  color: var(--text-dim);
+}
+
+.ctsim-key {
+  display: inline-block;
+  width: 12px;
+  height: 3px;
+  border-radius: 2px;
+  margin-right: 4px;
+}
+
+.ctsim-rih-bg {
+  background: var(--ctsim-rih);
+}
+
+.ctsim-pooh-bg {
+  background: var(--ctsim-pooh);
+}
+
+.ctsim-tip {
+  position: absolute;
+  right: 14px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  pointer-events: none;
+  box-shadow: var(--card-shadow);
+  color: var(--text);
+}
+
+.ctsim-tip div {
+  display: flex;
+  align-items: center;
+}
+
+.ctsim-summary {
+  margin-top: 14px;
+}
+
+.ctsim-subtitle {
+  margin: 16px 2px 8px;
+  font-size: 14px;
+}
+
+.ctsim-table-wrap {
+  overflow-x: auto;
+}
+
+.ctsim-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ctsim-table th,
+.ctsim-table td {
+  padding: 7px 8px;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.ctsim-table th {
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+.ctsim-table th:first-child,
+.ctsim-table td:first-child {
+  text-align: left;
+}
+
+.ctsim-speed-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr;
+  gap: 6px 8px;
+  align-items: center;
+}
+
+.ctsim-speed-grid input[type='number'] {
+  padding: 9px 8px;
+  font-size: 14px;
+}
+
+.ctsim-speed-h {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.ctsim-speed-z {
+  font-size: 12.5px;
+  color: var(--text);
+}
