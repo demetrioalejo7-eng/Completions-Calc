@@ -4,8 +4,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { buildWellPath, buildString, makeCasing, forcesAtDepth, surfaceWeight, annularFrictionGradient, DEFAULT_MODEL } from '../../src/calc/ctForces.js'
-import { STANDARD_STRING_2375, CASING_5_21_4, DEFAULT_BHA } from '../../src/data/ctSimDefaults.js'
+import { buildWellPath, buildString, makeCasing, forcesAtDepth, surfaceWeight, annularFrictionGradient, DEFAULT_MODEL } from '../../src/ctsim/forces.js'
+import { STANDARD_STRING_2375, CASING_5_21_4, DEFAULT_BHA } from '../../src/ctsim/defaults.js'
 
 export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 export const dataDir = path.join(root, 'field-data')

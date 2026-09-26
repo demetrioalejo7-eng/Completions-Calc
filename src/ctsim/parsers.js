@@ -163,3 +163,35 @@ export function parseRunCsv(text, { binM = 25 } = {}) {
   }
   return { points: out.sort((a, b) => a.md - b.md), rawCount: pts.length, hasWHP: iWHP >= 0, hasQ: iQ >= 0 }
 }
+
+// List of depths (plugs) pasted as a column, one per line, or separated by
+// ; / tabs / spaces. "3587,5" is a decimal comma; "3587,3659" (3+ digits on
+// both sides) is read as two depths.
+export function parseDepthList(text) {
+  // table pasted from Excel (several columns): keep the column of depths,
+  // i.e. the numeric column with the largest median value
+  const lines = String(text).replace(/\r/g, '').split('\n').filter((l) => l.trim())
+  if (lines.some((l) => l.includes('\t'))) {
+    const rows = lines.map((l) => l.split('\t'))
+    const nCol = Math.max(...rows.map((r) => r.length))
+    let best = null
+    for (let c = 0; c < nCol; c++) {
+      const vals = rows.map((r) => toNumber(r[c])).filter((v) => v !== null && v > 0)
+      if (vals.length < Math.max(1, rows.length * 0.5)) continue
+      const med = [...vals].sort((a, b) => a - b)[Math.floor(vals.length / 2)]
+      if (!best || med > best.med) best = { vals, med }
+    }
+    if (best) return [...new Set(best.vals.map((d) => Math.round(d * 100) / 100))].sort((a, b) => a - b)
+  }
+  const out = []
+  for (const tok of String(text).split(/[\n\r\t; ]+/)) {
+    if (!tok.trim()) continue
+    const parts = /^\d{3,},\d{3,}(,\d{3,})*$/.test(tok.trim()) ? tok.split(',') : [tok]
+    for (const p of parts) {
+      const n = toNumber(p)
+      if (n !== null && n > 0) out.push(n)
+    }
+  }
+  if (!out.length) throw new Error('No se encontraron profundidades de tapones válidas.')
+  return [...new Set(out.map((d) => Math.round(d * 100) / 100))].sort((a, b) => a - b)
+}

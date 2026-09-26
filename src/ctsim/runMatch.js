@@ -6,7 +6,7 @@
 //   RIH:  W = F_E − WHP·A_o − F_s − RBT       POOH: W = F_E − WHP·A_o + F_s − RBT
 // so for any µ the per-direction offset is the median residual; µ of each
 // direction is then chosen by a 1-D scan minimizing the median absolute error.
-import { buildContext, forcesAtDepth, surfaceWeight } from './ctForces.js'
+import { buildContext, forcesAtDepth, surfaceWeight } from './forces.js'
 
 const median = (a) => {
   const s = [...a].sort((x, y) => x - y)

@@ -1,4 +1,4 @@
-// Calibrates the empirical terms of src/calc/ctForces.js against field runs.
+// Calibrates the empirical terms of src/ctsim/forces.js against field runs.
 //
 //   node tools/ct-calibration/calibrate.mjs --variant base --train B3A2,C1A [--test ...] [--iters 2000]
 //

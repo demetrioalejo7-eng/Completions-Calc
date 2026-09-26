@@ -1,8 +1,8 @@
-// Checks src/calc/ctForces.js against the worked examples of the CTES Tech
+// Checks src/ctsim/forces.js against the worked examples of the CTES Tech
 // Note "Basic Tubing Forces Model (TFM) Calculation" (1.5" x 0.109" CT,
 // 5000 ft, W_B = 1.413 lb/ft, µ = 0.25, RIH).
 //   node tools/ct-calibration/verify_technote.mjs
-import { buildWellPath, buildString, makeCasing, forcesAtDepth, DEFAULT_MODEL } from '../../src/calc/ctForces.js'
+import { buildWellPath, buildString, makeCasing, forcesAtDepth, DEFAULT_MODEL } from '../../src/ctsim/forces.js'
 
 const FT = 0.3048
 const L = 5000 * FT

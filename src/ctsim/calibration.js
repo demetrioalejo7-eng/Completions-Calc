@@ -1,4 +1,4 @@
-// Field calibration of the CT weight simulator (src/calc/ctForces.js).
+// Field calibration of the CT weight simulator (src/ctsim/forces.js).
 //
 // Fitted with tools/ct-calibration/fit_profile.mjs on 6 post-frac clean-out
 // runs (pads B3A2 and C1A: 2 3/8" tapered string, 5" 21.4# casing,
