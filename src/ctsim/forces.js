@@ -203,7 +203,7 @@ export function annularFrictionGradient({ rateBpm, casingId, od, densityPpg, vis
 // ---------------------------------------------------------------------------
 
 export const DEFAULT_MODEL = {
-  // Empirical terms (overwritten by the calibrated set in data/ctCalibration.js)
+  // Empirical terms (overwritten by the calibrated set in ctsim/calibration.js)
   speedRef: 5, // m/min at which µ equals the input value
   speedCoefRIH: 0, // dµ/µ per ln(v/vRef)
   speedCoefPOOH: 0,
@@ -372,4 +372,58 @@ export function maxSetDown(p, depthM, model = DEFAULT_MODEL) {
     prevW = w
   }
   return best
+}
+
+// 3-D trajectory by minimum curvature at the survey stations plus a resample
+// every `stepM` (for drawing): [{ md, inc, azi, n, e, tvd, dls }] in m,
+// dls in °/30 m.
+export function wellTrajectory(surveyRows, stepM = 10) {
+  const st = normalizeSurvey(surveyRows)
+  const pts = [{ md: st[0][0], inc: st[0][1], azi: st[0][2], n: 0, e: 0, tvd: 0, dls: 0 }]
+  for (let k = 1; k < st.length; k++) {
+    const [md1, i1, a1] = st[k - 1]
+    const [md2, i2, a2] = st[k]
+    const dmd = md2 - md1
+    const nSub = Math.max(1, Math.ceil(dmd / stepM))
+    let prev = pts[pts.length - 1]
+    const t1 = unitVector(i1, a1)
+    const t2 = unitVector(i2, a2)
+    const dogleg = Math.acos(Math.min(1, Math.max(-1, t1[0] * t2[0] + t1[1] * t2[1] + t1[2] * t2[2])))
+    for (let j = 1; j <= nSub; j++) {
+      const md = md1 + (dmd * j) / nSub
+      const [, inc, azi] = interpStation(st[k - 1], st[k], md)
+      const ta = unitVector(prev.inc, prev.azi)
+      const tb = unitVector(inc, azi)
+      const dl = Math.acos(Math.min(1, Math.max(-1, ta[0] * tb[0] + ta[1] * tb[1] + ta[2] * tb[2])))
+      const rf = dl > 1e-9 ? (2 / dl) * Math.tan(dl / 2) : 1
+      const ds = md - prev.md
+      const p = {
+        md,
+        inc,
+        azi,
+        n: prev.n + (ds / 2) * (ta[0] + tb[0]) * rf,
+        e: prev.e + (ds / 2) * (ta[1] + tb[1]) * rf,
+        tvd: prev.tvd + (ds / 2) * (ta[2] + tb[2]) * rf,
+        dls: dmd > 0 ? (dogleg / DEG / dmd) * 30 : 0,
+      }
+      pts.push(p)
+      prev = p
+    }
+  }
+  return pts
+}
+
+// Point on the trajectory at MD (linear between resampled points).
+export function pointAtMd(traj, md) {
+  if (md <= traj[0].md) return traj[0]
+  for (let k = 1; k < traj.length; k++) {
+    if (traj[k].md >= md) {
+      const a = traj[k - 1]
+      const b = traj[k]
+      const f = (md - a.md) / (b.md - a.md || 1)
+      const lerp = (x, y) => x + f * (y - x)
+      return { md, inc: lerp(a.inc, b.inc), azi: b.azi, n: lerp(a.n, b.n), e: lerp(a.e, b.e), tvd: lerp(a.tvd, b.tvd), dls: b.dls }
+    }
+  }
+  return traj[traj.length - 1]
 }

@@ -1,10 +1,10 @@
 # Calibración del simulador de pesos CT
 
-Herramientas para ajustar los términos empíricos de `src/calc/ctForces.js`
+Herramientas para ajustar los términos empíricos de `src/ctsim/forces.js`
 con carreras reales. Los datos de campo (surveys y CSV del sistema de
 adquisición) van en `field-data/`, que está en `.gitignore`: **nunca se
 suben al repositorio**. Solo se versionan los coeficientes resultantes en
-`src/data/ctCalibration.js`.
+`src/ctsim/calibration.js`.
 
 ## Flujo
 
@@ -28,7 +28,7 @@ suben al repositorio**. Solo se versionan los coeficientes resultantes en
    dirección y por pasada.
 
 3. **Surveys** — `field-data/surveys.json` con `{ "<pozo>": [[MD, Inc, Az], ...] }`
-   (m, °). El parser de la app (`src/calc/ctDataParsers.js`) lee los xlsx.
+   (m, °). El parser de la app (`src/ctsim/parsers.js`) lee los xlsx.
 
 4. **Ajuste** (Node):
 
@@ -47,7 +47,7 @@ suben al repositorio**. Solo se versionan los coeficientes resultantes en
    `calibrate.mjs` es el ajuste conjunto original (más lento), útil como
    diagnóstico (`--variant offsets` estima un offset por pozo).
 
-5. Copiar los parámetros a `src/data/ctCalibration.js`.
+5. Copiar los parámetros a `src/ctsim/calibration.js`.
 
 ## Hallazgos (pads B3A2 y C1A, 6 pozos)
 

@@ -1,13 +1,13 @@
 // Simulador de pesos RIH / POOH para coiled tubing (lavado post-frac).
-// UI over src/calc/ctForces.js with the field-calibrated terms of
-// src/data/ctCalibration.js.
-import { el, fmt, clear } from './dom.js'
-import { simulateTrip, maxSetDown, buildString, tubeProps, kopLp } from '../calc/ctForces.js'
-import { readSurveyFile, parseSurveyTable, splitTable, parseRunCsv } from '../calc/ctDataParsers.js'
-import { STANDARD_STRING_2375, DEFAULT_BHA } from '../data/ctSimDefaults.js'
-import { CT_CALIBRATION, MU_LEVELS, ERT_LEVELS } from '../data/ctCalibration.js'
+// UI over src/ctsim/forces.js with the field-calibrated terms of
+// src/ctsim/calibration.js.
+import { el, fmt, clear } from '../ui/dom.js'
+import { simulateTrip, maxSetDown, buildString, tubeProps, kopLp, wellTrajectory, pointAtMd } from './forces.js'
+import { readSurveyFile, parseSurveyTable, splitTable, parseRunCsv, parseDepthList } from './parsers.js'
+import { STANDARD_STRING_2375, DEFAULT_BHA } from './defaults.js'
+import { CT_CALIBRATION, MU_LEVELS, ERT_LEVELS } from './calibration.js'
 import { CT_GRADES } from '../data/ctStrength.js'
-import { matchRun, matchSurfaceReadings } from '../calc/ctRunMatch.js'
+import { matchRun, matchSurfaceReadings } from './runMatch.js'
 
 const CASING_PRESETS = [
   { label: '5" 18 lb/ft (ID 4.276")', id: 4.276 },
@@ -46,6 +46,8 @@ export function mountCtSimulator(container) {
     survey: null,
     surveyName: '',
     surveyText: '',
+    plugs: [],
+    plugsText: '',
     casingId: 4.126,
     string: JSON.parse(JSON.stringify(STANDARD_STRING_2375)),
     grade: 'DC-120',
@@ -73,13 +75,10 @@ export function mountCtSimulator(container) {
     error: '',
   }
 
-  const formEl = el('div', { class: 'calc-form' })
-  const resultsEl = el('div', { class: 'calc-results' })
-  container.appendChild(
-    el('p', { class: 'calc-description' }, 'Pesos esperados en el indicador durante la bajada (RIH) y la sacada (POOH) para cada profundidad. Modelo de fuerzas soft-string (base Orpheus/Cerberus) con fricción dependiente de la velocidad y calibrado con carreras reales de lavado post-frac.')
-  )
-  container.appendChild(formEl)
-  container.appendChild(resultsEl)
+  const formEl = el('div', { class: 'calc-form ctsim-form' })
+  const resultsEl = el('div', { class: 'calc-results ctsim-results' })
+  container.appendChild(el('div', { class: 'ctsim-layout' }, [formEl, resultsEl]))
+  let view3d = null
 
   let timer = null
   const schedule = () => {
@@ -93,7 +92,10 @@ export function mountCtSimulator(container) {
 
   // ---- survey --------------------------------------------------------------
   function surveyCard() {
-    const status = el('p', { class: 'note' }, state.survey ? `✓ ${state.surveyName}: ${state.survey.length} estaciones, TD ${fmt(state.survey[state.survey.length - 1][0], 1)} m MD, inc. máx. ${fmt(Math.max(...state.survey.map((r) => r[1])), 1)}°` : 'Cargá el survey (xlsx/csv) o pegalo desde Excel: columnas MD (m), Inc (°), Az (°).')
+    const sv = state.survey
+    const status = sv
+      ? el('p', { class: 'note' }, `✓ ${state.surveyName}: ${sv.length} estaciones, TD ${fmt(sv[sv.length - 1][0], 1)} m MD, inc. máx. ${fmt(Math.max(...sv.map((r) => r[1])), 1)}°`)
+      : el('p', { class: 'note' }, 'Elegí el archivo (xlsx/csv) o copiá las columnas Profundidad (MD), Inclinación y Azimut desde Excel y pegalas abajo.')
     const fileInput = el('input', {
       type: 'file',
       accept: '.xlsx,.csv,.txt',
@@ -114,29 +116,95 @@ export function mountCtSimulator(container) {
     })
     const paste = el('textarea', {
       class: 'ctsim-textarea',
-      rows: 3,
-      placeholder: 'MD\tInc\tAz\n0\t0\t0\n500\t2.1\t185 …',
-      onChange: (e) => {
-        const txt = e.target.value
-        if (!txt.trim()) return
+      rows: 6,
+      placeholder: 'Pegá acá (Ctrl+V) las 3 columnas copiadas de Excel:\nMD\tInc\tAz\n0\t0\t0\n500,5\t2,10\t185,3\n…',
+      onInput: (e) => (state.surveyText = e.target.value),
+    })
+    paste.value = state.surveyText
+    const loadPasted = () => {
+      if (!state.surveyText.trim()) {
+        state.error = 'No hay datos pegados.'
+      } else {
         try {
-          state.survey = parseSurveyTable(splitTable(txt))
+          state.survey = parseSurveyTable(splitTable(state.surveyText))
           state.surveyName = 'Survey pegado'
           state.error = ''
         } catch (err) {
           state.error = err.message
         }
-        renderForm()
-        renderResults()
-      },
+      }
+      renderForm()
+      renderResults()
+    }
+    const preview = sv
+      ? el('div', { class: 'ctsim-table-wrap ctsim-preview' }, [
+          el('table', { class: 'ctsim-table' }, [
+            el('thead', {}, el('tr', {}, ['MD (m)', 'Inc (°)', 'Az (°)'].map((h) => el('th', {}, h)))),
+            el(
+              'tbody',
+              {},
+              (sv.length > 8 ? [...sv.slice(0, 4), null, ...sv.slice(-3)] : sv).map((r) =>
+                r ? el('tr', {}, r.map((v) => el('td', {}, fmt(v, 2)))) : el('tr', {}, [el('td', { colspan: 3, class: 'ctsim-ellipsis' }, `… ${sv.length - 7} estaciones más …`)])
+              )
+            ),
+          ]),
+        ])
+      : null
+    return card('1 · Survey del pozo', [
+      el('span', { class: 'field-label' }, 'Desde archivo'),
+      fileInput,
+      el('span', { class: 'field-label' }, 'O pegando las columnas'),
+      paste,
+      el('div', { class: 'row' }, [
+        el('button', { class: 'btn-secondary', type: 'button', onClick: loadPasted }, 'Cargar survey pegado'),
+        el('button', { class: 'btn-secondary', type: 'button', onClick: () => ((state.surveyText = ''), renderForm()) }, 'Limpiar'),
+      ]),
+      status,
+      preview,
+    ])
+  }
+
+  // ---- plugs ---------------------------------------------------------------
+  function plugsCard() {
+    const ta = el('textarea', {
+      class: 'ctsim-textarea',
+      rows: 4,
+      placeholder: 'Profundidades MD (m) de los tapones, una por línea o copiadas de una columna de Excel:\n3587\n3659\n3731\n…',
+      onInput: (e) => (state.plugsText = e.target.value),
     })
-    return card('1 · Survey del pozo', [fileInput, paste, status])
+    ta.value = state.plugsText
+    const n = state.plugs.length
+    return card(
+      '2 · Tapones',
+      [
+        ta,
+        el('div', { class: 'row' }, [
+          el('button', {
+            class: 'btn-secondary',
+            type: 'button',
+            onClick: () => {
+              try {
+                state.plugs = parseDepthList(state.plugsText)
+                state.error = ''
+              } catch (err) {
+                state.error = err.message
+              }
+              renderForm()
+              renderResults()
+            },
+          }, 'Cargar tapones'),
+          el('button', { class: 'btn-secondary', type: 'button', onClick: () => ((state.plugs = []), (state.plugsText = ''), renderForm(), renderResults()) }, 'Quitar'),
+        ]),
+        el('p', { class: 'note' }, n ? `✓ ${n} tapones entre ${fmt(state.plugs[0], 0)} y ${fmt(state.plugs[n - 1], 0)} m MD. Se marcan en el gráfico, en la vista 3D y en la tabla de tapones.` : 'Opcional. Se muestran en el gráfico, en el 3D y con el peso esperado y el set-down disponible en cada uno.'),
+      ],
+      { open: n > 0 || !!state.plugsText }
+    )
   }
 
   // ---- well & string -------------------------------------------------------
   function wellCard() {
     const preset = CASING_PRESETS.find((c) => Math.abs(c.id - state.casingId) < 1e-4)
-    return card('2 · Casing', [
+    return card('3 · Casing', [
       selectField('Casing (OD y libraje)', [...CASING_PRESETS.map((c) => ({ value: c.id, label: c.label })), { value: 'custom', label: 'Otro (ingresar ID)…' }], preset ? preset.id : 'custom', (v) => {
         if (v !== 'custom') state.casingId = Number(v)
         renderForm()
@@ -159,7 +227,7 @@ export function mountCtSimulator(container) {
       ])
     )
     return card(
-      '3 · Sarta de coiled tubing',
+      '4 · Sarta de coiled tubing',
       [
         el('div', { class: 'row' }, [
           numField('OD', s.od, (v) => ((s.od = v), schedule()), { unit: 'in', step: 0.001 }),
@@ -183,7 +251,7 @@ export function mountCtSimulator(container) {
 
   // ---- operation -----------------------------------------------------------
   function operationCard() {
-    return card('4 · Parámetros operativos', [
+    return card('5 · Parámetros operativos', [
       el('div', { class: 'row' }, [
         numField('Presión de pozo (WHP)', state.whp, set('whp'), { unit: 'psi', step: 50 }),
         numField('Presión de circulación', state.ctp, set('ctp'), { unit: 'psi', step: 100, hint: 'Solo para el chequeo de tensión' }),
@@ -232,14 +300,21 @@ export function mountCtSimulator(container) {
 
   function speedAtFn() {
     const { kop, lp } = kopLp(state.survey)
+    const sp = (z, dir) => Math.max(0.1, state.speeds[z][dir] || 0.1)
+    const RAMP = 100 // m: speed changes are ramped over ±100 m around KOP / LP
+    const blend = (d, at, a, b, dir) => {
+      const f = Math.min(1, Math.max(0, (d - (at - RAMP)) / (2 * RAMP)))
+      return sp(a, dir) + f * (sp(b, dir) - sp(a, dir))
+    }
     return (d, dir) => {
-      const z = kop === null || d <= kop ? 'vert' : d <= lp ? 'curve' : 'lat'
-      return Math.max(0.1, state.speeds[z][dir] || 0.1)
+      if (kop === null) return sp('lat', dir)
+      if (d < (kop + lp) / 2) return blend(d, kop, 'vert', 'curve', dir)
+      return blend(d, lp, 'curve', 'lat', dir)
     }
   }
 
   function frictionCard() {
-    return card('5 · Fricción, ERT y equipo de superficie', [
+    return card('6 · Fricción, ERT y equipo de superficie', [
       selectField(
         'Coeficiente de fricción CT–casing',
         Object.entries(MU_LEVELS).map(([k, m]) => ({ value: k, label: `${m.label} — µ ${m.rih.toFixed(2)}` })).concat([{ value: 'custom', label: 'Personalizado…' }]),
@@ -281,7 +356,7 @@ export function mountCtSimulator(container) {
     const rd = state.readings
     const setR = (k) => (v) => (rd[k] = v)
     return card(
-      '6 · Ajuste con lecturas de campo (opcional)',
+      '7 · Ajuste con lecturas de campo (opcional)',
       [
         el('p', { class: 'note' }, 'Con una lectura RIH (p. ej. al llegar a KOP) y una lectura POOH (p. ej. el pull test en el LP) se recalculan la fricción del stripper y la tensión del reel, que cambian en cada trabajo.'),
         el('div', { class: 'row' }, [numField('Prof. lectura RIH', rd.rihMd, setR('rihMd'), { unit: 'm', step: 10 }), numField('Peso RIH leído', rd.rihW, setR('rihW'), { unit: 'lb', step: 100 })]),
@@ -333,7 +408,7 @@ export function mountCtSimulator(container) {
       },
     })
     return card(
-      '7 · Comparar con una carrera real (opcional)',
+      '8 · Comparar con una carrera real (opcional)',
       [
         fileInput,
         el('p', { class: 'note' }, state.run ? `✓ ${state.runName}: ${state.run.points.length} puntos (medianas cada 25 m en movimiento estable).` : 'CSV del sistema de adquisición (columnas de Peso y Profundidad; Velocidad opcional). Se grafica sobre la simulación.'),
@@ -370,7 +445,7 @@ export function mountCtSimulator(container) {
 
   function renderForm() {
     clear(formEl)
-    formEl.append(surveyCard(), wellCard(), stringCard(), operationCard(), frictionCard(), readingsCard(), runCard())
+    formEl.append(surveyCard(), plugsCard(), wellCard(), stringCard(), operationCard(), frictionCard(), readingsCard(), runCard())
   }
 
   // ---- results -------------------------------------------------------------
@@ -398,6 +473,10 @@ export function mountCtSimulator(container) {
   }
 
   function renderResults() {
+    if (view3d) {
+      view3d.dispose()
+      view3d = null
+    }
     clear(resultsEl)
     if (state.error) resultsEl.appendChild(el('p', { class: 'note note-error' }, state.error))
     if (!state.survey) {
@@ -418,6 +497,8 @@ export function mountCtSimulator(container) {
     }
     resultsEl.appendChild(chart(base, lo, hi))
     resultsEl.appendChild(summary(base, setDown))
+    if (state.plugs.length) resultsEl.appendChild(plugTable())
+    resultsEl.appendChild(survey3dCard())
     resultsEl.appendChild(speedTable())
     resultsEl.appendChild(depthTable(base, lo, hi))
     resultsEl.appendChild(
@@ -458,6 +539,68 @@ export function mountCtSimulator(container) {
       r('Lock-up (RIH)', lock ? `a ${fmt(lock.depth, 0)}` : 'No se alcanza', lock ? 'm' : ''),
       r('Tensión real máx. / 80 % fluencia', `${fmt(realTop / 1000, 1)} / ${fmt(yield80 / 1000, 1)}`, `klb ${realTop > yield80 ? '⚠' : '✓'}`),
     ])
+  }
+
+  function plugTable() {
+    const td = Math.min(state.survey[state.survey.length - 1][0], buildString(state.string).totalLength)
+    const plugs = state.plugs.filter((d) => d > 0 && d <= td)
+    const p = params(state.muRIH, state.muPOOH)
+    const sim = simulateTrip(p, cal.model, plugs)
+    const traj = wellTrajectory(state.survey, 10)
+    const f = (v) => (v === null || v === undefined ? 'Lock-up' : fmt(v, 0))
+    const rows = sim.rows.map((r, i) => {
+      const pt = pointAtMd(traj, r.depth)
+      const sd = r.rih === null ? { bottomForce: 0 } : maxSetDown({ ...p, speedRIH: p.speedAt(r.depth, 'RIH') }, r.depth, cal.model)
+      return el('tr', {}, [
+        el('td', {}, `T${i + 1}`),
+        el('td', {}, fmt(r.depth, 0)),
+        el('td', {}, fmt(pt.inc, 1)),
+        el('td', {}, f(r.rih)),
+        el('td', {}, f(r.pooh)),
+        el('td', {}, fmt(sd.bottomForce, 0)),
+      ])
+    })
+    const skipped = state.plugs.length - plugs.length
+    return el('details', { class: 'ctsim-card', open: true }, [
+      el('summary', {}, `Pesos en cada tapón (${plugs.length})`),
+      el('div', { class: 'ctsim-table-wrap' }, [
+        el('table', { class: 'ctsim-table' }, [
+          el('thead', {}, el('tr', {}, ['#', 'MD (m)', 'Inc (°)', 'RIH (lb)', 'POOH (lb)', 'Set-down máx. (lb)'].map((h) => el('th', {}, h)))),
+          el('tbody', {}, rows),
+        ]),
+      ]),
+      el('p', { class: 'note ctsim-pad' }, `Numeración desde el más somero. RIH/POOH con la velocidad del tramo; set-down = fuerza máxima que llega a la herramienta antes del lock-up.${skipped ? ` ${skipped} tapón(es) fuera del survey/sarta no se muestran.` : ''}`),
+    ])
+  }
+
+  function survey3dCard() {
+    const holder = el('div', { class: 'ctsim-3d' })
+    const btns = el('div', { class: 'ctsim-3d-btns' }, [
+      ['iso', 'Perspectiva'],
+      ['plan', 'Planta'],
+      ['section', 'Corte'],
+    ].map(([k, lab]) => el('button', { class: 'btn-secondary', type: 'button', onClick: () => view3d?.setView(k) }, lab)))
+    const traj = wellTrajectory(state.survey, 10)
+    const { kop, lp } = kopLp(state.survey)
+    const last = traj[traj.length - 1]
+    const info = el('p', { class: 'note ctsim-pad' }, `TVD ${fmt(last.tvd, 1)} m · desplazamiento ${fmt(Math.hypot(last.n, last.e), 0)} m · DLS máx. ${fmt(Math.max(...traj.map((t) => t.dls)), 1)}°/30 m. Arrastrá para rotar, rueda o pellizco para zoom.`)
+    const det = el('details', { class: 'ctsim-card' }, [el('summary', {}, 'Survey en 3D'), el('div', { class: 'ctsim-card-body' }, [btns, holder, info])])
+    det.addEventListener('toggle', async () => {
+      if (!det.open) {
+        view3d?.dispose()
+        view3d = null
+        return
+      }
+      holder.textContent = 'Cargando visor 3D…'
+      try {
+        const { mountSurvey3D } = await import('./view3d.js')
+        const plugs = state.plugs.filter((d) => d <= last.md).map((d, i) => ({ ...pointAtMd(traj, d), idx: i + 1 }))
+        view3d = mountSurvey3D(holder, { traj, marks: { kop: kop != null ? pointAtMd(traj, kop) : null, lp: lp != null ? pointAtMd(traj, lp) : null }, plugs })
+      } catch (err) {
+        holder.textContent = `No se pudo abrir el visor 3D: ${err.message}`
+      }
+    })
+    return det
   }
 
   function speedTable() {
@@ -505,8 +648,9 @@ export function mountCtSimulator(container) {
 
   // ---- chart ---------------------------------------------------------------
   function chart(base, lo, hi) {
-    const W = 360
-    const H = 520
+    // viewBox follows the available width so text keeps its size on wide screens
+    const W = Math.round(Math.min(760, Math.max(360, (resultsEl.clientWidth || 360) - 18)))
+    const H = W > 500 ? 620 : 520
     const m = { l: 46, r: 12, t: 12, b: 34 }
     const rows = base.rows
     const run = state.run ? state.run.points : []
@@ -571,6 +715,10 @@ export function mountCtSimulator(container) {
     }
     line('rih', 'ctsim-line ctsim-rih-stroke')
     line('pooh', 'ctsim-line ctsim-pooh-stroke')
+    for (const d of state.plugs) {
+      if (d > d1) continue
+      add('line', { x1: W - m.r - 8, x2: W - m.r, y1: sy(d), y2: sy(d), class: 'ctsim-plug' })
+    }
     const lock = rows.find((r) => r.lockup)
     if (lock) add('line', { x1: m.l, x2: W - m.r, y1: sy(lock.depth), y2: sy(lock.depth), class: 'ctsim-lock' })
     // hover crosshair
@@ -582,6 +730,7 @@ export function mountCtSimulator(container) {
         el('span', {}, [el('i', { class: 'ctsim-key ctsim-pooh-bg' }), 'POOH']),
         el('span', { class: 'ctsim-legend-dim' }, 'Banda: µ ± 0,05'),
         run.length ? el('span', { class: 'ctsim-legend-dim' }, '● medido') : null,
+        state.plugs.length ? el('span', { class: 'ctsim-legend-dim' }, [el('i', { class: 'ctsim-key ctsim-plug-bg' }), 'tapones']) : null,
       ]),
       svg,
       tip,
