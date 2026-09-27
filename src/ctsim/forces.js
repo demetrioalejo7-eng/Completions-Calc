@@ -362,14 +362,32 @@ export function maxSetDown(p, depthM, model = DEFAULT_MODEL) {
   const ctx = buildContext(p, model)
   let prevW = surfaceWeight(forcesAtDepth(ctx, depthM, 'RIH', 0).surfaceForce, 'RIH', ctx.p, ctx.string, ctx.model)
   let best = { bottomForce: 0, surfaceWeight: prevW }
-  for (let fb = 250; fb <= 40000; fb += 250) {
+  const weightAt = (fb) => {
     const r = forcesAtDepth(ctx, depthM, 'RIH', -fb)
-    if (r.lockup) break
-    const w = surfaceWeight(r.surfaceForce, 'RIH', ctx.p, ctx.string, ctx.model)
-    const transfer = 250 / Math.max(1e-6, prevW - w)
-    if (transfer < 0.02) break
+    return r.lockup ? null : surfaceWeight(r.surfaceForce, 'RIH', ctx.p, ctx.string, ctx.model)
+  }
+  let failed = false
+  for (let fb = 250; fb <= 40000; fb += 250) {
+    const w = weightAt(fb)
+    if (w === null || 250 / Math.max(1e-6, prevW - w) < 0.02) {
+      failed = true
+      break
+    }
     best = { bottomForce: fb, surfaceWeight: w }
     prevW = w
+  }
+  if (!failed) return best
+  // refine the limit inside the last 250 lbf step (local transfer over 25 lbf)
+  let lo = best.bottomForce
+  let hi = best.bottomForce + 250
+  for (let i = 0; i < 4; i++) {
+    const mid = (lo + hi) / 2
+    const w0 = weightAt(mid)
+    const w1 = weightAt(mid + 25)
+    if (w0 !== null && w1 !== null && 25 / Math.max(1e-6, w0 - w1) >= 0.02) {
+      lo = mid
+      best = { bottomForce: Math.round(mid), surfaceWeight: w0 }
+    } else hi = mid
   }
   return best
 }
