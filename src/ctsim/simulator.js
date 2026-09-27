@@ -2,12 +2,14 @@
 // UI over src/ctsim/forces.js with the field-calibrated terms of
 // src/ctsim/calibration.js.
 import { el, fmt, clear } from '../ui/dom.js'
-import { simulateTrip, maxSetDown, buildString, tubeProps, kopLp, wellTrajectory, pointAtMd } from './forces.js'
+import { simulateTrip, maxSetDown, buildString, tubeProps, kopLp, wellTrajectory, pointAtMd, buildContext, forcesAtDepth } from './forces.js'
 import { readSurveyFile, parseSurveyTable, splitTable, parseRunCsv, parseDepthList } from './parsers.js'
 import { STANDARD_STRING_2375, DEFAULT_BHA } from './defaults.js'
 import { CT_CALIBRATION, MU_LEVELS, ERT_LEVELS } from './calibration.js'
 import { CT_GRADES } from '../data/ctStrength.js'
 import { matchRun, matchSurfaceReadings } from './runMatch.js'
+import { sensitivityGrid, sensitivityDepths } from './sensitivity.js'
+import { tubeGeometry, envelope, allowableLoad, utilization } from './triaxial.js'
 
 const CASING_PRESETS = [
   { label: '5" 18 lb/ft (ID 4.276")', id: 4.276 },
@@ -73,6 +75,9 @@ export function mountCtSimulator(container) {
     runName: '',
     match: null,
     error: '',
+    tab: 'pesos',
+    sens: { mus: [0.25, 0.3, 0.35], erts: [0, 500, 1000, 1500], required: 2000, showMu: null, result: null, key: '' },
+    tri: { wall: 'surface', wear: 0, manualF: null, manualDp: null },
   }
 
   const formEl = el('div', { class: 'calc-form ctsim-form' })
@@ -472,33 +477,58 @@ export function mountCtSimulator(container) {
     }
   }
 
+  const TABS = [
+    ['pesos', 'Pesos RIH / POOH'],
+    ['sens', 'Sensibilidad'],
+    ['tri', 'Límites triaxiales'],
+    ['3d', 'Survey 3D'],
+  ]
+
   function renderResults() {
     if (view3d) {
       view3d.dispose()
       view3d = null
     }
     clear(resultsEl)
+    resultsEl.appendChild(
+      el(
+        'div',
+        { class: 'ctsim-tabs', role: 'tablist' },
+        TABS.map(([k, label]) =>
+          el('button', { type: 'button', role: 'tab', class: `ctsim-tab${state.tab === k ? ' active' : ''}`, 'aria-selected': state.tab === k ? 'true' : 'false', onClick: () => ((state.tab = k), renderResults()) }, label)
+        )
+      )
+    )
     if (state.error) resultsEl.appendChild(el('p', { class: 'note note-error' }, state.error))
     if (!state.survey) {
       resultsEl.appendChild(el('p', { class: 'note' }, 'Cargá un survey para ver la simulación.'))
       return
     }
-    let base, lo, hi, setDown
     try {
-      const ratio = state.muPOOH / state.muRIH
-      base = simulateTrip(params(state.muRIH, state.muPOOH), cal.model)
-      lo = simulateTrip(params(state.muRIH - 0.05, (state.muRIH - 0.05) * ratio), cal.model)
-      hi = simulateTrip(params(state.muRIH + 0.05, (state.muRIH + 0.05) * ratio), cal.model)
-      const td = base.rows[base.rows.length - 1].depth
-      setDown = maxSetDown(params(state.muRIH, state.muPOOH), td, cal.model)
+      if (state.tab === 'pesos') weightsPanel()
+      else if (state.tab === 'sens') sensPanel()
+      else if (state.tab === 'tri') triPanel()
+      else resultsEl.appendChild(survey3dPanel())
     } catch (err) {
       resultsEl.appendChild(el('p', { class: 'note note-error' }, err.message))
-      return
     }
+  }
+
+  function baseTrips() {
+    const ratio = state.muPOOH / state.muRIH
+    const base = simulateTrip(params(state.muRIH, state.muPOOH), cal.model)
+    const lo = simulateTrip(params(state.muRIH - 0.05, (state.muRIH - 0.05) * ratio), cal.model)
+    const hi = simulateTrip(params(state.muRIH + 0.05, (state.muRIH + 0.05) * ratio), cal.model)
+    return { base, lo, hi }
+  }
+
+  function weightsPanel() {
+    const { base, lo, hi } = baseTrips()
+    const td = base.rows[base.rows.length - 1].depth
+    const setDown = maxSetDown(params(state.muRIH, state.muPOOH), td, cal.model)
     resultsEl.appendChild(chart(base, lo, hi))
     resultsEl.appendChild(summary(base, setDown))
     if (state.plugs.length) resultsEl.appendChild(plugTable())
-    resultsEl.appendChild(survey3dCard())
     resultsEl.appendChild(speedTable())
     resultsEl.appendChild(depthTable(base, lo, hi))
     resultsEl.appendChild(
@@ -510,6 +540,313 @@ export function mountCtSimulator(container) {
         cal.note,
       ])
     )
+  }
+
+  // ---- sensitivity: set-down capacity vs µ and ERT ------------------------
+  const ERT_SERIES = [
+    { v: 0, label: 'Sin ERT', cls: 's1' },
+    { v: 500, label: 'Baja 500', cls: 's2' },
+    { v: 1000, label: 'Media 1000', cls: 's3' },
+    { v: 1500, label: 'Alta 1500', cls: 's4' },
+  ]
+
+  function sensKey() {
+    return JSON.stringify([params(state.muRIH, state.muPOOH), state.sens.mus, state.sens.erts, state.sens.required, state.plugs], (k, v) => (typeof v === 'function' ? undefined : v))
+  }
+
+  function sensPanel() {
+    const sn = state.sens
+    const MU_OPTS = [0.2, 0.25, 0.3, 0.35, 0.4]
+    const toggle = (arr, v) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v].sort((a, b) => a - b))
+    const chk = (label, on, onChange) => el('label', { class: 'ctsim-chk' }, [el('input', { type: 'checkbox', checked: on, onChange }), label])
+    const muNow = +state.muRIH.toFixed(3)
+    const controls = el('div', { class: 'ctsim-card ctsim-card-body ctsim-sens-controls' }, [
+      el('p', { class: 'note' }, 'Capacidad de asentamiento = fuerza máxima que llega a la herramienta (set-down / WOB) antes del lock-up, para cada combinación de fricción y ERT. El resto de los parámetros es el del formulario.'),
+      el('span', { class: 'field-label' }, 'Coeficiente de fricción µ RIH (µ POOH mantiene la relación calibrada)'),
+      el('div', { class: 'ctsim-chk-row' }, [...new Set([...MU_OPTS, muNow])].sort((a, b) => a - b).map((m) => chk(m === muNow ? `${m.toFixed(2)} (actual)` : m.toFixed(2), sn.mus.includes(m), () => (sn.mus = toggle(sn.mus, m))))),
+      el('span', { class: 'field-label' }, 'ERT (lbf/bpm)'),
+      el('div', { class: 'ctsim-chk-row' }, ERT_SERIES.map((e) => chk(e.label, sn.erts.includes(e.v), () => (sn.erts = toggle(sn.erts, e.v))))),
+      numField('Set-down mínimo requerido en la herramienta', sn.required, (v) => (sn.required = v || 0), { unit: 'lbf', step: 250, hint: 'P. ej. el peso mínimo para rotar un tapón.' }),
+      el('button', { class: 'btn-secondary', type: 'button', onClick: runSens }, 'Calcular sensibilidad'),
+    ])
+    resultsEl.appendChild(controls)
+    const r = sn.result
+    if (!r) return
+    if (sn.key !== sensKey()) resultsEl.appendChild(el('p', { class: 'note' }, '⚠ Cambiaste parámetros desde el último cálculo: volvé a calcular.'))
+    const mus = [...new Set(r.grid.map((g) => g.mu))]
+    if (!mus.includes(sn.showMu)) sn.showMu = mus.includes(muNow) ? muNow : mus[0]
+    resultsEl.appendChild(sensChart(r, sn.showMu, mus))
+    resultsEl.appendChild(sensMatrix(r))
+    if (state.plugs.length) resultsEl.appendChild(sensPlugTable(r, sn.showMu))
+  }
+
+  function runSens() {
+    const sn = state.sens
+    if (!sn.mus.length || !sn.erts.length) {
+      state.error = 'Elegí al menos un µ y una opción de ERT.'
+      renderResults()
+      return
+    }
+    state.error = ''
+    const btn = resultsEl.querySelector('.ctsim-sens-controls button')
+    if (btn) (btn.textContent = 'Calculando…'), (btn.disabled = true)
+    setTimeout(() => {
+      try {
+        const td = Math.min(state.survey[state.survey.length - 1][0], buildString(state.string).totalLength)
+        const { lp } = kopLp(state.survey)
+        const depths = sensitivityDepths(td, lp, 250, state.plugs)
+        const grid = sensitivityGrid(params(state.muRIH, state.muPOOH), cal.model, { mus: sn.mus, erts: sn.erts, depths, requiredLbf: sn.required || 0 })
+        sn.result = { grid, depths, td, required: sn.required || 0 }
+        sn.key = sensKey()
+      } catch (err) {
+        state.error = err.message
+      }
+      renderResults()
+    }, 30)
+  }
+
+  function sensChart(r, mu, mus) {
+    const series = r.grid.filter((g) => g.mu === mu)
+    const W = Math.round(Math.min(760, Math.max(340, (resultsEl.clientWidth || 360) - 18)))
+    const H = 340
+    const m = { l: 52, r: 14, t: 14, b: 36 }
+    const d0 = r.depths[0]
+    const d1 = r.td
+    const yMax = Math.max(r.required * 1.3, ...series.flatMap((g) => g.profile.map((p) => p.setDown)), 1000)
+    const yStep = yMax > 16000 ? 5000 : yMax > 6000 ? 2000 : 1000
+    const y1 = Math.ceil(yMax / yStep) * yStep
+    const sx = (d) => m.l + ((d - d0) / Math.max(1, d1 - d0)) * (W - m.l - m.r)
+    const sy = (v) => H - m.b - (v / y1) * (H - m.t - m.b)
+    const ns = 'http://www.w3.org/2000/svg'
+    const svg = document.createElementNS(ns, 'svg')
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`)
+    svg.setAttribute('class', 'ctsim-chart')
+    svg.setAttribute('role', 'img')
+    svg.setAttribute('aria-label', 'Capacidad de asentamiento vs profundidad por ERT')
+    const add = (tag, attrs) => {
+      const n = document.createElementNS(ns, tag)
+      for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v)
+      svg.appendChild(n)
+      return n
+    }
+    for (let v = 0; v <= y1; v += yStep) {
+      add('line', { x1: m.l, x2: W - m.r, y1: sy(v), y2: sy(v), class: v === 0 ? 'ctsim-zero' : 'ctsim-grid' })
+      add('text', { x: m.l - 6, y: sy(v) + 4, class: 'ctsim-tick', 'text-anchor': 'end' }).textContent = v >= 1000 ? `${v / 1000}k` : String(v)
+    }
+    const dStep = d1 - d0 > 2500 ? 500 : 250
+    for (let d = Math.ceil(d0 / dStep) * dStep; d <= d1; d += dStep) {
+      add('line', { x1: sx(d), x2: sx(d), y1: m.t, y2: H - m.b, class: 'ctsim-grid' })
+      add('text', { x: sx(d), y: H - m.b + 14, class: 'ctsim-tick', 'text-anchor': 'middle' }).textContent = String(d)
+    }
+    add('text', { x: (m.l + W - m.r) / 2, y: H - 4, class: 'ctsim-axis', 'text-anchor': 'middle' }).textContent = 'MD (m)'
+    const yl = add('text', { x: 12, y: (m.t + H - m.b) / 2, class: 'ctsim-axis', 'text-anchor': 'middle' })
+    yl.setAttribute('transform', `rotate(-90 12 ${(m.t + H - m.b) / 2})`)
+    yl.textContent = 'Set-down disponible (lbf)'
+    if (r.required > 0) {
+      add('line', { x1: m.l, x2: W - m.r, y1: sy(r.required), y2: sy(r.required), class: 'ctsim-lock' })
+      add('text', { x: W - m.r - 4, y: sy(r.required) - 5, class: 'ctsim-tick', 'text-anchor': 'end' }).textContent = `requerido ${fmt(r.required, 0)} lbf`
+    }
+    for (const d of state.plugs) if (d >= d0 && d <= d1) add('line', { x1: sx(d), x2: sx(d), y1: H - m.b, y2: H - m.b - 7, class: 'ctsim-plug' })
+    for (const g of series) {
+      const es = ERT_SERIES.find((e) => e.v === g.ert) || ERT_SERIES[0]
+      add('polyline', { points: g.profile.map((p) => `${sx(p.depth)},${sy(p.setDown)}`).join(' '), class: `ctsim-line ctsim-${es.cls}-stroke` })
+    }
+    const muSel = el('select', { class: 'ctsim-inline-select', onChange: (e) => ((state.sens.showMu = Number(e.target.value)), renderResults()) }, mus.map((x) => el('option', { value: x, selected: x === mu }, `µ ${x.toFixed(2)}`)))
+    return el('div', { class: 'ctsim-chart-wrap' }, [
+      el('div', { class: 'ctsim-legend' }, [
+        muSel,
+        ...series.map((g) => {
+          const es = ERT_SERIES.find((e) => e.v === g.ert) || ERT_SERIES[0]
+          return el('span', {}, [el('i', { class: `ctsim-key ctsim-${es.cls}-bg` }), es.label])
+        }),
+      ]),
+      svg,
+    ])
+  }
+
+  function sensMatrix(r) {
+    const mus = [...new Set(r.grid.map((g) => g.mu))]
+    const erts = [...new Set(r.grid.map((g) => g.ert))]
+    const cell = (g) => {
+      const ok = g.atTD.setDown >= r.required && g.lockupDepth === null
+      const lines = [el('strong', {}, `${fmt(g.atTD.setDown, 0)} lbf`)]
+      if (g.lockupDepth !== null) lines.push(el('span', { class: 'ctsim-cell-sub' }, `lock-up ${fmt(g.lockupDepth, 0)} m`))
+      else if (g.limitDepth !== null) lines.push(el('span', { class: 'ctsim-cell-sub' }, `< req. desde ${fmt(g.limitDepth, 0)} m`))
+      else lines.push(el('span', { class: 'ctsim-cell-sub' }, 'OK hasta TD'))
+      return el('td', { class: ok ? 'ctsim-ok' : 'ctsim-bad' }, [el('span', { class: 'ctsim-cell-icon' }, ok ? '✓ ' : '✕ '), ...lines])
+    }
+    return el('div', { class: 'ctsim-card' }, [
+      el('div', { class: 'section-label ctsim-subtitle ctsim-pad-top' }, `Set-down disponible en TD (${fmt(r.td, 0)} m)`),
+      el('div', { class: 'ctsim-table-wrap' }, [
+        el('table', { class: 'ctsim-table ctsim-matrix' }, [
+          el('thead', {}, el('tr', {}, [el('th', {}, 'µ RIH \\ ERT'), ...erts.map((e) => el('th', {}, (ERT_SERIES.find((x) => x.v === e) || { label: String(e) }).label))])),
+          el('tbody', {}, mus.map((mu) => el('tr', {}, [el('td', {}, mu.toFixed(2)), ...erts.map((e) => cell(r.grid.find((g) => g.mu === mu && g.ert === e)))]))),
+        ]),
+      ]),
+      el('p', { class: 'note ctsim-pad' }, `✓ = llega a TD con al menos ${fmt(r.required, 0)} lbf de set-down. Debajo: profundidad de lock-up en RIH o desde dónde la capacidad es menor que la requerida. ERT en lbf por bpm bombeado (caudal ${fmt(state.rate, 1)} bpm).`),
+    ])
+  }
+
+  function sensPlugTable(r, mu) {
+    const series = r.grid.filter((g) => g.mu === mu)
+    const plugs = state.plugs.filter((d) => d <= r.td)
+    const at = (g, d) => g.profile.find((p) => p.depth === Math.round(d))
+    return el('details', { class: 'ctsim-card' }, [
+      el('summary', {}, `Set-down disponible en cada tapón (µ ${mu.toFixed(2)})`),
+      el('div', { class: 'ctsim-table-wrap' }, [
+        el('table', { class: 'ctsim-table' }, [
+          el('thead', {}, el('tr', {}, [el('th', {}, '#'), el('th', {}, 'MD (m)'), ...series.map((g) => el('th', {}, (ERT_SERIES.find((x) => x.v === g.ert) || { label: String(g.ert) }).label))])),
+          el(
+            'tbody',
+            {},
+            plugs.map((d, i) =>
+              el('tr', {}, [
+                el('td', {}, `T${i + 1}`),
+                el('td', {}, fmt(d, 0)),
+                ...series.map((g) => {
+                  const p = at(g, d)
+                  const v = p ? p.setDown : null
+                  return el('td', { class: v !== null && v < r.required ? 'ctsim-bad-text' : '' }, v === null ? '—' : fmt(v, 0))
+                }),
+              ])
+            )
+          ),
+        ]),
+      ]),
+    ])
+  }
+
+  // ---- triaxial (von Mises) operating limits ------------------------------
+  function triPanel() {
+    const tr = state.tri
+    const str = buildString(state.string)
+    const grade = CT_GRADES.find((g) => g.id === state.grade) || CT_GRADES[0]
+    const td = Math.min(state.survey[state.survey.length - 1][0], str.totalLength)
+    const surfWall = str.wallAt(Math.max(0, td - (state.bha.length || 0)))
+    const walls = [...new Set(state.string.sections.flatMap((x) => [Number(x.wallStart), Number(x.wallEnd)]))].sort((a, b) => a - b)
+    const wallNom = tr.wall === 'surface' ? surfWall : Number(tr.wall)
+    const wallEff = wallNom * (1 - (tr.wear || 0) / 100)
+    const g = tubeGeometry(str.od, wallEff)
+    const Y = grade.smys
+    const e100 = envelope(g, Y, 1)
+    const e80 = envelope(g, Y, 0.8)
+
+    // operating points from the simulation (CT at TD)
+    const pts = []
+    const p = params(state.muRIH, state.muPOOH)
+    const ctx = buildContext(p, cal.model)
+    const sp = (dir) => (p.speedAt ? p.speedAt(td, dir) : dir === 'RIH' ? p.speedRIH : p.speedPOOH)
+    const ctp = state.ctp || 0
+    const whp = state.whp || 0
+    for (const dir of ['POOH', 'RIH']) {
+      const c = { ...ctx, p: { ...ctx.p, speedRIH: sp('RIH'), speedPOOH: sp('POOH') } }
+      const f = forcesAtDepth(c, td, dir)
+      if (f.lockup) continue
+      // below the stripper (in the well): real force from effective force (Tech Note Eq 14)
+      const Fbelow = f.surfaceForce + ctp * g.Ai - whp * g.Ao
+      pts.push({ label: `${dir} en TD — bajo el stripper`, F: Fbelow, pi: ctp, po: whp })
+      // above the stripper (atmospheric outside): Eq 16
+      const strip = dir === 'POOH' ? state.stripper || 0 : -(state.stripper || 0)
+      const Fabove = f.surfaceForce - whp * g.Ao + strip + ctp * g.Ai
+      pts.push({ label: `${dir} en TD — sobre el stripper`, F: Fabove, pi: ctp, po: 0 })
+    }
+    if (tr.manualF !== null && tr.manualDp !== null) pts.push({ label: 'Punto manual', F: tr.manualF, pi: Math.max(0, tr.manualDp), po: Math.max(0, -tr.manualDp), manual: true })
+    for (const q of pts) {
+      q.dp = q.pi - q.po
+      q.u = utilization(g, Y, q.F, q.pi, q.po)
+    }
+
+    const controls = el('div', { class: 'ctsim-card ctsim-card-body' }, [
+      el('div', { class: 'row' }, [
+        selectField('Espesor de pared analizado', [{ value: 'surface', label: `En superficie con CT en TD (${surfWall.toFixed(3)}")` }, ...walls.map((w) => ({ value: w, label: `${w.toFixed(3)}"` }))], tr.wall, (v) => ((tr.wall = v === 'surface' ? 'surface' : Number(v)), renderResults())),
+        numField('Desgaste / reducción de pared', tr.wear, (v) => ((tr.wear = v || 0), schedule()), { unit: '%', step: 1 }),
+      ]),
+      el('div', { class: 'row' }, [
+        numField('Punto manual: carga axial real', tr.manualF, (v) => ((tr.manualF = v), schedule()), { unit: 'lbf', step: 1000, hint: 'Tracción +, compresión −' }),
+        numField('Punto manual: presión diferencial', tr.manualDp, (v) => ((tr.manualDp = v), schedule()), { unit: 'psi', step: 250, hint: 'Pi − Po (estallido +, colapso −)' }),
+      ]),
+      el('p', { class: 'note' }, `CT ${str.od}" × ${wallEff.toFixed(3)}" ${grade.id} (SMYS ${fmt(Y, 0)} psi). Los puntos de la simulación usan la presión de circulación (${fmt(ctp, 0)} psi) y la WHP (${fmt(whp, 0)} psi) del formulario.`),
+    ])
+    resultsEl.appendChild(controls)
+    resultsEl.appendChild(triChart(e100, e80, pts))
+    const allow = (dp) => allowableLoad(g, Y, 0.8, dp)
+    const r = (label, value, unit) => el('div', { class: 'result-row' }, [el('span', { class: 'result-label' }, label), el('span', { class: 'result-value' }, [el('strong', {}, value), unit ? el('span', { class: 'result-unit' }, ' ' + unit) : null])])
+    const aCtp = allow(ctp)
+    resultsEl.appendChild(
+      el('div', { class: 'result-card ctsim-summary' }, [
+        r('Estallido sin carga axial (80 % / 100 %)', `${fmt(e80.burst, 0)} / ${fmt(e100.burst, 0)}`, 'psi'),
+        r('Colapso (fluencia) sin carga axial (80 % / 100 %)', `${fmt(-e80.collapse, 0)} / ${fmt(-e100.collapse, 0)}`, 'psi'),
+        r('Tracción máx. sin presión (80 % / 100 %)', `${fmt(e80.tensionAtZero / 1000, 1)} / ${fmt(e100.tensionAtZero / 1000, 1)}`, 'klbf'),
+        aCtp ? r(`Carga admisible (80 %) con Δp = ${fmt(ctp, 0)} psi`, `${fmt(aCtp.compression / 1000, 1)} a ${fmt(aCtp.tension / 1000, 1)}`, 'klbf') : r(`Δp = ${fmt(ctp, 0)} psi`, 'fuera del límite', ''),
+      ])
+    )
+    resultsEl.appendChild(
+      el('div', { class: 'ctsim-card' }, [
+        el('div', { class: 'ctsim-table-wrap' }, [
+          el('table', { class: 'ctsim-table' }, [
+            el('thead', {}, el('tr', {}, ['Punto', 'Carga (klbf)', 'Pi (psi)', 'Po (psi)', 'Δp (psi)', 'σVME / fluencia'].map((h) => el('th', {}, h)))),
+            el('tbody', {}, pts.map((q, i) => el('tr', {}, [el('td', {}, `${i + 1}. ${q.label}`), el('td', {}, fmt(q.F / 1000, 1)), el('td', {}, fmt(q.pi, 0)), el('td', {}, fmt(q.po, 0)), el('td', {}, fmt(q.dp, 0)), el('td', { class: q.u > 0.8 ? 'ctsim-bad-text' : '' }, `${fmt(q.u * 100, 0)} % ${q.u > 0.8 ? '⚠' : '✓'}`)]))),
+          ]),
+        ]),
+      ])
+    )
+    resultsEl.appendChild(
+      el('p', { class: 'formula-note' }, 'Criterio de von Mises con esfuerzos de Lamé en las caras interna y externa: σVME = √{½[(σa−σθ)² + (σθ−σr)² + (σr−σa)²]}, σa = F/As. Envolvente trazado contra Δp = Pi − Po (estallido con Po = 0, colapso con Pi = 0); la utilización de cada punto usa sus Pi y Po reales. Límite operativo = 80 % de la fluencia (línea continua); 100 % en línea punteada. El colapso por fluencia no considera ovalidad ni colapso elástico: con tubería ovalizada el colapso real es menor. La fatiga por ciclos de doblado no está incluida.')
+    )
+  }
+
+  function triChart(e100, e80, pts) {
+    const W = Math.round(Math.min(760, Math.max(340, (resultsEl.clientWidth || 360) - 18)))
+    const H = Math.round(W * 0.78)
+    const m = { l: 56, r: 14, t: 14, b: 40 }
+    const all = [...e100.points, ...pts.map((q) => ({ F: q.F, dp: q.dp }))]
+    const xAbs = Math.max(...all.map((q) => Math.abs(q.F))) * 1.08
+    const yAbs = Math.max(...all.map((q) => Math.abs(q.dp))) * 1.08
+    const xStep = xAbs > 150000 ? 50000 : 25000
+    const yStep = yAbs > 15000 ? 5000 : 2500
+    const x1 = Math.ceil(xAbs / xStep) * xStep
+    const y1 = Math.ceil(yAbs / yStep) * yStep
+    const sx = (F) => m.l + ((F + x1) / (2 * x1)) * (W - m.l - m.r)
+    const sy = (dp) => m.t + ((y1 - dp) / (2 * y1)) * (H - m.t - m.b)
+    const ns = 'http://www.w3.org/2000/svg'
+    const svg = document.createElementNS(ns, 'svg')
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`)
+    svg.setAttribute('class', 'ctsim-chart')
+    svg.setAttribute('role', 'img')
+    svg.setAttribute('aria-label', 'Elipse de von Mises: carga axial vs presión diferencial')
+    const add = (tag, attrs) => {
+      const n = document.createElementNS(ns, tag)
+      for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v)
+      svg.appendChild(n)
+      return n
+    }
+    for (let x = -x1; x <= x1; x += xStep) {
+      add('line', { x1: sx(x), x2: sx(x), y1: m.t, y2: H - m.b, class: x === 0 ? 'ctsim-zero' : 'ctsim-grid' })
+      add('text', { x: sx(x), y: H - m.b + 14, class: 'ctsim-tick', 'text-anchor': 'middle' }).textContent = `${x / 1000}k`
+    }
+    for (let y = -y1; y <= y1; y += yStep) {
+      add('line', { x1: m.l, x2: W - m.r, y1: sy(y), y2: sy(y), class: y === 0 ? 'ctsim-zero' : 'ctsim-grid' })
+      add('text', { x: m.l - 6, y: sy(y) + 4, class: 'ctsim-tick', 'text-anchor': 'end' }).textContent = `${y / 1000}k`
+    }
+    add('text', { x: (m.l + W - m.r) / 2, y: H - 6, class: 'ctsim-axis', 'text-anchor': 'middle' }).textContent = '← compresión · Carga axial real (lbf) · tracción →'
+    const yl = add('text', { x: 12, y: (m.t + H - m.b) / 2, class: 'ctsim-axis', 'text-anchor': 'middle' })
+    yl.setAttribute('transform', `rotate(-90 12 ${(m.t + H - m.b) / 2})`)
+    yl.textContent = '← colapso · Δp (psi) · estallido →'
+    const poly = (e, cls) => add('polygon', { points: e.points.map((q) => `${sx(q.F)},${sy(q.dp)}`).join(' '), class: cls })
+    poly(e100, 'ctsim-env100')
+    poly(e80, 'ctsim-env80')
+    pts.forEach((q, i) => {
+      add('circle', { cx: sx(q.F), cy: sy(q.dp), r: 5, class: q.u > 0.8 ? 'ctsim-pt ctsim-pt-bad' : 'ctsim-pt' })
+      add('text', { x: sx(q.F) + 8, y: sy(q.dp) - 7, class: 'ctsim-pt-label' }).textContent = String(i + 1)
+    })
+    return el('div', { class: 'ctsim-chart-wrap' }, [
+      el('div', { class: 'ctsim-legend' }, [
+        el('span', {}, [el('i', { class: 'ctsim-key ctsim-rih-bg' }), 'Límite operativo 80 %']),
+        el('span', { class: 'ctsim-legend-dim' }, [el('i', { class: 'ctsim-key ctsim-dash-bg' }), 'Fluencia 100 %']),
+        el('span', {}, [el('i', { class: 'ctsim-key ctsim-pooh-bg' }), 'Puntos de operación']),
+      ]),
+      svg,
+    ])
   }
 
   function summary(base, setDown) {
@@ -573,7 +910,7 @@ export function mountCtSimulator(container) {
     ])
   }
 
-  function survey3dCard() {
+  function survey3dPanel() {
     const holder = el('div', { class: 'ctsim-3d' })
     const btns = el('div', { class: 'ctsim-3d-btns' }, [
       ['iso', 'Perspectiva'],
@@ -584,23 +921,19 @@ export function mountCtSimulator(container) {
     const { kop, lp } = kopLp(state.survey)
     const last = traj[traj.length - 1]
     const info = el('p', { class: 'note ctsim-pad' }, `TVD ${fmt(last.tvd, 1)} m · desplazamiento ${fmt(Math.hypot(last.n, last.e), 0)} m · DLS máx. ${fmt(Math.max(...traj.map((t) => t.dls)), 1)}°/30 m. Arrastrá para rotar, rueda o pellizco para zoom.`)
-    const det = el('details', { class: 'ctsim-card' }, [el('summary', {}, 'Survey en 3D'), el('div', { class: 'ctsim-card-body' }, [btns, holder, info])])
-    det.addEventListener('toggle', async () => {
-      if (!det.open) {
-        view3d?.dispose()
-        view3d = null
-        return
-      }
-      holder.textContent = 'Cargando visor 3D…'
+    const wrap = el('div', { class: 'ctsim-card' }, [el('div', { class: 'ctsim-card-body ctsim-pad-top' }, [btns, holder, info])])
+    holder.textContent = 'Cargando visor 3D…'
+    requestAnimationFrame(async () => {
       try {
         const { mountSurvey3D } = await import('./view3d.js')
+        if (state.tab !== '3d' || !holder.isConnected) return
         const plugs = state.plugs.filter((d) => d <= last.md).map((d, i) => ({ ...pointAtMd(traj, d), idx: i + 1 }))
         view3d = mountSurvey3D(holder, { traj, marks: { kop: kop != null ? pointAtMd(traj, kop) : null, lp: lp != null ? pointAtMd(traj, lp) : null }, plugs })
       } catch (err) {
         holder.textContent = `No se pudo abrir el visor 3D: ${err.message}`
       }
     })
-    return det
+    return wrap
   }
 
   function speedTable() {

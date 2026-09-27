@@ -50,7 +50,7 @@ export const MU_LEVELS = {
 
 export const ERT_LEVELS = {
   none: { label: 'Sin ERT', value: 0 },
-  low: { label: 'ERT baja intensidad — 500 lbf/bpm', value: 500 },
-  medium: { label: 'ERT intensidad media — 1000 lbf/bpm', value: 1000 },
-  high: { label: 'ERT alta intensidad (Terrapulse) — 1500 lbf/bpm', value: 1500 },
+  low: { label: 'Baja intensidad — 500 lbf/bpm', value: 500 },
+  medium: { label: 'Media intensidad — 1000 lbf/bpm', value: 1000 },
+  high: { label: 'Alta intensidad — 1500 lbf/bpm', value: 1500 },
 }

@@ -411,3 +411,164 @@ body.ctsim-app #app {
     top: 12px;
   }
 }
+
+/* result tabs */
+.ctsim-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  margin: 0 0 12px;
+  padding-bottom: 2px;
+}
+
+.ctsim-tab {
+  flex: 0 0 auto;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ctsim-tab.active {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
+}
+
+.calc-results > .ctsim-card,
+.calc-results > .result-card,
+.calc-results > .ctsim-chart-wrap {
+  margin-top: 12px;
+}
+
+.calc-results > .ctsim-tabs + .ctsim-card,
+.calc-results > .ctsim-tabs + .ctsim-chart-wrap {
+  margin-top: 0;
+}
+
+.ctsim-pad-top {
+  padding-top: 14px;
+}
+
+/* sensitivity */
+.ctsim-chk-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+
+.ctsim-chk {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+}
+
+.ctsim-chk input {
+  width: 18px;
+  height: 18px;
+}
+
+.ctsim-inline-select {
+  width: auto;
+  padding: 4px 8px;
+  font-size: 12.5px;
+  border-radius: 8px;
+}
+
+.ctsim-chart-wrap {
+  --ctsim-s3: #1baf7a;
+  --ctsim-s4: #eda100;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .ctsim-chart-wrap {
+    --ctsim-s3: #199e70;
+    --ctsim-s4: #c98500;
+  }
+}
+
+:root[data-theme='dark'] .ctsim-chart-wrap {
+  --ctsim-s3: #199e70;
+  --ctsim-s4: #c98500;
+}
+
+.ctsim-s1-stroke { stroke: var(--ctsim-rih); }
+.ctsim-s2-stroke { stroke: var(--ctsim-pooh); }
+.ctsim-s3-stroke { stroke: var(--ctsim-s3); }
+.ctsim-s4-stroke { stroke: var(--ctsim-s4); }
+.ctsim-s1-bg { background: var(--ctsim-rih); }
+.ctsim-s2-bg { background: var(--ctsim-pooh); }
+.ctsim-s3-bg { background: var(--ctsim-s3); }
+.ctsim-s4-bg { background: var(--ctsim-s4); }
+
+.ctsim-matrix td {
+  vertical-align: top;
+}
+
+.ctsim-matrix td strong {
+  display: inline;
+}
+
+.ctsim-cell-sub {
+  display: block;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.ctsim-cell-icon {
+  font-weight: 700;
+}
+
+.ctsim-ok .ctsim-cell-icon {
+  color: #008300;
+}
+
+.ctsim-bad .ctsim-cell-icon,
+.ctsim-bad-text {
+  color: #e34948;
+}
+
+/* triaxial */
+.ctsim-env100 {
+  fill: none;
+  stroke: var(--text-dim);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
+
+.ctsim-env80 {
+  fill: var(--ctsim-rih);
+  fill-opacity: 0.1;
+  stroke: var(--ctsim-rih);
+  stroke-width: 2;
+}
+
+.ctsim-pt {
+  fill: var(--ctsim-pooh);
+  stroke: var(--bg-card);
+  stroke-width: 2;
+}
+
+.ctsim-pt-bad {
+  fill: #e34948;
+}
+
+.ctsim-pt-label {
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--text);
+}
+
+.ctsim-dash-bg {
+  background: repeating-linear-gradient(90deg, var(--text-dim) 0 4px, transparent 4px 7px);
+}
+
+body.ctsim-app .app-header {
+  position: static;
+  background: none;
+}
