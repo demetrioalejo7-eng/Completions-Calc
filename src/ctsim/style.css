@@ -572,3 +572,16 @@ body.ctsim-app .app-header {
   position: static;
   background: none;
 }
+
+.ctsim-coll80 {
+  fill: none;
+  stroke: var(--ctsim-s3);
+  stroke-width: 2.5;
+}
+
+.ctsim-coll100 {
+  fill: none;
+  stroke: var(--ctsim-s3);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
