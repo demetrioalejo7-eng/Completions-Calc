@@ -45,6 +45,6 @@ export const TENARIS_WELDLOG_2375 = {
 }
 
 export const STRING_PRESETS = [
-  { id: 'standard', label: 'Sarta estándar 2 3/8" (7.660 m)', string: STANDARD_STRING_2375 },
-  { id: 'tenaris-weldlog', label: 'Tenaris weld log 2 3/8" (8.338 m)', string: TENARIS_WELDLOG_2375 },
+  { id: 'standard', label: 'Sarta estándar 2 3/8" (7.660 m)', string: STANDARD_STRING_2375, grade: 'global-duracoil|DC-120' },
+  { id: 'tenaris-weldlog', label: 'Tenaris weld log 2 3/8" HT-125 (8.338 m)', string: TENARIS_WELDLOG_2375, grade: 'tenaris-bluecoil|HT-125' },
 ]
