@@ -241,7 +241,10 @@ export function mountCtSimulator(container) {
           state.stringPreset,
           (v) => {
             const pr = STRING_PRESETS.find((x) => x.id === v)
-            if (pr) state.string = JSON.parse(JSON.stringify(pr.string))
+            if (pr) {
+              state.string = JSON.parse(JSON.stringify(pr.string))
+              if (pr.grade) state.grade = pr.grade
+            }
             state.stringPreset = v
             renderForm()
             schedule()
@@ -255,7 +258,7 @@ export function mountCtSimulator(container) {
         ...rows,
         el('div', { class: 'row' }, [
           el('button', { class: 'btn-secondary', type: 'button', onClick: () => (s.sections.push({ length: 500, wallStart: 0.175, wallEnd: 0.175 }), (state.stringPreset = 'custom'), renderForm(), schedule()) }, '+ Sección'),
-          el('button', { class: 'btn-secondary', type: 'button', onClick: () => ((state.string = JSON.parse(JSON.stringify(STANDARD_STRING_2375))), (state.stringPreset = 'standard'), renderForm(), schedule()) }, 'Sarta estándar'),
+          el('button', { class: 'btn-secondary', type: 'button', onClick: () => ((state.string = JSON.parse(JSON.stringify(STANDARD_STRING_2375))), (state.stringPreset = 'standard'), (state.grade = STRING_PRESETS[0].grade), renderForm(), schedule()) }, 'Sarta estándar'),
         ]),
         el('p', { class: 'note' }, `Secciones del core (carrete) al extremo libre (herramienta). Largo total ${fmt(total, 0)} m.`),
         el('div', { class: 'row' }, [
