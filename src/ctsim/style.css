@@ -585,3 +585,111 @@ body.ctsim-app .app-header {
   stroke-width: 1.5;
   stroke-dasharray: 5 4;
 }
+
+/* multi-survey list */
+.ctsim-wells {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ctsim-well {
+  display: grid;
+  grid-template-columns: 22px 1fr auto 30px;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-elev);
+}
+
+.ctsim-well.active {
+  border-color: var(--accent);
+}
+
+.ctsim-well input[type='radio'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+.ctsim-well-info {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+input.ctsim-text {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 14px;
+  width: 100%;
+  min-width: 0;
+}
+
+.ctsim-well input.ctsim-text {
+  background: var(--bg-card);
+  padding: 6px 8px;
+}
+
+.ctsim-preview-det > summary {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.ctsim-chart-wrap {
+  --ctsim-s5: #e87ba4;
+  --ctsim-s6: #008300;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .ctsim-chart-wrap {
+    --ctsim-s5: #d55181;
+  }
+}
+
+:root[data-theme='dark'] .ctsim-chart-wrap {
+  --ctsim-s5: #d55181;
+}
+
+.ctsim-s5-stroke { stroke: var(--ctsim-s5); }
+.ctsim-s6-stroke { stroke: var(--ctsim-s6); }
+.ctsim-s5-bg { background: var(--ctsim-s5); }
+.ctsim-s6-bg { background: var(--ctsim-s6); }
+
+.ctsim-matrix .ctsim-key {
+  vertical-align: middle;
+}
+
+/* series colors available to tables/legends outside the chart too */
+.ctsim-results {
+  --ctsim-rih: #2a78d6;
+  --ctsim-pooh: #eb6834;
+  --ctsim-s3: #1baf7a;
+  --ctsim-s4: #eda100;
+  --ctsim-s5: #e87ba4;
+  --ctsim-s6: #008300;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .ctsim-results {
+    --ctsim-rih: #3987e5;
+    --ctsim-pooh: #d95926;
+    --ctsim-s3: #199e70;
+    --ctsim-s4: #c98500;
+    --ctsim-s5: #d55181;
+  }
+}
+
+:root[data-theme='dark'] .ctsim-results {
+  --ctsim-rih: #3987e5;
+  --ctsim-pooh: #d95926;
+  --ctsim-s3: #199e70;
+  --ctsim-s4: #c98500;
+  --ctsim-s5: #d55181;
+}
