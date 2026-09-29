@@ -47,6 +47,9 @@ export function mountCtSimulator(container) {
   const state = {
     survey: null,
     surveyName: '',
+    surveys: [], // [{ name, rows, plugs, plugsText }] up to MAX_SURVEYS
+    active: -1,
+    pasteName: '',
     surveyText: '',
     plugs: [],
     plugsText: '',
@@ -77,7 +80,7 @@ export function mountCtSimulator(container) {
     match: null,
     error: '',
     tab: 'pesos',
-    sens: { mus: [0.25, 0.3, 0.35], erts: [0, 500, 1000, 1500], required: 2000, showMu: null, result: null, key: '' },
+    sens: { mus: [0.25, 0.3, 0.35], erts: [0, 500, 1000, 1500], required: 2000, showMu: null, showErt: null, wells: null, result: null, key: '' },
     tri: { wall: 'surface', wear: 0, ovality: 2, manualF: null, manualDp: null },
   }
 
@@ -96,44 +99,87 @@ export function mountCtSimulator(container) {
     schedule()
   }
 
-  // ---- survey --------------------------------------------------------------
+  // ---- surveys (up to MAX_SURVEYS wells) ----------------------------------
+  const MAX_SURVEYS = 6
+
+  function setActive(i) {
+    // plugs belong to each well: save the current ones, load the new well's
+    const cur = state.surveys[state.active]
+    if (cur) (cur.plugs = state.plugs), (cur.plugsText = state.plugsText)
+    state.active = i
+    const sv = state.surveys[i]
+    state.survey = sv ? sv.rows : null
+    state.surveyName = sv ? sv.name : ''
+    state.plugs = sv?.plugs || []
+    state.plugsText = sv?.plugsText || ''
+  }
+
+  // "Survey_Final_Pozo_BdC-1034h.xlsx" → "BdC-1034h"
+  function wellNameFromFile(fname) {
+    return (
+      fname
+        .replace(/\.(xlsx|csv|txt)$/i, '')
+        .replace(/^[0-9a-f]{8}-/i, '')
+        .replace(/^survey[\s_-]*(final[\s_-]*)?(pozo[\s_-]*)?/i, '')
+        .replace(/_/g, ' ')
+        .trim() || fname
+    )
+  }
+
+  function addSurvey(name, rows) {
+    if (state.surveys.length >= MAX_SURVEYS) throw new Error(`Se pueden cargar hasta ${MAX_SURVEYS} surveys. Quitá alguno para agregar otro.`)
+    let n = name
+    let k = 2
+    while (state.surveys.some((x) => x.name === n)) n = `${name} (${k++})`
+    state.surveys.push({ name: n, rows, plugs: [], plugsText: '' })
+    setActive(state.surveys.length - 1)
+  }
+
+  function removeSurvey(i) {
+    const wasActive = i === state.active
+    if (wasActive) state.active = -1
+    state.surveys.splice(i, 1)
+    if (wasActive) setActive(state.surveys.length ? 0 : -1)
+    else if (i < state.active) state.active--
+  }
+
   function surveyCard() {
     const sv = state.survey
-    const status = sv
-      ? el('p', { class: 'note' }, `✓ ${state.surveyName}: ${sv.length} estaciones, TD ${fmt(sv[sv.length - 1][0], 1)} m MD, inc. máx. ${fmt(Math.max(...sv.map((r) => r[1])), 1)}°`)
-      : el('p', { class: 'note' }, 'Elegí el archivo (xlsx/csv) o copiá las columnas Profundidad (MD), Inclinación y Azimut desde Excel y pegalas abajo.')
     const fileInput = el('input', {
       type: 'file',
+      multiple: true,
       accept: '.xlsx,.csv,.txt',
       class: 'ctsim-file',
       onChange: async (e) => {
-        const f = e.target.files[0]
-        if (!f) return
-        try {
-          state.survey = await readSurveyFile(f)
-          state.surveyName = f.name
-          state.error = ''
-        } catch (err) {
-          state.error = err.message
+        const errs = []
+        for (const f of e.target.files) {
+          try {
+            addSurvey(wellNameFromFile(f.name), await readSurveyFile(f))
+          } catch (err) {
+            errs.push(`${f.name}: ${err.message}`)
+          }
         }
+        state.error = errs.join(' · ')
         renderForm()
         renderResults()
       },
     })
     const paste = el('textarea', {
       class: 'ctsim-textarea',
-      rows: 6,
+      rows: 5,
       placeholder: 'Pegá acá (Ctrl+V) las 3 columnas copiadas de Excel:\nMD\tInc\tAz\n0\t0\t0\n500,5\t2,10\t185,3\n…',
       onInput: (e) => (state.surveyText = e.target.value),
     })
     paste.value = state.surveyText
+    const nameInput = el('input', { type: 'text', class: 'ctsim-text', placeholder: `Nombre del pozo (p. ej. Pozo ${state.surveys.length + 1})`, value: state.pasteName, onInput: (e) => (state.pasteName = e.target.value) })
     const loadPasted = () => {
       if (!state.surveyText.trim()) {
         state.error = 'No hay datos pegados.'
       } else {
         try {
-          state.survey = parseSurveyTable(splitTable(state.surveyText))
-          state.surveyName = 'Survey pegado'
+          addSurvey(state.pasteName.trim() || `Pozo ${state.surveys.length + 1}`, parseSurveyTable(splitTable(state.surveyText)))
+          state.surveyText = ''
+          state.pasteName = ''
           state.error = ''
         } catch (err) {
           state.error = err.message
@@ -142,31 +188,64 @@ export function mountCtSimulator(container) {
       renderForm()
       renderResults()
     }
+    const list = state.surveys.length
+      ? el(
+          'div',
+          { class: 'ctsim-wells' },
+          state.surveys.map((w, i) =>
+            el('div', { class: `ctsim-well${i === state.active ? ' active' : ''}` }, [
+              el('input', { type: 'radio', name: 'ctsim-active', checked: i === state.active, 'aria-label': `Usar ${w.name}`, onChange: () => (setActive(i), renderForm(), renderResults()) }),
+              el('input', {
+                type: 'text',
+                class: 'ctsim-text',
+                value: w.name,
+                'aria-label': 'Nombre del pozo',
+                onChange: (e) => {
+                  w.name = e.target.value.trim() || w.name
+                  if (i === state.active) state.surveyName = w.name
+                  renderForm()
+                  renderResults()
+                },
+              }),
+              el('span', { class: 'ctsim-well-info' }, `TD ${fmt(w.rows[w.rows.length - 1][0], 0)} m · ${w.rows.length} est.${(i === state.active ? state.plugs : w.plugs).length ? ` · ${(i === state.active ? state.plugs : w.plugs).length} tap.` : ''}`),
+              el('button', { class: 'btn-icon', type: 'button', 'aria-label': `Quitar ${w.name}`, onClick: () => (removeSurvey(i), renderForm(), renderResults()) }, '×'),
+            ])
+          )
+        )
+      : el('p', { class: 'note' }, 'Elegí los archivos (xlsx/csv, podés seleccionar varios) o copiá las columnas Profundidad (MD), Inclinación y Azimut desde Excel y pegalas abajo.')
     const preview = sv
-      ? el('div', { class: 'ctsim-table-wrap ctsim-preview' }, [
-          el('table', { class: 'ctsim-table' }, [
-            el('thead', {}, el('tr', {}, ['MD (m)', 'Inc (°)', 'Az (°)'].map((h) => el('th', {}, h)))),
-            el(
-              'tbody',
-              {},
-              (sv.length > 8 ? [...sv.slice(0, 4), null, ...sv.slice(-3)] : sv).map((r) =>
-                r ? el('tr', {}, r.map((v) => el('td', {}, fmt(v, 2)))) : el('tr', {}, [el('td', { colspan: 3, class: 'ctsim-ellipsis' }, `… ${sv.length - 7} estaciones más …`)])
-              )
-            ),
+      ? el('details', { class: 'ctsim-preview-det' }, [
+          el('summary', {}, `Ver estaciones de ${state.surveyName}`),
+          el('div', { class: 'ctsim-table-wrap ctsim-preview' }, [
+            el('table', { class: 'ctsim-table' }, [
+              el('thead', {}, el('tr', {}, ['MD (m)', 'Inc (°)', 'Az (°)'].map((h) => el('th', {}, h)))),
+              el(
+                'tbody',
+                {},
+                (sv.length > 8 ? [...sv.slice(0, 4), null, ...sv.slice(-3)] : sv).map((r) =>
+                  r ? el('tr', {}, r.map((v) => el('td', {}, fmt(v, 2)))) : el('tr', {}, [el('td', { colspan: 3, class: 'ctsim-ellipsis' }, `… ${sv.length - 7} estaciones más …`)])
+                )
+              ),
+            ]),
           ]),
         ])
       : null
-    return card('1 · Survey del pozo', [
-      el('span', { class: 'field-label' }, 'Desde archivo'),
-      fileInput,
-      el('span', { class: 'field-label' }, 'O pegando las columnas'),
-      paste,
-      el('div', { class: 'row' }, [
-        el('button', { class: 'btn-secondary', type: 'button', onClick: loadPasted }, 'Cargar survey pegado'),
-        el('button', { class: 'btn-secondary', type: 'button', onClick: () => ((state.surveyText = ''), renderForm()) }, 'Limpiar'),
-      ]),
-      status,
+    const full = state.surveys.length >= MAX_SURVEYS
+    return card(`1 · Surveys (${state.surveys.length}/${MAX_SURVEYS})`, [
+      list,
+      state.surveys.length > 1 ? el('p', { class: 'note' }, 'El pozo marcado es el que se usa en Pesos, Límites triaxiales y 3D. En Sensibilidad podés comparar todos.') : null,
       preview,
+      full ? el('p', { class: 'note' }, `Máximo ${MAX_SURVEYS} surveys: quitá alguno para agregar otro.`) : el('span', { class: 'field-label' }, 'Agregar desde archivo'),
+      full ? null : fileInput,
+      full ? null : el('span', { class: 'field-label' }, 'O pegando las columnas'),
+      full ? null : nameInput,
+      full ? null : paste,
+      full
+        ? null
+        : el('div', { class: 'row' }, [
+            el('button', { class: 'btn-secondary', type: 'button', onClick: loadPasted }, 'Agregar survey pegado'),
+            el('button', { class: 'btn-secondary', type: 'button', onClick: () => ((state.surveyText = ''), renderForm()) }, 'Limpiar'),
+          ]),
     ])
   }
 
@@ -181,7 +260,7 @@ export function mountCtSimulator(container) {
     ta.value = state.plugsText
     const n = state.plugs.length
     return card(
-      '2 · Tapones',
+      state.surveyName ? `2 · Tapones — ${state.surveyName}` : '2 · Tapones',
       [
         ta,
         el('div', { class: 'row' }, [
@@ -191,6 +270,8 @@ export function mountCtSimulator(container) {
             onClick: () => {
               try {
                 state.plugs = parseDepthList(state.plugsText)
+                const w = state.surveys[state.active]
+                if (w) (w.plugs = state.plugs), (w.plugsText = state.plugsText)
                 state.error = ''
               } catch (err) {
                 state.error = err.message
@@ -199,7 +280,7 @@ export function mountCtSimulator(container) {
               renderResults()
             },
           }, 'Cargar tapones'),
-          el('button', { class: 'btn-secondary', type: 'button', onClick: () => ((state.plugs = []), (state.plugsText = ''), renderForm(), renderResults()) }, 'Quitar'),
+          el('button', { class: 'btn-secondary', type: 'button', onClick: () => { state.plugs = []; state.plugsText = ''; const w = state.surveys[state.active]; if (w) (w.plugs = []), (w.plugsText = ''); renderForm(); renderResults() } }, 'Quitar'),
         ]),
         el('p', { class: 'note' }, n ? `✓ ${n} tapones entre ${fmt(state.plugs[0], 0)} y ${fmt(state.plugs[n - 1], 0)} m MD. Se marcan en el gráfico, en la vista 3D y en la tabla de tapones.` : 'Opcional. Se muestran en el gráfico, en el 3D y con el peso esperado y el set-down disponible en cada uno.'),
       ],
@@ -232,8 +313,9 @@ export function mountCtSimulator(container) {
         el('button', { class: 'btn-icon', type: 'button', 'aria-label': 'Quitar sección', onClick: () => (s.sections.splice(i, 1), (state.stringPreset = 'custom'), renderForm(), schedule()) }, '×'),
       ])
     )
+    const presetLabel = (STRING_PRESETS.find((x) => x.id === state.stringPreset) || { label: 'personalizada' }).label
     return card(
-      '4 · Sarta de coiled tubing',
+      `4 · Sarta: ${presetLabel}`,
       [
         selectField(
           'Diseño de sarta',
@@ -266,7 +348,7 @@ export function mountCtSimulator(container) {
           numField('BHA: peso en aire', state.bha.weight, (v) => ((state.bha.weight = v || 0), schedule()), { unit: 'lb', step: 10 }),
         ]),
       ],
-      { open: false }
+      { open: true }
     )
   }
 
@@ -335,8 +417,8 @@ export function mountCtSimulator(container) {
     ])
   }
 
-  function speedAtFn() {
-    const { kop, lp } = kopLp(state.survey)
+  function speedAtFn(survey = state.survey) {
+    const { kop, lp } = kopLp(survey)
     const sp = (z, dir) => Math.max(0.1, state.speeds[z][dir] || 0.1)
     const RAMP = 100 // m: speed changes are ramped over ±100 m around KOP / LP
     const blend = (d, at, a, b, dir) => {
@@ -492,9 +574,9 @@ export function mountCtSimulator(container) {
   }
 
   // ---- results -------------------------------------------------------------
-  function params(muRIH, muPOOH) {
+  function params(muRIH, muPOOH, survey = state.survey) {
     return {
-      survey: state.survey,
+      survey,
       casing: [{ top: 0, bottom: 1e9, id: state.casingId }],
       string: state.string,
       fluidPpg: state.fluidPpg,
@@ -505,7 +587,7 @@ export function mountCtSimulator(container) {
       muPOOH,
       speedRIH: state.speeds.lat.RIH || 0.1,
       speedPOOH: state.speeds.lat.POOH || 0.1,
-      speedAt: speedAtFn(),
+      speedAt: speedAtFn(survey),
       ertLbfPerBpm: state.ert || 0,
       stripperLbf: state.stripper || 0,
       reelTensionRIH: state.rbtRIH || 0,
@@ -588,8 +670,19 @@ export function mountCtSimulator(container) {
     { v: 1500, label: 'Alta 1500', cls: 's4' },
   ]
 
+  const WELL_CLS = ['s1', 's2', 's3', 's4', 's5', 's6']
+  const ertLabel = (v) => (ERT_SERIES.find((x) => x.v === v) || { label: `${v} lbf/bpm` }).label
+
+  function sensWells() {
+    const sn = state.sens
+    const all = state.surveys.map((w, i) => i)
+    if (!sn.wells) return all
+    return sn.wells.filter((i) => i < state.surveys.length)
+  }
+
   function sensKey() {
-    return JSON.stringify([params(state.muRIH, state.muPOOH), state.sens.mus, state.sens.erts, state.sens.required, state.plugs], (k, v) => (typeof v === 'function' ? undefined : v))
+    const wells = sensWells().map((i) => [state.surveys[i].name, state.surveys[i].rows.length, i === state.active ? state.plugs : state.surveys[i].plugs])
+    return JSON.stringify([params(state.muRIH, state.muPOOH), state.sens.mus, state.sens.erts, state.sens.required, wells], (k, v) => (typeof v === 'function' ? undefined : v))
   }
 
   function sensPanel() {
@@ -598,8 +691,13 @@ export function mountCtSimulator(container) {
     const toggle = (arr, v) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v].sort((a, b) => a - b))
     const chk = (label, on, onChange) => el('label', { class: 'ctsim-chk' }, [el('input', { type: 'checkbox', checked: on, onChange }), label])
     const muNow = +state.muRIH.toFixed(3)
+    const wells = sensWells()
     const controls = el('div', { class: 'ctsim-card ctsim-card-body ctsim-sens-controls' }, [
-      el('p', { class: 'note' }, 'Capacidad de asentamiento = fuerza máxima que llega a la herramienta (set-down / WOB) antes del lock-up, para cada combinación de fricción y ERT. El resto de los parámetros es el del formulario.'),
+      el('p', { class: 'note' }, 'Capacidad de asentamiento = fuerza máxima que llega a la herramienta (set-down / WOB) antes del lock-up, para cada combinación de fricción y ERT. El resto de los parámetros (sarta, caudal, velocidades, WHP) es el del formulario.'),
+      state.surveys.length > 1 ? el('span', { class: 'field-label' }, 'Pozos a comparar') : null,
+      state.surveys.length > 1
+        ? el('div', { class: 'ctsim-chk-row' }, state.surveys.map((w, i) => chk(w.name, wells.includes(i), () => (sn.wells = toggle(wells, i)))))
+        : null,
       el('span', { class: 'field-label' }, 'Coeficiente de fricción µ RIH (µ POOH mantiene la relación calibrada)'),
       el('div', { class: 'ctsim-chk-row' }, [...new Set([...MU_OPTS, muNow])].sort((a, b) => a - b).map((m) => chk(m === muNow ? `${m.toFixed(2)} (actual)` : m.toFixed(2), sn.mus.includes(m), () => (sn.mus = toggle(sn.mus, m))))),
       el('span', { class: 'field-label' }, 'ERT (lbf/bpm)'),
@@ -611,46 +709,92 @@ export function mountCtSimulator(container) {
     const r = sn.result
     if (!r) return
     if (sn.key !== sensKey()) resultsEl.appendChild(el('p', { class: 'note' }, '⚠ Cambiaste parámetros desde el último cálculo: volvé a calcular.'))
-    const mus = [...new Set(r.grid.map((g) => g.mu))]
-    if (!mus.includes(sn.showMu)) sn.showMu = mus.includes(muNow) ? muNow : mus[0]
-    resultsEl.appendChild(sensChart(r, sn.showMu, mus))
-    resultsEl.appendChild(sensMatrix(r))
-    if (state.plugs.length) resultsEl.appendChild(sensPlugTable(r, sn.showMu))
+    const mus = [...new Set(r.wells[0].grid.map((g) => g.mu))]
+    const erts = [...new Set(r.wells[0].grid.map((g) => g.ert))]
+    if (!mus.includes(sn.showMu)) sn.showMu = mus.reduce((a, b) => (Math.abs(b - muNow) < Math.abs(a - muNow) ? b : a), mus[0])
+    if (!erts.includes(sn.showErt)) sn.showErt = erts[erts.length - 1]
+    const muSel = el('select', { class: 'ctsim-inline-select', 'aria-label': 'µ a mostrar', onChange: (e) => ((sn.showMu = Number(e.target.value)), renderResults()) }, mus.map((x) => el('option', { value: x, selected: x === sn.showMu }, `µ ${x.toFixed(2)}`)))
+    if (r.wells.length === 1) {
+      const w = r.wells[0]
+      const series = w.grid.filter((g) => g.mu === sn.showMu).map((g) => ({ label: ertLabel(g.ert), cls: (ERT_SERIES.find((e) => e.v === g.ert) || ERT_SERIES[0]).cls, profile: g.profile }))
+      resultsEl.appendChild(sensChart({ series, d0: w.depths[0], d1: w.td, required: r.required, plugs: w.plugs, selectors: [muSel], title: `${w.name} — set-down disponible por ERT` }))
+      resultsEl.appendChild(sensMatrix(w, r.required))
+      if (w.plugs.length) resultsEl.appendChild(sensPlugTable(w, r.required, sn.showMu))
+      return
+    }
+    // several wells: one line per well for the chosen µ and ERT
+    const ertSel = el('select', { class: 'ctsim-inline-select', 'aria-label': 'ERT a mostrar', onChange: (e) => ((sn.showErt = Number(e.target.value)), renderResults()) }, erts.map((x) => el('option', { value: x, selected: x === sn.showErt }, ertLabel(x))))
+    const series = r.wells.map((w, k) => ({ label: w.name, cls: WELL_CLS[k % WELL_CLS.length], profile: (w.grid.find((g) => g.mu === sn.showMu && g.ert === sn.showErt) || { profile: [] }).profile }))
+    resultsEl.appendChild(
+      sensChart({
+        series,
+        d0: Math.min(...r.wells.map((w) => w.depths[0])),
+        d1: Math.max(...r.wells.map((w) => w.td)),
+        required: r.required,
+        plugs: [],
+        selectors: [muSel, ertSel],
+        title: 'Comparación de pozos — set-down disponible',
+      })
+    )
+    resultsEl.appendChild(wellsTable(r, sn.showMu, erts))
+    for (const w of r.wells) {
+      resultsEl.appendChild(
+        el('details', { class: 'ctsim-card' }, [
+          el('summary', {}, `${w.name}: matriz µ × ERT${w.plugs.length ? ' y tapones' : ''}`),
+          sensMatrix(w, r.required, true),
+          w.plugs.length ? sensPlugTable(w, r.required, sn.showMu, true) : null,
+        ])
+      )
+    }
   }
 
   function runSens() {
     const sn = state.sens
-    if (!sn.mus.length || !sn.erts.length) {
-      state.error = 'Elegí al menos un µ y una opción de ERT.'
+    const wells = sensWells()
+    if (!sn.mus.length || !sn.erts.length || !wells.length) {
+      state.error = 'Elegí al menos un pozo, un µ y una opción de ERT.'
       renderResults()
       return
     }
     state.error = ''
     const btn = resultsEl.querySelector('.ctsim-sens-controls button')
-    if (btn) (btn.textContent = 'Calculando…'), (btn.disabled = true)
-    setTimeout(() => {
-      try {
-        const td = Math.min(state.survey[state.survey.length - 1][0], buildString(state.string).totalLength)
-        const { lp } = kopLp(state.survey)
-        const depths = sensitivityDepths(td, lp, 250, state.plugs)
-        const grid = sensitivityGrid(params(state.muRIH, state.muPOOH), cal.model, { mus: sn.mus, erts: sn.erts, depths, requiredLbf: sn.required || 0 })
-        sn.result = { grid, depths, td, required: sn.required || 0 }
+    if (btn) btn.disabled = true
+    const cur = state.surveys[state.active]
+    if (cur) (cur.plugs = state.plugs), (cur.plugsText = state.plugsText)
+    const strLen = buildString(state.string).totalLength
+    const out = []
+    const step = (k) => {
+      if (k >= wells.length) {
+        sn.result = { wells: out, required: sn.required || 0 }
         sn.key = sensKey()
-      } catch (err) {
-        state.error = err.message
+        renderResults()
+        return
       }
-      renderResults()
-    }, 30)
+      if (btn) btn.textContent = wells.length > 1 ? `Calculando ${state.surveys[wells[k]].name} (${k + 1}/${wells.length})…` : 'Calculando…'
+      setTimeout(() => {
+        try {
+          const w = state.surveys[wells[k]]
+          const plugs = w.plugs || []
+          const td = Math.min(w.rows[w.rows.length - 1][0], strLen)
+          const { lp } = kopLp(w.rows)
+          const depths = sensitivityDepths(td, lp, 250, plugs)
+          const grid = sensitivityGrid(params(state.muRIH, state.muPOOH, w.rows), cal.model, { mus: sn.mus, erts: sn.erts, depths, requiredLbf: sn.required || 0 })
+          out.push({ name: w.name, grid, depths, td, plugs })
+          step(k + 1)
+        } catch (err) {
+          state.error = `${state.surveys[wells[k]].name}: ${err.message}`
+          renderResults()
+        }
+      }, 30)
+    }
+    step(0)
   }
 
-  function sensChart(r, mu, mus) {
-    const series = r.grid.filter((g) => g.mu === mu)
+  function sensChart({ series, d0, d1, required, plugs, selectors, title }) {
     const W = Math.round(Math.min(760, Math.max(340, (resultsEl.clientWidth || 360) - 18)))
     const H = 340
     const m = { l: 52, r: 14, t: 14, b: 36 }
-    const d0 = r.depths[0]
-    const d1 = r.td
-    const yMax = Math.max(r.required * 1.3, ...series.flatMap((g) => g.profile.map((p) => p.setDown)), 1000)
+    const yMax = Math.max(required * 1.3, ...series.flatMap((g) => g.profile.map((p) => p.setDown)), 1000)
     const yStep = yMax > 16000 ? 5000 : yMax > 6000 ? 2000 : 1000
     const y1 = Math.ceil(yMax / yStep) * yStep
     const sx = (d) => m.l + ((d - d0) / Math.max(1, d1 - d0)) * (W - m.l - m.r)
@@ -660,7 +804,7 @@ export function mountCtSimulator(container) {
     svg.setAttribute('viewBox', `0 0 ${W} ${H}`)
     svg.setAttribute('class', 'ctsim-chart')
     svg.setAttribute('role', 'img')
-    svg.setAttribute('aria-label', 'Capacidad de asentamiento vs profundidad por ERT')
+    svg.setAttribute('aria-label', title)
     const add = (tag, attrs) => {
       const n = document.createElementNS(ns, tag)
       for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v)
@@ -680,78 +824,92 @@ export function mountCtSimulator(container) {
     const yl = add('text', { x: 12, y: (m.t + H - m.b) / 2, class: 'ctsim-axis', 'text-anchor': 'middle' })
     yl.setAttribute('transform', `rotate(-90 12 ${(m.t + H - m.b) / 2})`)
     yl.textContent = 'Set-down disponible (lbf)'
-    if (r.required > 0) {
-      add('line', { x1: m.l, x2: W - m.r, y1: sy(r.required), y2: sy(r.required), class: 'ctsim-lock' })
-      add('text', { x: W - m.r - 4, y: sy(r.required) - 5, class: 'ctsim-tick', 'text-anchor': 'end' }).textContent = `requerido ${fmt(r.required, 0)} lbf`
+    if (required > 0) {
+      add('line', { x1: m.l, x2: W - m.r, y1: sy(required), y2: sy(required), class: 'ctsim-lock' })
+      add('text', { x: W - m.r - 4, y: sy(required) - 5, class: 'ctsim-tick', 'text-anchor': 'end' }).textContent = `requerido ${fmt(required, 0)} lbf`
     }
-    for (const d of state.plugs) if (d >= d0 && d <= d1) add('line', { x1: sx(d), x2: sx(d), y1: H - m.b, y2: H - m.b - 7, class: 'ctsim-plug' })
-    for (const g of series) {
-      const es = ERT_SERIES.find((e) => e.v === g.ert) || ERT_SERIES[0]
-      add('polyline', { points: g.profile.map((p) => `${sx(p.depth)},${sy(p.setDown)}`).join(' '), class: `ctsim-line ctsim-${es.cls}-stroke` })
-    }
-    const muSel = el('select', { class: 'ctsim-inline-select', onChange: (e) => ((state.sens.showMu = Number(e.target.value)), renderResults()) }, mus.map((x) => el('option', { value: x, selected: x === mu }, `µ ${x.toFixed(2)}`)))
+    for (const d of plugs) if (d >= d0 && d <= d1) add('line', { x1: sx(d), x2: sx(d), y1: H - m.b, y2: H - m.b - 7, class: 'ctsim-plug' })
+    for (const g of series) if (g.profile.length) add('polyline', { points: g.profile.map((p) => `${sx(p.depth)},${sy(p.setDown)}`).join(' '), class: `ctsim-line ctsim-${g.cls}-stroke` })
     return el('div', { class: 'ctsim-chart-wrap' }, [
-      el('div', { class: 'ctsim-legend' }, [
-        muSel,
-        ...series.map((g) => {
-          const es = ERT_SERIES.find((e) => e.v === g.ert) || ERT_SERIES[0]
-          return el('span', {}, [el('i', { class: `ctsim-key ctsim-${es.cls}-bg` }), es.label])
-        }),
-      ]),
+      el('div', { class: 'ctsim-legend' }, [...selectors, ...series.map((g) => el('span', {}, [el('i', { class: `ctsim-key ctsim-${g.cls}-bg` }), g.label]))]),
       svg,
     ])
   }
 
-  function sensMatrix(r) {
-    const mus = [...new Set(r.grid.map((g) => g.mu))]
-    const erts = [...new Set(r.grid.map((g) => g.ert))]
-    const cell = (g) => {
-      const ok = g.atTD.setDown >= r.required && g.lockupDepth === null
-      const lines = [el('strong', {}, `${fmt(g.atTD.setDown, 0)} lbf`)]
-      if (g.lockupDepth !== null) lines.push(el('span', { class: 'ctsim-cell-sub' }, `lock-up ${fmt(g.lockupDepth, 0)} m`))
-      else if (g.limitDepth !== null) lines.push(el('span', { class: 'ctsim-cell-sub' }, `< req. desde ${fmt(g.limitDepth, 0)} m`))
-      else lines.push(el('span', { class: 'ctsim-cell-sub' }, 'OK hasta TD'))
-      return el('td', { class: ok ? 'ctsim-ok' : 'ctsim-bad' }, [el('span', { class: 'ctsim-cell-icon' }, ok ? '✓ ' : '✕ '), ...lines])
-    }
-    return el('div', { class: 'ctsim-card' }, [
-      el('div', { class: 'section-label ctsim-subtitle ctsim-pad-top' }, `Set-down disponible en TD (${fmt(r.td, 0)} m)`),
-      el('div', { class: 'ctsim-table-wrap' }, [
-        el('table', { class: 'ctsim-table ctsim-matrix' }, [
-          el('thead', {}, el('tr', {}, [el('th', {}, 'µ RIH \\ ERT'), ...erts.map((e) => el('th', {}, (ERT_SERIES.find((x) => x.v === e) || { label: String(e) }).label))])),
-          el('tbody', {}, mus.map((mu) => el('tr', {}, [el('td', {}, mu.toFixed(2)), ...erts.map((e) => cell(r.grid.find((g) => g.mu === mu && g.ert === e)))]))),
-        ]),
-      ]),
-      el('p', { class: 'note ctsim-pad' }, `✓ = llega a TD con al menos ${fmt(r.required, 0)} lbf de set-down. Debajo: profundidad de lock-up en RIH o desde dónde la capacidad es menor que la requerida. ERT en lbf por bpm bombeado (caudal ${fmt(state.rate, 1)} bpm).`),
-    ])
+  function sensCell(g, required) {
+    const ok = g.atTD.setDown >= required && g.lockupDepth === null
+    const lines = [el('strong', {}, `${fmt(g.atTD.setDown, 0)} lbf`)]
+    if (g.lockupDepth !== null) lines.push(el('span', { class: 'ctsim-cell-sub' }, `lock-up ${fmt(g.lockupDepth, 0)} m`))
+    else if (g.limitDepth !== null) lines.push(el('span', { class: 'ctsim-cell-sub' }, `< req. desde ${fmt(g.limitDepth, 0)} m`))
+    else lines.push(el('span', { class: 'ctsim-cell-sub' }, 'OK hasta TD'))
+    return el('td', { class: ok ? 'ctsim-ok' : 'ctsim-bad' }, [el('span', { class: 'ctsim-cell-icon' }, ok ? '✓ ' : '✕ '), ...lines])
   }
 
-  function sensPlugTable(r, mu) {
-    const series = r.grid.filter((g) => g.mu === mu)
-    const plugs = state.plugs.filter((d) => d <= r.td)
-    const at = (g, d) => g.profile.find((p) => p.depth === Math.round(d))
-    return el('details', { class: 'ctsim-card' }, [
-      el('summary', {}, `Set-down disponible en cada tapón (µ ${mu.toFixed(2)})`),
+  function wellsTable(r, mu, erts) {
+    return el('div', { class: 'ctsim-card' }, [
+      el('div', { class: 'section-label ctsim-subtitle ctsim-pad-top' }, `Set-down disponible en TD por pozo (µ ${mu.toFixed(2)})`),
       el('div', { class: 'ctsim-table-wrap' }, [
-        el('table', { class: 'ctsim-table' }, [
-          el('thead', {}, el('tr', {}, [el('th', {}, '#'), el('th', {}, 'MD (m)'), ...series.map((g) => el('th', {}, (ERT_SERIES.find((x) => x.v === g.ert) || { label: String(g.ert) }).label))])),
+        el('table', { class: 'ctsim-table ctsim-matrix' }, [
+          el('thead', {}, el('tr', {}, [el('th', {}, 'Pozo'), el('th', {}, 'TD (m)'), ...erts.map((e) => el('th', {}, ertLabel(e)))])),
           el(
             'tbody',
             {},
-            plugs.map((d, i) =>
+            r.wells.map((w, k) =>
               el('tr', {}, [
-                el('td', {}, `T${i + 1}`),
-                el('td', {}, fmt(d, 0)),
-                ...series.map((g) => {
-                  const p = at(g, d)
-                  const v = p ? p.setDown : null
-                  return el('td', { class: v !== null && v < r.required ? 'ctsim-bad-text' : '' }, v === null ? '—' : fmt(v, 0))
-                }),
+                el('td', {}, [el('i', { class: `ctsim-key ctsim-${WELL_CLS[k % WELL_CLS.length]}-bg` }), w.name]),
+                el('td', {}, fmt(w.td, 0)),
+                ...erts.map((e) => sensCell(w.grid.find((g) => g.mu === mu && g.ert === e), r.required)),
               ])
             )
           ),
         ]),
       ]),
+      el('p', { class: 'note ctsim-pad' }, `✓ = llega a TD con al menos ${fmt(r.required, 0)} lbf de set-down. Misma sarta, caudal (${fmt(state.rate, 1)} bpm), velocidades y WHP para todos los pozos; cambia solo el survey (y sus tapones).`),
     ])
+  }
+
+  function sensMatrix(w, required, bare = false) {
+    const mus = [...new Set(w.grid.map((g) => g.mu))]
+    const erts = [...new Set(w.grid.map((g) => g.ert))]
+    const body = [
+      el('div', { class: 'section-label ctsim-subtitle ctsim-pad-top' }, `Set-down disponible en TD (${fmt(w.td, 0)} m)`),
+      el('div', { class: 'ctsim-table-wrap' }, [
+        el('table', { class: 'ctsim-table ctsim-matrix' }, [
+          el('thead', {}, el('tr', {}, [el('th', {}, 'µ RIH \\ ERT'), ...erts.map((e) => el('th', {}, ertLabel(e)))])),
+          el('tbody', {}, mus.map((mu) => el('tr', {}, [el('td', {}, mu.toFixed(2)), ...erts.map((e) => sensCell(w.grid.find((g) => g.mu === mu && g.ert === e), required))]))),
+        ]),
+      ]),
+      el('p', { class: 'note ctsim-pad' }, `✓ = llega a TD con al menos ${fmt(required, 0)} lbf de set-down. Debajo: profundidad de lock-up en RIH o desde dónde la capacidad es menor que la requerida. ERT en lbf por bpm bombeado (caudal ${fmt(state.rate, 1)} bpm).`),
+    ]
+    return bare ? el('div', {}, body) : el('div', { class: 'ctsim-card' }, body)
+  }
+
+  function sensPlugTable(w, required, mu, bare = false) {
+    const series = w.grid.filter((g) => g.mu === mu)
+    const plugs = w.plugs.filter((d) => d <= w.td)
+    const at = (g, d) => g.profile.find((p) => p.depth === Math.round(d))
+    const table = el('div', { class: 'ctsim-table-wrap' }, [
+      el('table', { class: 'ctsim-table' }, [
+        el('thead', {}, el('tr', {}, [el('th', {}, '#'), el('th', {}, 'MD (m)'), ...series.map((g) => el('th', {}, ertLabel(g.ert)))])),
+        el(
+          'tbody',
+          {},
+          plugs.map((d, i) =>
+            el('tr', {}, [
+              el('td', {}, `T${i + 1}`),
+              el('td', {}, fmt(d, 0)),
+              ...series.map((g) => {
+                const p = at(g, d)
+                const v = p ? p.setDown : null
+                return el('td', { class: v !== null && v < required ? 'ctsim-bad-text' : '' }, v === null ? '—' : fmt(v, 0))
+              }),
+            ])
+          )
+        ),
+      ]),
+    ])
+    if (bare) return el('div', {}, [el('div', { class: 'section-label ctsim-subtitle ctsim-pad-top' }, `Set-down en cada tapón (µ ${mu.toFixed(2)})`), table])
+    return el('details', { class: 'ctsim-card' }, [el('summary', {}, `Set-down disponible en cada tapón (µ ${mu.toFixed(2)})`), table])
   }
 
   // ---- triaxial (von Mises) operating limits ------------------------------
