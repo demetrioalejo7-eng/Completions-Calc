@@ -4,12 +4,12 @@
 import { el, fmt, clear } from '../ui/dom.js'
 import { simulateTrip, maxSetDown, buildString, tubeProps, kopLp, wellTrajectory, pointAtMd, buildContext, forcesAtDepth } from './forces.js'
 import { readSurveyFile, parseSurveyTable, splitTable, parseRunCsv, parseDepthList } from './parsers.js'
-import { STANDARD_STRING_2375, DEFAULT_BHA } from './defaults.js'
+import { STANDARD_STRING_2375, DEFAULT_BHA, STRING_PRESETS } from './defaults.js'
 import { CT_CALIBRATION, MU_LEVELS, ERT_LEVELS } from './calibration.js'
-import { CT_GRADES } from '../data/ctStrength.js'
+import { CT_MANUFACTURERS, findGrade, minWall } from './grades.js'
 import { matchRun, matchSurfaceReadings } from './runMatch.js'
 import { sensitivityGrid, sensitivityDepths } from './sensitivity.js'
-import { tubeGeometry, envelope, allowableLoad, utilization } from './triaxial.js'
+import { tubeGeometry, envelope, allowableLoad, utilization, collapseOval, collapseCurve } from './triaxial.js'
 
 const CASING_PRESETS = [
   { label: '5" 18 lb/ft (ID 4.276")', id: 4.276 },
@@ -52,7 +52,8 @@ export function mountCtSimulator(container) {
     plugsText: '',
     casingId: 4.126,
     string: JSON.parse(JSON.stringify(STANDARD_STRING_2375)),
-    grade: 'DC-120',
+    grade: 'global-duracoil|DC-120',
+    stringPreset: 'standard',
     fluidPpg: 8.4,
     whp: 5000,
     ctp: 9000,
@@ -77,7 +78,7 @@ export function mountCtSimulator(container) {
     error: '',
     tab: 'pesos',
     sens: { mus: [0.25, 0.3, 0.35], erts: [0, 500, 1000, 1500], required: 2000, showMu: null, result: null, key: '' },
-    tri: { wall: 'surface', wear: 0, manualF: null, manualDp: null },
+    tri: { wall: 'surface', wear: 0, ovality: 2, manualF: null, manualDp: null },
   }
 
   const formEl = el('div', { class: 'calc-form ctsim-form' })
@@ -225,24 +226,36 @@ export function mountCtSimulator(container) {
     const rows = s.sections.map((sec, i) =>
       el('div', { class: 'ctsim-sec-row' }, [
         el('span', { class: 'ctsim-sec-idx' }, String(i + 1)),
-        el('input', { type: 'number', step: 1, value: sec.length, 'aria-label': 'Longitud (m)', onInput: (e) => ((sec.length = Number(e.target.value)), schedule()) }),
-        el('input', { type: 'number', step: 0.001, value: sec.wallStart, 'aria-label': 'Espesor inicial (in)', onInput: (e) => ((sec.wallStart = Number(e.target.value)), schedule()) }),
-        el('input', { type: 'number', step: 0.001, value: sec.wallEnd, 'aria-label': 'Espesor final (in)', onInput: (e) => ((sec.wallEnd = Number(e.target.value)), schedule()) }),
-        el('button', { class: 'btn-icon', type: 'button', 'aria-label': 'Quitar sección', onClick: () => (s.sections.splice(i, 1), renderForm(), schedule()) }, '×'),
+        el('input', { type: 'number', step: 1, value: sec.length, 'aria-label': 'Longitud (m)', onInput: (e) => ((sec.length = Number(e.target.value)), (state.stringPreset = 'custom'), schedule()) }),
+        el('input', { type: 'number', step: 0.001, value: sec.wallStart, 'aria-label': 'Espesor inicial (in)', onInput: (e) => ((sec.wallStart = Number(e.target.value)), (state.stringPreset = 'custom'), schedule()) }),
+        el('input', { type: 'number', step: 0.001, value: sec.wallEnd, 'aria-label': 'Espesor final (in)', onInput: (e) => ((sec.wallEnd = Number(e.target.value)), (state.stringPreset = 'custom'), schedule()) }),
+        el('button', { class: 'btn-icon', type: 'button', 'aria-label': 'Quitar sección', onClick: () => (s.sections.splice(i, 1), (state.stringPreset = 'custom'), renderForm(), schedule()) }, '×'),
       ])
     )
     return card(
       '4 · Sarta de coiled tubing',
       [
+        selectField(
+          'Diseño de sarta',
+          [...STRING_PRESETS.map((x) => ({ value: x.id, label: x.label })), { value: 'custom', label: 'Personalizada (editada)' }],
+          state.stringPreset,
+          (v) => {
+            const pr = STRING_PRESETS.find((x) => x.id === v)
+            if (pr) state.string = JSON.parse(JSON.stringify(pr.string))
+            state.stringPreset = v
+            renderForm()
+            schedule()
+          }
+        ),
         el('div', { class: 'row' }, [
-          numField('OD', s.od, (v) => ((s.od = v), schedule()), { unit: 'in', step: 0.001 }),
-          selectField('Grado', CT_GRADES.map((g) => ({ value: g.id, label: g.id })), state.grade, set('grade')),
+          numField('OD', s.od, (v) => ((s.od = v), (state.stringPreset = 'custom'), schedule()), { unit: 'in', step: 0.001 }),
+          gradeSelect(),
         ]),
         el('div', { class: 'ctsim-sec-head' }, [el('span', {}, '#'), el('span', {}, 'Long. (m)'), el('span', {}, 'Pared inicio (in)'), el('span', {}, 'Pared fin (in)'), el('span', {}, '')]),
         ...rows,
         el('div', { class: 'row' }, [
-          el('button', { class: 'btn-secondary', type: 'button', onClick: () => (s.sections.push({ length: 500, wallStart: 0.175, wallEnd: 0.175 }), renderForm(), schedule()) }, '+ Sección'),
-          el('button', { class: 'btn-secondary', type: 'button', onClick: () => ((state.string = JSON.parse(JSON.stringify(STANDARD_STRING_2375))), renderForm(), schedule()) }, 'Sarta estándar'),
+          el('button', { class: 'btn-secondary', type: 'button', onClick: () => (s.sections.push({ length: 500, wallStart: 0.175, wallEnd: 0.175 }), (state.stringPreset = 'custom'), renderForm(), schedule()) }, '+ Sección'),
+          el('button', { class: 'btn-secondary', type: 'button', onClick: () => ((state.string = JSON.parse(JSON.stringify(STANDARD_STRING_2375))), (state.stringPreset = 'standard'), renderForm(), schedule()) }, 'Sarta estándar'),
         ]),
         el('p', { class: 'note' }, `Secciones del core (carrete) al extremo libre (herramienta). Largo total ${fmt(total, 0)} m.`),
         el('div', { class: 'row' }, [
@@ -252,6 +265,22 @@ export function mountCtSimulator(container) {
       ],
       { open: false }
     )
+  }
+
+  function gradeSelect() {
+    const sel = el(
+      'select',
+      { onChange: (e) => ((state.grade = e.target.value), renderForm(), schedule()) },
+      CT_MANUFACTURERS.map((m) =>
+        el(
+          'optgroup',
+          { label: m.label },
+          m.grades.map((g) => el('option', { value: `${m.id}|${g.id}`, selected: `${m.id}|${g.id}` === state.grade }, `${g.id} (${g.smys / 1000} ksi)`))
+        )
+      )
+    )
+    const g = findGrade(state.grade)
+    return el('label', { class: 'field' }, [el('span', { class: 'field-label' }, 'Fabricante y grado'), sel, el('span', { class: 'ctsim-hint' }, `${g.manufacturerLabel}: fluencia ${fmt(g.smys, 0)} psi, tracción ${fmt(g.smts, 0)} psi`)])
   }
 
   // ---- operation -----------------------------------------------------------
@@ -449,8 +478,14 @@ export function mountCtSimulator(container) {
   }
 
   function renderForm() {
+    // keep the panels the user opened / closed across re-renders
+    const prev = new Map([...formEl.querySelectorAll(':scope > details')].map((d) => [d.querySelector('summary')?.textContent, d.open]))
     clear(formEl)
     formEl.append(surveyCard(), plugsCard(), wellCard(), stringCard(), operationCard(), frictionCard(), readingsCard(), runCard())
+    for (const d of formEl.querySelectorAll(':scope > details')) {
+      const was = prev.get(d.querySelector('summary')?.textContent)
+      if (was === true) d.open = true
+    }
   }
 
   // ---- results -------------------------------------------------------------
@@ -720,16 +755,21 @@ export function mountCtSimulator(container) {
   function triPanel() {
     const tr = state.tri
     const str = buildString(state.string)
-    const grade = CT_GRADES.find((g) => g.id === state.grade) || CT_GRADES[0]
+    const grade = findGrade(state.grade)
     const td = Math.min(state.survey[state.survey.length - 1][0], str.totalLength)
     const surfWall = str.wallAt(Math.max(0, td - (state.bha.length || 0)))
     const walls = [...new Set(state.string.sections.flatMap((x) => [Number(x.wallStart), Number(x.wallEnd)]))].sort((a, b) => a - b)
     const wallNom = tr.wall === 'surface' ? surfWall : Number(tr.wall)
-    const wallEff = wallNom * (1 - (tr.wear || 0) / 100)
+    // stresses with the manufacturer's minimum wall (and optional extra wear)
+    const wallMin = minWall(wallNom, grade.tol)
+    const wallEff = wallMin * (1 - (tr.wear || 0) / 100)
     const g = tubeGeometry(str.od, wallEff)
+    const gNom = tubeGeometry(str.od, wallNom) // pressure areas for the force conversion
     const Y = grade.smys
+    const ov = (tr.ovality || 0) / 100
     const e100 = envelope(g, Y, 1)
     const e80 = envelope(g, Y, 0.8)
+    const Pc = (F) => collapseOval({ od: str.od, tmin: wallEff, smys: Y, ovality: ov, axialStress: F / g.As })
 
     // operating points from the simulation (CT at TD)
     const pts = []
@@ -743,39 +783,50 @@ export function mountCtSimulator(container) {
       const f = forcesAtDepth(c, td, dir)
       if (f.lockup) continue
       // below the stripper (in the well): real force from effective force (Tech Note Eq 14)
-      const Fbelow = f.surfaceForce + ctp * g.Ai - whp * g.Ao
+      const Fbelow = f.surfaceForce + ctp * gNom.Ai - whp * gNom.Ao
       pts.push({ label: `${dir} en TD — bajo el stripper`, F: Fbelow, pi: ctp, po: whp })
       // above the stripper (atmospheric outside): Eq 16
       const strip = dir === 'POOH' ? state.stripper || 0 : -(state.stripper || 0)
-      const Fabove = f.surfaceForce - whp * g.Ao + strip + ctp * g.Ai
+      const Fabove = f.surfaceForce - whp * gNom.Ao + strip + ctp * gNom.Ai
       pts.push({ label: `${dir} en TD — sobre el stripper`, F: Fabove, pi: ctp, po: 0 })
     }
     if (tr.manualF !== null && tr.manualDp !== null) pts.push({ label: 'Punto manual', F: tr.manualF, pi: Math.max(0, tr.manualDp), po: Math.max(0, -tr.manualDp), manual: true })
     for (const q of pts) {
       q.dp = q.pi - q.po
       q.u = utilization(g, Y, q.F, q.pi, q.po)
+      // collapse utilization with ovality when the net pressure is external
+      q.uc = q.dp < 0 ? -q.dp / Math.max(1, Pc(q.F)) : 0
+      q.umax = Math.max(q.u, q.uc)
     }
 
     const controls = el('div', { class: 'ctsim-card ctsim-card-body' }, [
       el('div', { class: 'row' }, [
         selectField('Espesor de pared analizado', [{ value: 'surface', label: `En superficie con CT en TD (${surfWall.toFixed(3)}")` }, ...walls.map((w) => ({ value: w, label: `${w.toFixed(3)}"` }))], tr.wall, (v) => ((tr.wall = v === 'surface' ? 'surface' : Number(v)), renderResults())),
-        numField('Desgaste / reducción de pared', tr.wear, (v) => ((tr.wear = v || 0), schedule()), { unit: '%', step: 1 }),
+        numField('Ovalidad', tr.ovality, (v) => ((tr.ovality = v || 0), schedule()), { unit: '%', step: 0.5, hint: '(Dmax − Dmin) / D' }),
       ]),
+      numField('Desgaste adicional de pared', tr.wear, (v) => ((tr.wear = v || 0), schedule()), { unit: '%', step: 1, hint: 'Sobre el espesor mínimo del fabricante' }),
       el('div', { class: 'row' }, [
         numField('Punto manual: carga axial real', tr.manualF, (v) => ((tr.manualF = v), schedule()), { unit: 'lbf', step: 1000, hint: 'Tracción +, compresión −' }),
         numField('Punto manual: presión diferencial', tr.manualDp, (v) => ((tr.manualDp = v), schedule()), { unit: 'psi', step: 250, hint: 'Pi − Po (estallido +, colapso −)' }),
       ]),
-      el('p', { class: 'note' }, `CT ${str.od}" × ${wallEff.toFixed(3)}" ${grade.id} (SMYS ${fmt(Y, 0)} psi). Los puntos de la simulación usan la presión de circulación (${fmt(ctp, 0)} psi) y la WHP (${fmt(whp, 0)} psi) del formulario.`),
+      el('p', { class: 'note' }, `CT ${str.od}" · pared nominal ${wallNom.toFixed(3)}" → mínima ${wallMin.toFixed(3)}" (${grade.manufacturerLabel})${tr.wear ? ` − ${tr.wear} % = ${wallEff.toFixed(3)}"` : ''} · ${grade.id} (SMYS ${fmt(Y, 0)} psi) · ovalidad ${fmt(tr.ovality, 1)} %. Los puntos de la simulación usan la presión de circulación (${fmt(ctp, 0)} psi) y la WHP (${fmt(whp, 0)} psi) del formulario.`),
     ])
     resultsEl.appendChild(controls)
-    resultsEl.appendChild(triChart(e100, e80, pts))
+    const Fr = { Fmin: Math.min(...e100.points.map((q) => q.F)), Fmax: Math.max(...e100.points.map((q) => q.F)) }
+    const cc = {
+      c100: collapseCurve({ od: str.od, tmin: wallEff, smys: Y, ovality: ov, factor: 1, As: g.As, ...Fr }),
+      c80: collapseCurve({ od: str.od, tmin: wallEff, smys: Y, ovality: ov, factor: 0.8, As: g.As, ...Fr }),
+    }
+    resultsEl.appendChild(triChart(e100, e80, pts, cc, tr.ovality))
     const allow = (dp) => allowableLoad(g, Y, 0.8, dp)
     const r = (label, value, unit) => el('div', { class: 'result-row' }, [el('span', { class: 'result-label' }, label), el('span', { class: 'result-value' }, [el('strong', {}, value), unit ? el('span', { class: 'result-unit' }, ' ' + unit) : null])])
     const aCtp = allow(ctp)
     resultsEl.appendChild(
       el('div', { class: 'result-card ctsim-summary' }, [
         r('Estallido sin carga axial (80 % / 100 %)', `${fmt(e80.burst, 0)} / ${fmt(e100.burst, 0)}`, 'psi'),
-        r('Colapso (fluencia) sin carga axial (80 % / 100 %)', `${fmt(-e80.collapse, 0)} / ${fmt(-e100.collapse, 0)}`, 'psi'),
+        r(`Colapso con ovalidad ${fmt(tr.ovality, 1)} % sin carga axial (80 % / 100 %)`, `${fmt(0.8 * Pc(0), 0)} / ${fmt(Pc(0), 0)}`, 'psi'),
+        r('Colapso por fluencia (von Mises), sin ovalidad (80 % / 100 %)', `${fmt(-e80.collapse, 0)} / ${fmt(-e100.collapse, 0)}`, 'psi'),
+        r(`Colapso con ovalidad bajo ${fmt(Math.max(0, pts[0]?.F || 0) / 1000, 0)} klbf de tracción (100 %)`, fmt(Pc(Math.max(0, pts[0]?.F || 0)), 0), 'psi'),
         r('Tracción máx. sin presión (80 % / 100 %)', `${fmt(e80.tensionAtZero / 1000, 1)} / ${fmt(e100.tensionAtZero / 1000, 1)}`, 'klbf'),
         aCtp ? r(`Carga admisible (80 %) con Δp = ${fmt(ctp, 0)} psi`, `${fmt(aCtp.compression / 1000, 1)} a ${fmt(aCtp.tension / 1000, 1)}`, 'klbf') : r(`Δp = ${fmt(ctp, 0)} psi`, 'fuera del límite', ''),
       ])
@@ -784,18 +835,32 @@ export function mountCtSimulator(container) {
       el('div', { class: 'ctsim-card' }, [
         el('div', { class: 'ctsim-table-wrap' }, [
           el('table', { class: 'ctsim-table' }, [
-            el('thead', {}, el('tr', {}, ['Punto', 'Carga (klbf)', 'Pi (psi)', 'Po (psi)', 'Δp (psi)', 'σVME / fluencia'].map((h) => el('th', {}, h)))),
-            el('tbody', {}, pts.map((q, i) => el('tr', {}, [el('td', {}, `${i + 1}. ${q.label}`), el('td', {}, fmt(q.F / 1000, 1)), el('td', {}, fmt(q.pi, 0)), el('td', {}, fmt(q.po, 0)), el('td', {}, fmt(q.dp, 0)), el('td', { class: q.u > 0.8 ? 'ctsim-bad-text' : '' }, `${fmt(q.u * 100, 0)} % ${q.u > 0.8 ? '⚠' : '✓'}`)]))),
+            el('thead', {}, el('tr', {}, ['Punto', 'Carga (klbf)', 'Pi (psi)', 'Po (psi)', 'Δp (psi)', 'σVME / fluencia', 'Δp / colapso oval.'].map((h) => el('th', {}, h)))),
+            el(
+              'tbody',
+              {},
+              pts.map((q, i) =>
+                el('tr', {}, [
+                  el('td', {}, `${i + 1}. ${q.label}`),
+                  el('td', {}, fmt(q.F / 1000, 1)),
+                  el('td', {}, fmt(q.pi, 0)),
+                  el('td', {}, fmt(q.po, 0)),
+                  el('td', {}, fmt(q.dp, 0)),
+                  el('td', { class: q.u > 0.8 ? 'ctsim-bad-text' : '' }, `${fmt(q.u * 100, 0)} % ${q.u > 0.8 ? '⚠' : '✓'}`),
+                  el('td', { class: q.uc > 0.8 ? 'ctsim-bad-text' : '' }, q.dp < 0 ? `${fmt(q.uc * 100, 0)} % ${q.uc > 0.8 ? '⚠' : '✓'}` : '—'),
+                ])
+              )
+            ),
           ]),
         ]),
       ])
     )
     resultsEl.appendChild(
-      el('p', { class: 'formula-note' }, 'Criterio de von Mises con esfuerzos de Lamé en las caras interna y externa: σVME = √{½[(σa−σθ)² + (σθ−σr)² + (σr−σa)²]}, σa = F/As. Envolvente trazado contra Δp = Pi − Po (estallido con Po = 0, colapso con Pi = 0); la utilización de cada punto usa sus Pi y Po reales. Límite operativo = 80 % de la fluencia (línea continua); 100 % en línea punteada. El colapso por fluencia no considera ovalidad ni colapso elástico: con tubería ovalizada el colapso real es menor. La fatiga por ciclos de doblado no está incluida.')
+      el('p', { class: 'formula-note' }, 'Esfuerzos calculados con el espesor mínimo del fabricante. Criterio de von Mises con esfuerzos de Lamé en las caras interna y externa: σVME = √{½[(σa−σθ)² + (σθ−σr)² + (σr−σa)²]}, σa = F/As; envolvente contra Δp = Pi − Po (estallido con Po = 0, colapso con Pi = 0) al 80 % (continua) y 100 % (punteada). Colapso con ovalidad (API RP 5C7 / Timoshenko): Pc² − [Py + (1 + 1,5·Δ·D/t)·Pe]·Pc + Py·Pe = 0, Py = 2σy,a·t/D, Pe = 2E/(1−ν²)·(t/D)³, Δ = (Dmax − Dmin)/D, con la fluencia reducida por la carga axial σy,a = σy[√(1 − 0,75(σa/σy)²) − 0,5·σa/σy]. En el lado de colapso rige la curva más restrictiva. La fatiga por ciclos de doblado no está incluida.')
     )
   }
 
-  function triChart(e100, e80, pts) {
+  function triChart(e100, e80, pts, cc, ovPct) {
     const W = Math.round(Math.min(760, Math.max(340, (resultsEl.clientWidth || 360) - 18)))
     const H = Math.round(W * 0.78)
     const m = { l: 56, r: 14, t: 14, b: 40 }
@@ -835,14 +900,18 @@ export function mountCtSimulator(container) {
     const poly = (e, cls) => add('polygon', { points: e.points.map((q) => `${sx(q.F)},${sy(q.dp)}`).join(' '), class: cls })
     poly(e100, 'ctsim-env100')
     poly(e80, 'ctsim-env80')
+    const curve = (arr, cls) => add('polyline', { points: arr.filter((q) => q.dp < 0).map((q) => `${sx(q.F)},${sy(q.dp)}`).join(' '), class: cls })
+    curve(cc.c100, 'ctsim-coll100')
+    curve(cc.c80, 'ctsim-coll80')
     pts.forEach((q, i) => {
-      add('circle', { cx: sx(q.F), cy: sy(q.dp), r: 5, class: q.u > 0.8 ? 'ctsim-pt ctsim-pt-bad' : 'ctsim-pt' })
+      add('circle', { cx: sx(q.F), cy: sy(q.dp), r: 5, class: q.umax > 0.8 ? 'ctsim-pt ctsim-pt-bad' : 'ctsim-pt' })
       add('text', { x: sx(q.F) + 8, y: sy(q.dp) - 7, class: 'ctsim-pt-label' }).textContent = String(i + 1)
     })
     return el('div', { class: 'ctsim-chart-wrap' }, [
       el('div', { class: 'ctsim-legend' }, [
         el('span', {}, [el('i', { class: 'ctsim-key ctsim-rih-bg' }), 'Límite operativo 80 %']),
         el('span', { class: 'ctsim-legend-dim' }, [el('i', { class: 'ctsim-key ctsim-dash-bg' }), 'Fluencia 100 %']),
+        el('span', {}, [el('i', { class: 'ctsim-key ctsim-s3-bg' }), `Colapso ovalidad ${fmt(ovPct, 1)} % (80 % / 100 %)`]),
         el('span', {}, [el('i', { class: 'ctsim-key ctsim-pooh-bg' }), 'Puntos de operación']),
       ]),
       svg,
@@ -859,7 +928,7 @@ export function mountCtSimulator(container) {
     const lock = rows.find((r) => r.lockup)
     const helix = rows.find((r) => r.helixM > 0)
     const str = buildString(state.string)
-    const grade = CT_GRADES.find((g) => g.id === state.grade) || CT_GRADES[0]
+    const grade = findGrade(state.grade)
     // real axial force above the stripper at max POOH: F_R = Weight + P_i·A_i + RBT (Tech Note Eq 17)
     const maxPooh = rows.reduce((a, r) => (r.pooh > a.pooh ? r : a), rows[0])
     const tp = tubeProps(str.od, str.wallAt(Math.max(0, maxPooh.depth - (state.bha.length || 0))))

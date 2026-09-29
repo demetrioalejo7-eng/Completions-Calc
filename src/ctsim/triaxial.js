@@ -103,3 +103,39 @@ export function envelope(g, smys, factor, n = 120) {
 export function utilization(g, smys, F, pi, po) {
   return vonMises(g, F, pi, po) / smys
 }
+
+// ---------------------------------------------------------------------------
+// Colapso con ovalidad (API RP 5C7 / Timoshenko, primera fluencia del tubo
+// ovalizado):
+//   Pc² − [Py + (1 + 1.5·Δ·D/t)·Pe]·Pc + Py·Pe = 0
+//   Py = 2·σy·t/D (colapso por fluencia), Pe = 2E/(1−ν²)·(t/D)³ (elástico)
+//   Δ = ovalidad = (Dmax − Dmin)/D
+// (equivale a la forma 1 + 3·f·D/t con f = (Dmax−Dmin)/(Dmax+Dmin)).
+// La carga axial reduce la fluencia efectiva (API 5C3):
+//   σy,a = σy·[√(1 − 0.75(σa/σy)²) − 0.5·σa/σy]
+// Se calcula con el espesor mínimo.
+const E_COLLAPSE = 30e6
+const NU = 0.3
+
+export function collapseOval({ od, tmin, smys, ovality, axialStress = 0 }) {
+  const r = axialStress / smys
+  const red = 1 - 0.75 * r * r
+  if (red <= 0) return 0
+  const sy = smys * (Math.sqrt(red) - 0.5 * r)
+  if (sy <= 0) return 0
+  const Py = (2 * sy * tmin) / od
+  const Pe = ((2 * E_COLLAPSE) / (1 - NU * NU)) * (tmin / od) ** 3
+  const b = Py + (1 + 1.5 * ovality * (od / tmin)) * Pe
+  const c = Py * Pe
+  return (b - Math.sqrt(Math.max(0, b * b - 4 * c))) / 2
+}
+
+// Collapse curve vs axial load for plotting: [{ F, dp: −factor·Pc }]
+export function collapseCurve({ od, tmin, smys, ovality, factor, Fmin, Fmax, As, n = 120 }) {
+  const out = []
+  for (let i = 0; i <= n; i++) {
+    const F = Fmin + ((Fmax - Fmin) * i) / n
+    out.push({ F, dp: -factor * collapseOval({ od, tmin, smys, ovality, axialStress: F / As }) })
+  }
+  return out
+}
