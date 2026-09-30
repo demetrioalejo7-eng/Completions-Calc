@@ -14,8 +14,8 @@ import { loadData, makePredictor, nelderMead, parseArgs, dataDir } from './lib.m
 const args = parseArgs(process.argv.slice(2))
 const trainPads = (args.train || 'B3A2,C1A').split(',')
 const testPads = (args.test || '').split(',').filter(Boolean)
-const START = { muRIH: 0.3, muPOOH: 0.2, speedCoefRIH: 0.1, speedCoefPOOH: 0.15, muLatRIH: 1, muLatPOOH: 1, ertLbfPerBpm: Number(args.ert ?? 1000), speedSurfRIH: 0, speedSurfPOOH: 0, speedDragRIH: 0, speedDragPOOH: 0 }
-const STEP = { muRIH: 0.05, muPOOH: 0.05, speedCoefRIH: 0.05, speedCoefPOOH: 0.05, muLatRIH: 0.15, muLatPOOH: 0.15, ertLbfPerBpm: 300, speedSurfRIH: 100, speedSurfPOOH: 100, speedDragRIH: 20, speedDragPOOH: 20 }
+const START = { muRIH: 0.3, muPOOH: 0.2, speedCoefRIH: 0.1, speedCoefPOOH: 0.15, muLatRIH: 1, muLatPOOH: 1, ertLbfPerBpm: Number(args.ert ?? 1000), speedSurfRIH: 0, speedSurfPOOH: 0, speedDragRIH: 0, speedDragPOOH: 0, residualContact: 0, ertMuReductionRef: 0.3, ertZoneM: 2000, ertPoohEfficiency: 0.5, ertMode: args.ertMode || 'lbf', strip: 5000, rbt: 6000, speedSurfRef: 0 }
+const STEP = { muRIH: 0.05, muPOOH: 0.05, speedCoefRIH: 0.05, speedCoefPOOH: 0.05, muLatRIH: 0.15, muLatPOOH: 0.15, ertLbfPerBpm: 300, speedSurfRIH: 100, speedSurfPOOH: 100, speedDragRIH: 20, speedDragPOOH: 20, residualContact: 0.3, ertMuReductionRef: 0.15, ertZoneM: 800, ertPoohEfficiency: 0.2, strip: 1500, rbt: 1500 }
 const names = (args.params || 'muRIH,muPOOH,speedCoefRIH,speedCoefPOOH').split(',')
 const fixed = Object.fromEntries((args.fix || '').split(',').filter(Boolean).map((kv) => kv.split('=')).map(([k, v]) => [k, Number(v)]))
 const { bins, paths } = loadData()
@@ -27,6 +27,14 @@ const med = (a) => {
 
 // predictions with zero surface terms → per-well offsets in closed form
 export function evaluate(P, set) {
+  // --global: one stripper / reel tension for every run (as the app uses them)
+  if (args.global) {
+    const res = set.map((b) => {
+      const pred = predict(P, b)
+      return { b, pred, e: pred - b.W }
+    })
+    return { res, surf: { all: { strip: P.strip, rbt: P.rbt } } }
+  }
   const base = set.map((b) => predict({ ...P, strip: 0, rbt: 0 }, b))
   const byWell = {}
   set.forEach((b, i) => {
@@ -34,6 +42,13 @@ export function evaluate(P, set) {
   })
   const surf = {}
   for (const [w, g] of Object.entries(byWell)) {
+    // a run with a single direction (e.g. 1028: RIH only) can't separate
+    // stripper from reel tension → nominal stripper, RBT from the residual
+    if (!g.RIH.length || !g.POOH.length) {
+      const strip = 5000
+      surf[w] = g.RIH.length ? { strip, rbt: -med(g.RIH) - strip } : { strip, rbt: strip - med(g.POOH) }
+      continue
+    }
     const aR = med(g.RIH)
     const aP = med(g.POOH)
     surf[w] = { strip: (aP - aR) / 2, rbt: -(aP + aR) / 2 }
@@ -86,15 +101,25 @@ const test = bins.filter((b) => testPads.includes(b.pad))
 const toP = (x) => ({ ...START, ...fixed, ...Object.fromEntries(names.map((n, i) => [n, x[i]])) })
 const f = (x) => {
   const P = toP(x)
-  if (P.muRIH < 0.03 || P.muPOOH < 0.03 || P.muRIH > 0.9 || P.muPOOH > 0.9 || P.muLatRIH < 0.2 || P.muLatPOOH < 0.2) return 1e30
-  return huber(evaluate(P, train).res)
+  if (P.muRIH < 0.03 || P.muPOOH < 0.03 || P.muRIH > 0.9 || P.muPOOH > 0.9 || P.muLatRIH < 0.2 || P.muLatPOOH < 0.2 || P.residualContact < 0 || P.ertMuReductionRef < 0 || P.ertMuReductionRef > 0.95 || P.ertZoneM < 100 || P.ertPoohEfficiency < 0 || P.ertPoohEfficiency > 1) return 1e30
+  return huber(evaluate(P, train).res) + stallPenalty(P)
 }
+// Observed stalls used as lock-up constraints (--stall 1): BdC-1030h run 1
+// (ERT failed) stalled at ~5580 m MD, while run 2 (same well, ERT working)
+// reached TD 6718 m (enforced by its RIH bins).
+const STALLS = [{ well: 'BdC-1030h-r1', survey: 'BdC-1030h', pad: 'B1B', ert: 0, v: 3.3, Q: 4.15, WHP: 3350, depth: 5580 }]
+export function lockDepth(P, s, from = 4500, to = 6720) {
+  for (let d = from; d <= to; d += 20) if (!Number.isFinite(predict({ ...P, strip: 0, rbt: 0 }, { ...s, dir: 'RIH', bin: d }))) return d
+  return to + 200
+}
+const stallPenalty = (P) => (args.stall ? STALLS.filter((s) => trainPads.includes(s.pad)).reduce((a, s) => a + Number(args.stall) * 1e6 * ((lockDepth(P, s) - s.depth) / 100) ** 2, 0) : 0)
 const t0 = Date.now()
 const r = nelderMead(f, names.map((n) => START[n]), names.map((n) => STEP[n]), Number(args.iters || 400))
 const P = toP(r.x)
 console.log(`train=${trainPads} test=${testPads} params=${names} — ${((Date.now() - t0) / 1000).toFixed(0)} s, loss ${r.fx.toFixed(0)}`)
-console.log(Object.fromEntries(Object.entries(P).map(([k, v]) => [k, +v.toFixed(4)])))
+console.log(Object.fromEntries(Object.entries(P).map(([k, v]) => [k, typeof v === "number" ? +v.toFixed(4) : v])))
 const tr = evaluate(P, train)
+for (const st of STALLS) console.log(`stall ${st.well}: observed ${st.depth} m, model lock-up ${lockDepth(P, st)} m`)
 const fmtSurf = (s) => Object.fromEntries(Object.entries(s).map(([w, v]) => [w, `Fs ${Math.round(v.strip)} / RBT ${Math.round(v.rbt)}`]))
 console.log('surface offsets (train):', fmtSurf(tr.surf))
 console.log('TRAIN')
