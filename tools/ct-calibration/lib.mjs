@@ -30,6 +30,7 @@ export function loadData() {
       return o
     })
     .filter((b) => b.bin > 60 && Number.isFinite(b.W) && Number.isFinite(b.WHP))
+    .map((b) => ({ ...b, survey: b.survey || b.well, ert: b.ert === '' || b.ert === undefined ? 1 : Number(b.ert) }))
   const paths = Object.fromEntries(Object.entries(surveys).map(([w, s]) => [w, buildWellPath(s, 10)]))
   return { surveys, bins, paths }
 }
@@ -55,7 +56,13 @@ export function makePredictor(paths, { ert = 1000 } = {}) {
       speedDragPOOH: P.speedDragPOOH ?? 0,
       speedSurfRIH: P.speedSurfRIH ?? 0,
       speedSurfPOOH: P.speedSurfPOOH ?? 0,
+      speedSurfRef: P.speedSurfRef ?? 0,
       lateralMuFactorRIH: P.muLatRIH ?? 1,
+      residualContact: P.residualContact ?? 0,
+      ertMode: P.ertMode ?? DEFAULT_MODEL.ertMode,
+      ertMuReductionRef: P.ertMuReductionRef ?? 0,
+      ertZoneM: P.ertZoneM ?? DEFAULT_MODEL.ertZoneM,
+      ertPoohEfficiency: P.ertPoohEfficiency ?? DEFAULT_MODEL.ertPoohEfficiency,
       lateralMuFactorPOOH: P.muLatPOOH ?? 1,
     }
     const p = {
@@ -63,8 +70,8 @@ export function makePredictor(paths, { ert = 1000 } = {}) {
       muPOOH: P.muPOOH,
       speedRIH: b.v,
       speedPOOH: b.v,
-      rateBpm: b.Q > 0 ? b.Q : 0,
-      ertLbfPerBpm: P.ertLbfPerBpm ?? ert,
+      rateBpm: b.Q > 0 ? b.Q : 4,
+      ertLbfPerBpm: b.ert === 0 ? 0 : P.ertLbfPerBpm ?? ert,
       fluidPpg: FLUID_PPG,
       bha: DEFAULT_BHA,
       annularGradient: annularFrictionGradient({ rateBpm: b.Q, casingId: 4.126, od: 2.375, densityPpg: FLUID_PPG, dragReduction: model.frDragReduction }),
@@ -73,7 +80,7 @@ export function makePredictor(paths, { ert = 1000 } = {}) {
       reelTensionRIH: P[`rbt_${b.well}`] ?? P[`rbt_${b.pad}`] ?? P.rbt ?? 0,
       reelTensionPOOH: P[`rbt_${b.well}`] ?? P[`rbt_${b.pad}`] ?? P.rbt ?? 0,
     }
-    const r = forcesAtDepth({ path: paths[b.well], string, casing, p, model }, b.bin, b.dir)
+    const r = forcesAtDepth({ path: paths[b.survey || b.well], string, casing, p, model }, b.bin, b.dir)
     if (r.lockup) return NaN
     return surfaceWeight(r.surfaceForce, b.dir, p, string, model) + (P[`off_${b.well}`] ?? 0)
   }

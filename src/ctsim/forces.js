@@ -214,11 +214,21 @@ export const DEFAULT_MODEL = {
   speedDragPOOH: 0,
   speedSurfRIH: 0,
   speedSurfPOOH: 0,
+  speedSurfRef: 0, // m/min at which the dynamic stripper term is zero
   lateralMuFactorRIH: 1, // µ multiplier where inclination > lateralIncDeg
   lateralMuFactorPOOH: 1,
   lateralIncDeg: 80,
   ertPoohEfficiency: 0.5, // fraction of the RIH ERT benefit also felt in POOH
   ertZoneM: 1500, // length above the BHA over which the ERT reduces drag
+  // ERT model: 'lbf' = drag reduction k·Q spread over the zone (original);
+  // 'mu' = friction-factor reduction in the zone, scaled by k·Q relative
+  // to the reference tool (field-calibrated)
+  ertMode: 'lbf',
+  ertMuReductionRef: 0, // fractional µ reduction at the reference k·Q
+  ertRefLbfPerBpm: 1500,
+  ertRefRateBpm: 4.2,
+  // residual-bend wall contact (lbf/ft), acts at any inclination
+  residualContact: 0,
   frDragReduction: 0.5, // slickwater friction reducer, annular hydraulics only
   lockupForce: 150000, // lbf compression treated as numerical lock-up
 }
@@ -235,9 +245,14 @@ export function forcesAtDepth(ctx, depthM, dir, bottomForce = 0) {
   const { path, string, casing, p, model } = ctx
   const sign = dir === 'POOH' ? 1 : -1
   const mu = frictionFactor(dir === 'POOH' ? p.muPOOH : p.muRIH, dir, dir === 'POOH' ? p.speedPOOH : p.speedRIH, model)
-  const ertLbf = (p.ertLbfPerBpm || 0) * (p.rateBpm || 0) * (dir === 'POOH' ? model.ertPoohEfficiency : 1)
+  const ertEff = dir === 'POOH' ? model.ertPoohEfficiency : 1
+  const ertLbf = model.ertMode === 'mu' ? 0 : (p.ertLbfPerBpm || 0) * (p.rateBpm || 0) * ertEff
   const ertZoneFt = model.ertZoneM * M_TO_FT
   const ertPerFt = ertZoneFt > 0 ? ertLbf / ertZoneFt : 0
+  const ertMuCut =
+    model.ertMode === 'mu'
+      ? Math.min(0.9, (model.ertMuReductionRef * ertEff * ((p.ertLbfPerBpm || 0) * (p.rateBpm || 0))) / (model.ertRefLbfPerBpm * model.ertRefRateBpm))
+      : 0
   const bhaLenM = p.bha?.length || 0
   const bhaWairPerFt = bhaLenM > 0 ? (p.bha.weight || 0) / (bhaLenM * M_TO_FT) : 0
   const bf = 1 - p.fluidPpg / 65.5 // steel buoyancy factor (same fluid in & out)
@@ -266,7 +281,7 @@ export function forcesAtDepth(ctx, depthM, dir, bottomForce = 0) {
     // normal force per ft (weight + curvature, Eq 19)
     const nv = wB * sg.sinI - F * sg.dIncDs
     const nh = F * sg.sinI * sg.dAzDs
-    let N = Math.hypot(nv, nh)
+    let N = Math.hypot(nv, nh) + (inBha ? 0 : model.residualContact || 0)
     // helical buckling (compression only, not inside the stiff BHA)
     if (F < 0 && !inBha) {
       const EI = STEEL_E * tp.I
@@ -281,6 +296,7 @@ export function forcesAtDepth(ctx, depthM, dir, bottomForce = 0) {
     const muSeg = sg.incDeg > model.lateralIncDeg ? mu * (dir === 'POOH' ? model.lateralMuFactorPOOH : model.lateralMuFactorRIH) : mu
     let fric = muSeg * N
     if (ertPerFt > 0 && fromBottomFt < ertZoneFt) fric = Math.max(0.1 * fric, fric - ertPerFt)
+    if (ertMuCut > 0 && fromBottomFt < ertZoneFt) fric *= 1 - ertMuCut
     // annular flow shear drags the CT upward (both directions)
     const annDrag = gAnn > 0 ? gAnn * ((Math.PI / 4) * (casing.idAt(sg.top) ** 2 - string.od ** 2)) * (string.od / (string.od + casing.idAt(sg.top))) : 0
     F += (wB * sg.cosI + sign * (fric + speedDragPerFt) - annDrag) * dsFt
@@ -298,7 +314,7 @@ export function forcesAtDepth(ctx, depthM, dir, bottomForce = 0) {
 export function surfaceWeight(Fsurf, dir, p, string, model = DEFAULT_MODEL) {
   const Ao = (Math.PI / 4) * string.od * string.od
   const speed = (dir === 'POOH' ? p.speedPOOH : p.speedRIH) || 0
-  const stripDyn = (dir === 'POOH' ? model.speedSurfPOOH || 0 : model.speedSurfRIH || 0) * speed
+  const stripDyn = (dir === 'POOH' ? model.speedSurfPOOH || 0 : model.speedSurfRIH || 0) * (speed - (model.speedSurfRef || 0))
   const strip = dir === 'POOH' ? p.stripperLbf + stripDyn : -(p.stripperLbf + stripDyn)
   const rbt = dir === 'POOH' ? p.reelTensionPOOH : p.reelTensionRIH
   return Fsurf - p.whp * Ao + strip - rbt
