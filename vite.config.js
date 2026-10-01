@@ -1,8 +1,19 @@
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { resolve } from 'node:path'
 
 export default defineConfig({
   base: './',
+  build: {
+    rollupOptions: {
+      // two independent apps: the calculator (index.html) and the CT weight
+      // simulator (simulador-ct/index.html)
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        simulador: resolve(__dirname, 'simulador-ct/index.html'),
+      },
+    },
+  },
   define: {
     __ENABLE_PWA__: true,
   },
@@ -40,6 +51,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,svg,ico,webmanifest}'],
+        // the simulator is a separate page: never answer it with the calculator's index.html
+        navigateFallbackDenylist: [/simulador-ct/],
       },
     }),
   ],

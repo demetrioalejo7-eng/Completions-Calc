@@ -1,0 +1,695 @@
+/* ---- Simulador de pesos CT ---------------------------------------------- */
+.ctsim-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.ctsim-card > summary {
+  padding: 13px 14px;
+  font-weight: 600;
+  font-size: 14.5px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.ctsim-card > summary::-webkit-details-marker {
+  display: none;
+}
+
+.ctsim-card > summary::after {
+  content: '▾';
+  float: right;
+  color: var(--text-dim);
+}
+
+.ctsim-card:not([open]) > summary::after {
+  content: '▸';
+}
+
+.ctsim-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 14px 14px;
+}
+
+.calc-results > .ctsim-card {
+  margin-top: 14px;
+}
+
+.ctsim-hint {
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+.ctsim-file {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.ctsim-textarea {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: 13px ui-monospace, SFMono-Regular, Menlo, monospace;
+  width: 100%;
+  resize: vertical;
+}
+
+.ctsim-sec-head,
+.ctsim-sec-row {
+  display: grid;
+  grid-template-columns: 18px 1.1fr 1fr 1fr 32px;
+  gap: 6px;
+  align-items: center;
+}
+
+.ctsim-sec-head {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.ctsim-sec-idx {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.ctsim-sec-row input[type='number'] {
+  padding: 9px 8px;
+  font-size: 14px;
+}
+
+/* chart — categorical slots 1 (blue) & 2 (orange), light & dark steps */
+.ctsim-chart-wrap {
+  --ctsim-rih: #2a78d6;
+  --ctsim-pooh: #eb6834;
+  position: relative;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 8px 6px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .ctsim-chart-wrap {
+    --ctsim-rih: #3987e5;
+    --ctsim-pooh: #d95926;
+  }
+}
+
+:root[data-theme='dark'] .ctsim-chart-wrap {
+  --ctsim-rih: #3987e5;
+  --ctsim-pooh: #d95926;
+}
+
+.ctsim-chart {
+  width: 100%;
+  height: auto;
+  display: block;
+  touch-action: pan-y;
+}
+
+.ctsim-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.ctsim-zero {
+  stroke: var(--text-dim);
+  stroke-width: 1;
+}
+
+.ctsim-tick {
+  font-size: 10px;
+  fill: var(--text-dim);
+}
+
+.ctsim-axis {
+  font-size: 11px;
+  fill: var(--text-dim);
+}
+
+.ctsim-line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.ctsim-rih-stroke {
+  stroke: var(--ctsim-rih);
+}
+
+.ctsim-pooh-stroke {
+  stroke: var(--ctsim-pooh);
+}
+
+.ctsim-rih-fill {
+  fill: var(--ctsim-rih);
+}
+
+.ctsim-pooh-fill {
+  fill: var(--ctsim-pooh);
+}
+
+.ctsim-band {
+  opacity: 0.16;
+}
+
+.ctsim-dot {
+  opacity: 0.55;
+}
+
+.ctsim-lock {
+  stroke: var(--text);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
+
+.ctsim-cross {
+  stroke: var(--text-dim);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.ctsim-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text);
+  padding: 0 6px 6px;
+}
+
+.ctsim-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ctsim-legend-dim {
+  color: var(--text-dim);
+}
+
+.ctsim-key {
+  display: inline-block;
+  width: 12px;
+  height: 3px;
+  border-radius: 2px;
+  margin-right: 4px;
+}
+
+.ctsim-rih-bg {
+  background: var(--ctsim-rih);
+}
+
+.ctsim-pooh-bg {
+  background: var(--ctsim-pooh);
+}
+
+.ctsim-tip {
+  position: absolute;
+  right: 14px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  pointer-events: none;
+  box-shadow: var(--card-shadow);
+  color: var(--text);
+}
+
+.ctsim-tip div {
+  display: flex;
+  align-items: center;
+}
+
+.ctsim-summary {
+  margin-top: 14px;
+}
+
+.ctsim-subtitle {
+  margin: 16px 2px 8px;
+  font-size: 14px;
+}
+
+.ctsim-table-wrap {
+  overflow-x: auto;
+}
+
+.ctsim-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ctsim-table th,
+.ctsim-table td {
+  padding: 7px 8px;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.ctsim-table th {
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+.ctsim-table th:first-child,
+.ctsim-table td:first-child {
+  text-align: left;
+}
+
+.ctsim-speed-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr;
+  gap: 6px 8px;
+  align-items: center;
+}
+
+.ctsim-speed-grid input[type='number'] {
+  padding: 9px 8px;
+  font-size: 14px;
+}
+
+.ctsim-speed-h {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.ctsim-speed-z {
+  font-size: 12.5px;
+  color: var(--text);
+}
+
+.ctsim-plug {
+  stroke: var(--ctsim-pooh);
+  stroke-width: 2;
+}
+
+.ctsim-plug-bg {
+  background: var(--ctsim-pooh);
+  width: 8px;
+}
+
+.ctsim-pad {
+  padding: 0 14px 12px;
+}
+
+.ctsim-preview {
+  max-height: 260px;
+}
+
+.ctsim-ellipsis {
+  text-align: center !important;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+/* 3D viewer */
+.ctsim-3d {
+  --ctsim-rih: #3987e5;
+  --ctsim-pooh: #eb6834;
+  position: relative;
+  width: 100%;
+  min-height: 320px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg-elev);
+  color: var(--text-dim);
+  font-size: 13px;
+  touch-action: none;
+}
+
+.ctsim-3d canvas {
+  display: block;
+}
+
+.ctsim-3d-labels {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.ctsim-3d-label {
+  font-size: 11px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--bg-card) 80%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1px 5px;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(8px, -8px);
+}
+
+.ctsim-3d-label.dim {
+  color: var(--text-dim);
+  background: transparent;
+  border: none;
+}
+
+.ctsim-3d-label.plug {
+  color: var(--ctsim-pooh);
+  font-weight: 600;
+}
+
+.ctsim-3d-label.north {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.ctsim-3d-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.ctsim-3d-btns .btn-secondary {
+  flex: 1;
+  padding: 8px;
+  font-size: 13px;
+}
+
+/* standalone app */
+body.ctsim-app #app {
+  max-width: 1320px;
+}
+
+.ctsim-app-body {
+  padding: 4px 16px 24px;
+}
+
+.ctsim-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.ctsim-form {
+  gap: 12px;
+}
+
+@media (min-width: 1000px) {
+  .ctsim-layout {
+    display: grid;
+    grid-template-columns: minmax(360px, 430px) 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+
+  .ctsim-results {
+    margin-top: 0;
+    position: sticky;
+    top: 12px;
+  }
+}
+
+/* result tabs */
+.ctsim-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  margin: 0 0 12px;
+  padding-bottom: 2px;
+}
+
+.ctsim-tab {
+  flex: 0 0 auto;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ctsim-tab.active {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
+}
+
+.calc-results > .ctsim-card,
+.calc-results > .result-card,
+.calc-results > .ctsim-chart-wrap {
+  margin-top: 12px;
+}
+
+.calc-results > .ctsim-tabs + .ctsim-card,
+.calc-results > .ctsim-tabs + .ctsim-chart-wrap {
+  margin-top: 0;
+}
+
+.ctsim-pad-top {
+  padding-top: 14px;
+}
+
+/* sensitivity */
+.ctsim-chk-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+
+.ctsim-chk {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+}
+
+.ctsim-chk input {
+  width: 18px;
+  height: 18px;
+}
+
+.ctsim-inline-select {
+  width: auto;
+  padding: 4px 8px;
+  font-size: 12.5px;
+  border-radius: 8px;
+}
+
+.ctsim-chart-wrap {
+  --ctsim-s3: #1baf7a;
+  --ctsim-s4: #eda100;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .ctsim-chart-wrap {
+    --ctsim-s3: #199e70;
+    --ctsim-s4: #c98500;
+  }
+}
+
+:root[data-theme='dark'] .ctsim-chart-wrap {
+  --ctsim-s3: #199e70;
+  --ctsim-s4: #c98500;
+}
+
+.ctsim-s1-stroke { stroke: var(--ctsim-rih); }
+.ctsim-s2-stroke { stroke: var(--ctsim-pooh); }
+.ctsim-s3-stroke { stroke: var(--ctsim-s3); }
+.ctsim-s4-stroke { stroke: var(--ctsim-s4); }
+.ctsim-s1-bg { background: var(--ctsim-rih); }
+.ctsim-s2-bg { background: var(--ctsim-pooh); }
+.ctsim-s3-bg { background: var(--ctsim-s3); }
+.ctsim-s4-bg { background: var(--ctsim-s4); }
+
+.ctsim-matrix td {
+  vertical-align: top;
+}
+
+.ctsim-matrix td strong {
+  display: inline;
+}
+
+.ctsim-cell-sub {
+  display: block;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.ctsim-cell-icon {
+  font-weight: 700;
+}
+
+.ctsim-ok .ctsim-cell-icon {
+  color: #008300;
+}
+
+.ctsim-bad .ctsim-cell-icon,
+.ctsim-bad-text {
+  color: #e34948;
+}
+
+/* triaxial */
+.ctsim-env100 {
+  fill: none;
+  stroke: var(--text-dim);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
+
+.ctsim-env80 {
+  fill: var(--ctsim-rih);
+  fill-opacity: 0.1;
+  stroke: var(--ctsim-rih);
+  stroke-width: 2;
+}
+
+.ctsim-pt {
+  fill: var(--ctsim-pooh);
+  stroke: var(--bg-card);
+  stroke-width: 2;
+}
+
+.ctsim-pt-bad {
+  fill: #e34948;
+}
+
+.ctsim-pt-label {
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--text);
+}
+
+.ctsim-dash-bg {
+  background: repeating-linear-gradient(90deg, var(--text-dim) 0 4px, transparent 4px 7px);
+}
+
+body.ctsim-app .app-header {
+  position: static;
+  background: none;
+}
+
+.ctsim-coll80 {
+  fill: none;
+  stroke: var(--ctsim-s3);
+  stroke-width: 2.5;
+}
+
+.ctsim-coll100 {
+  fill: none;
+  stroke: var(--ctsim-s3);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
+
+/* multi-survey list */
+.ctsim-wells {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ctsim-well {
+  display: grid;
+  grid-template-columns: 22px 1fr auto 30px;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-elev);
+}
+
+.ctsim-well.active {
+  border-color: var(--accent);
+}
+
+.ctsim-well input[type='radio'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+.ctsim-well-info {
+  font-size: 11.5px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+input.ctsim-text {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 14px;
+  width: 100%;
+  min-width: 0;
+}
+
+.ctsim-well input.ctsim-text {
+  background: var(--bg-card);
+  padding: 6px 8px;
+}
+
+.ctsim-preview-det > summary {
+  font-size: 12.5px;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.ctsim-chart-wrap {
+  --ctsim-s5: #e87ba4;
+  --ctsim-s6: #008300;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .ctsim-chart-wrap {
+    --ctsim-s5: #d55181;
+  }
+}
+
+:root[data-theme='dark'] .ctsim-chart-wrap {
+  --ctsim-s5: #d55181;
+}
+
+.ctsim-s5-stroke { stroke: var(--ctsim-s5); }
+.ctsim-s6-stroke { stroke: var(--ctsim-s6); }
+.ctsim-s5-bg { background: var(--ctsim-s5); }
+.ctsim-s6-bg { background: var(--ctsim-s6); }
+
+.ctsim-matrix .ctsim-key {
+  vertical-align: middle;
+}
+
+/* series colors available to tables/legends outside the chart too */
+.ctsim-results {
+  --ctsim-rih: #2a78d6;
+  --ctsim-pooh: #eb6834;
+  --ctsim-s3: #1baf7a;
+  --ctsim-s4: #eda100;
+  --ctsim-s5: #e87ba4;
+  --ctsim-s6: #008300;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .ctsim-results {
+    --ctsim-rih: #3987e5;
+    --ctsim-pooh: #d95926;
+    --ctsim-s3: #199e70;
+    --ctsim-s4: #c98500;
+    --ctsim-s5: #d55181;
+  }
+}
+
+:root[data-theme='dark'] .ctsim-results {
+  --ctsim-rih: #3987e5;
+  --ctsim-pooh: #d95926;
+  --ctsim-s3: #199e70;
+  --ctsim-s4: #c98500;
+  --ctsim-s5: #d55181;
+}
