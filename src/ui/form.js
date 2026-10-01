@@ -279,6 +279,59 @@ function sizePresetInput(spec, values, setValue, rerender) {
   return el('label', { class: 'field' }, [el('span', { class: 'field-label' }, spec.label), select])
 }
 
+// Generic multi-level cascading dropdown over a flat array of rows (used
+// for the API strength tables: Diámetro -> Libraje -> Grado, instead of
+// one flat list combining all three). `spec.levels`: an ordered list of
+// { label, keyFn(row), labelFn(row), placeholder? } — each level narrows
+// `spec.dataset` down by the previous levels' choices. Once every level
+// resolves to exactly one row, `values[spec.id]` is set to that row's
+// index in `spec.dataset` (same contract a plain flat `select` of row
+// indices would have, so compute() doesn't need to change).
+function cascadeSelectInput(spec, values, setValue, rerender) {
+  const stateKeys = spec.levels.map((_, i) => `__cascade_${spec.id}_${i}`)
+  const nodes = []
+  let filtered = spec.dataset
+
+  for (let i = 0; i < spec.levels.length; i++) {
+    const level = spec.levels[i]
+    const selectedKey = values[stateKeys[i]] ?? ''
+    const seen = new Set()
+    const options = []
+    for (const r of filtered) {
+      const k = String(level.keyFn(r))
+      if (!seen.has(k)) {
+        seen.add(k)
+        options.push({ key: k, row: r })
+      }
+    }
+    const isLast = i === spec.levels.length - 1
+    const select = el(
+      'select',
+      {
+        onChange: (e) => {
+          const key = e.target.value
+          setValue(stateKeys[i], key)
+          for (let j = i + 1; j < stateKeys.length; j++) setValue(stateKeys[j], '')
+          if (key !== '' && isLast) {
+            const row = filtered.find((r) => String(level.keyFn(r)) === key)
+            setValue(spec.id, String(spec.dataset.indexOf(row)))
+          } else {
+            setValue(spec.id, null)
+          }
+          rerender()
+        },
+      },
+      [el('option', { value: '', selected: selectedKey === '' }, level.placeholder ?? `Elegí ${level.label.toLowerCase()}…`)].concat(
+        options.map((o) => el('option', { value: o.key, selected: o.key === selectedKey }, level.labelFn(o.row)))
+      )
+    )
+    nodes.push(el('label', { class: 'field' }, [el('span', { class: 'field-label' }, level.label), select]))
+    if (selectedKey === '') break
+    filtered = filtered.filter((r) => String(level.keyFn(r)) === selectedKey)
+  }
+  return el('div', { class: 'pipe-preset' }, nodes)
+}
+
 function checkboxInput(spec, value, onChange) {
   const input = el('input', {
     type: 'checkbox',
@@ -298,6 +351,18 @@ export function renderCalculatorForm(container, calc) {
     if (input.type === 'pipePreset') {
       values[input.odField] = input.odDefault ?? null
       values[input.idField] = input.idDefault ?? null
+    }
+    if (input.type === 'cascadeSelect') {
+      // Default every level to its first available option, so the
+      // calculator shows a result immediately on load — same as the flat
+      // `select` (default row 0) this replaces.
+      let filtered = input.dataset
+      for (let i = 0; i < input.levels.length && filtered.length; i++) {
+        const key = String(input.levels[i].keyFn(filtered[0]))
+        values[`__cascade_${input.id}_${i}`] = key
+        filtered = filtered.filter((r) => String(input.levels[i].keyFn(r)) === key)
+      }
+      if (filtered.length) values[input.id] = String(input.dataset.indexOf(filtered[0]))
     }
   }
 
@@ -383,6 +448,11 @@ export function renderCalculatorForm(container, calc) {
         )
       } else if (input.type === 'sizePreset') {
         node = sizePresetInput(input, values, setValue, () => {
+          renderForm()
+          renderResults()
+        })
+      } else if (input.type === 'cascadeSelect') {
+        node = cascadeSelectInput(input, values, setValue, () => {
           renderForm()
           renderResults()
         })

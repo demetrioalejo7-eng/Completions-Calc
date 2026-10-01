@@ -11,10 +11,6 @@ import { PIPE_GRADES } from '../data/strengths.js'
 import { TUBING_STRENGTH, CASING_STRENGTH, DRILLPIPE_STRENGTH } from '../data/strengthTables.js'
 import { lengthInResult, pressureResult, weightResult } from '../ui/fieldHelpers.js'
 
-function rowLabel(r) {
-  return `${r.odLabel}" OD — ${r.grade} — ${r.wt} lb/ft`
-}
-
 function tableCalculator(id, title, dataset) {
   return {
     id,
@@ -23,15 +19,19 @@ function tableCalculator(id, title, dataset) {
     diagram: { kind: 'wallThickness', labels: { od: 'OD', id: 'ID', t: 't' } },
     inputs: [
       {
-        type: 'select',
+        type: 'cascadeSelect',
         id: 'row',
-        label: 'Tamaño / Grado / Peso',
-        options: dataset.map((r, i) => ({ value: String(i), label: rowLabel(r) })),
-        default: '0',
+        dataset,
+        levels: [
+          { label: 'Diámetro (OD)', placeholder: 'Elegí el diámetro…', keyFn: (r) => r.od, labelFn: (r) => `${r.odLabel}"` },
+          { label: 'Libraje (peso nominal)', placeholder: 'Elegí el libraje…', keyFn: (r) => r.wt, labelFn: (r) => `${r.wt} lb/ft (ID ${r.id}")` },
+          { label: 'Grado', placeholder: 'Elegí el grado…', keyFn: (r) => r.grade, labelFn: (r) => r.grade },
+        ],
       },
     ],
     compute(v) {
-      const r = dataset[Number(v.row ?? 0)]
+      if (v.row == null) throw new Error('Elegí diámetro, libraje y grado.')
+      const r = dataset[Number(v.row)]
       const results = [
         lengthInResult('OD', r.od, { digits: 3 }),
         lengthInResult('ID', r.id, { digits: 3 }),
@@ -59,15 +59,18 @@ function drillPipeCalculator() {
     diagram: { kind: 'wallThickness', labels: { od: 'OD', id: 'ID', t: 't' } },
     inputs: [
       {
-        type: 'select',
+        type: 'cascadeSelect',
         id: 'row',
-        label: 'Tamaño',
-        options: DRILLPIPE_STRENGTH.map((r, i) => ({ value: String(i), label: `${r.odLabel}" OD — ${r.wt} lb/ft (ID ${r.id}")` })),
-        default: '0',
+        dataset: DRILLPIPE_STRENGTH,
+        levels: [
+          { label: 'Diámetro (OD)', placeholder: 'Elegí el diámetro…', keyFn: (r) => r.od, labelFn: (r) => `${r.odLabel}"` },
+          { label: 'Libraje (peso nominal)', placeholder: 'Elegí el libraje…', keyFn: (r) => r.wt, labelFn: (r) => `${r.wt} lb/ft (ID ${r.id}")` },
+        ],
       },
     ],
     compute(v) {
-      const r = DRILLPIPE_STRENGTH[Number(v.row ?? 0)]
+      if (v.row == null) throw new Error('Elegí diámetro y libraje.')
+      const r = DRILLPIPE_STRENGTH[Number(v.row)]
       const grades = ['D', 'E', 'G', 'S135']
       const results = [
         lengthInResult('OD', r.od, { digits: 3 }),
