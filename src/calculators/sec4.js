@@ -4,6 +4,7 @@ import {
   collapsePressureYield,
   pipeBodyYieldStrength,
   crossSectionalArea,
+  wallThickness,
 } from '../calc/strength.js'
 import { ALL_PIPES } from '../data/pipes.js'
 import { PIPE_GRADES } from '../data/strengths.js'
@@ -34,6 +35,7 @@ function tableCalculator(id, title, dataset) {
       const results = [
         lengthInResult('OD', r.od, { digits: 3 }),
         lengthInResult('ID', r.id, { digits: 3 }),
+        lengthInResult('Espesor de pared', wallThickness(r.od, r.id), { digits: 3 }),
       ]
       if (r.drift) results.push(lengthInResult('Diámetro de drift', r.drift, { digits: 3 }))
       if (r.couplingOd) results.push(lengthInResult('OD de coupling', r.couplingOd, { digits: 3 }))
@@ -70,6 +72,7 @@ function drillPipeCalculator() {
       const results = [
         lengthInResult('OD', r.od, { digits: 3 }),
         lengthInResult('ID', r.id, { digits: 3 }),
+        lengthInResult('Espesor de pared', wallThickness(r.od, r.id), { digits: 3 }),
         lengthInResult('ID en el upset', r.idUpset, { digits: 3 }),
       ]
       for (const g of grades) {
@@ -130,6 +133,7 @@ export const section4 = {
         const area = crossSectionalArea(v.od, v.id)
         return {
           results: [
+            lengthInResult('Espesor de pared', wallThickness(v.od, v.id), { digits: 3 }),
             pressureResult('Presión interna de estallido (Barlow)', burst, { digits: 0 }),
             pressureResult('Colapso — estimación elástica', collapseElastic, { digits: 0 }),
             pressureResult('Colapso — límite de fluencia (pared gruesa)', collapseYield, { digits: 0 }),

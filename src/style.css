@@ -236,6 +236,12 @@ a {
   display: block;
 }
 
+.well-diagram-svg {
+  width: 100%;
+  height: 320px;
+  display: block;
+}
+
 .dim-legend {
   margin: 6px 0 0;
   font-size: 11.5px;
@@ -429,6 +435,11 @@ input[type='checkbox'] {
   font-weight: 600;
   text-align: right;
   white-space: nowrap;
+}
+
+.result-value-text {
+  white-space: normal;
+  max-width: 62%;
 }
 
 .result-unit {

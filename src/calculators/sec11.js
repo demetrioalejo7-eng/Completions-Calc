@@ -1,7 +1,7 @@
-import { n2TotalVolumeScf, n2BottomHolePressure, co2LiquidRate } from '../calc/nitrogenCalc.js'
-import { N2_PROPERTIES, CO2_PROPERTIES } from '../data/nitrogen.js'
+import { n2BottomHolePressure, co2LiquidRate, pipelineVolumeBbl } from '../calc/nitrogenCalc.js'
+import { n2VolumeMultiplier, N2_PROPERTIES, CO2_PROPERTIES } from '../data/nitrogen.js'
 import { convertTemperature } from '../data/units.js'
-import { flow, lengthFt, lengthIn, pressure, pressureResult, volumeResult, weightResult } from '../ui/fieldHelpers.js'
+import { flow, lengthFt, lengthIn, pressure, pressureResult, volume, volumeResult, weightResult } from '../ui/fieldHelpers.js'
 
 export const section11 = {
   id: 'nitrogen',
@@ -12,10 +12,27 @@ export const section11 = {
     {
       id: 'n2-pipeline',
       title: 'Volumen de N2 para Testeo/Purga de Línea',
+      description:
+        'Por dimensiones (ID + longitud) para una línea/ducto recto, o ingresando directamente un volumen geométrico ya calculado (tanque, línea irregular, volumen de pozo, etc.).',
       diagram: { kind: 'pipeCrossSection', labels: { od: 'd', id: null } },
       inputs: [
-        lengthIn('id', 'Diámetro interior de línea', { step: 0.001, default: 4.0 }),
-        lengthFt('length', 'Longitud', { step: 1, default: 5000 }),
+        {
+          type: 'select',
+          id: 'mode',
+          label: 'Volumen del sistema',
+          options: [
+            { value: 'dims', label: 'Por dimensiones de línea (ID + longitud)' },
+            { value: 'volume', label: 'Volumen geométrico directo' },
+          ],
+          default: 'dims',
+          rerenderForm: true,
+        },
+        (values) =>
+          values.mode === 'volume'
+            ? volume('volumeBbl', 'Volumen geométrico del sistema', { step: 0.01, default: 10 })
+            : null,
+        (values) => (values.mode === 'volume' ? null : lengthIn('id', 'Diámetro interior de línea', { step: 0.001, default: 4.0 })),
+        (values) => (values.mode === 'volume' ? null : lengthFt('length', 'Longitud', { step: 1, default: 5000 })),
         pressure('pressure', 'Presión (absoluta)', { step: 10, default: 1000 }),
         { type: 'number', id: 'temp', label: 'Temperatura', step: 1, default: 100 },
         {
@@ -30,15 +47,24 @@ export const section11 = {
         },
       ],
       compute(v) {
-        if (!v.id || !v.length || !v.pressure) throw new Error('Completá todos los campos.')
+        if (!v.pressure) throw new Error('Ingresá la presión.')
         const tempF = v.temp == null ? 60 : v.tempUnit === 'C' ? convertTemperature(v.temp, 'C', 'F') : v.temp
-        const out = n2TotalVolumeScf(v.id, v.length, v.pressure, tempF)
-        const liquidGal = out.totalScf / N2_PROPERTIES.scfPerGalLiquid
+        let volBbl
+        if (v.mode === 'volume') {
+          if (!v.volumeBbl) throw new Error('Ingresá el volumen geométrico del sistema.')
+          volBbl = v.volumeBbl
+        } else {
+          if (!v.id || !v.length) throw new Error('Completá el diámetro y la longitud.')
+          volBbl = pipelineVolumeBbl(v.id, v.length)
+        }
+        const vm = n2VolumeMultiplier(v.pressure, tempF)
+        const totalScf = vm * volBbl
+        const liquidGal = totalScf / N2_PROPERTIES.scfPerGalLiquid
         return {
           results: [
-            volumeResult('Volumen del sistema', out.volBbl, { digits: 3 }),
-            { label: 'Multiplicador de volumen (VM)', value: out.vm, unit: 'SCF/bbl', digits: 1 },
-            { label: 'Volumen total de N2 (gaseoso, estándar)', value: out.totalScf, category: 'Volumen de gas (estándar)', canonicalUnit: 'SCF', unit: 'SCF', digits: 0 },
+            volumeResult('Volumen del sistema', volBbl, { digits: 3 }),
+            { label: 'Multiplicador de volumen (VM)', value: vm, unit: 'SCF/bbl', digits: 1 },
+            { label: 'Volumen total de N2 (gaseoso, estándar)', value: totalScf, category: 'Volumen de gas (estándar)', canonicalUnit: 'SCF', unit: 'SCF', digits: 0 },
             { label: 'Volumen total de N2 (líquido)', value: liquidGal, category: 'Volumen', canonicalUnit: 'Galones US (gal)', unit: 'gal', digits: 1 },
           ],
         }

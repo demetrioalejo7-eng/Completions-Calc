@@ -311,6 +311,64 @@ export function flangeSection({ od = 'OD', bc = 'BC', b = 'B', t = 'T', h = 'H' 
   ])
 }
 
+// Dynamic wellbore diagram showing where a hanging string's neutral point
+// (zero axial force) falls. Unlike every diagram above — invoked from
+// `calc.diagram`'s static input labels before compute() ever runs — this
+// one is called directly from a calculator's compute() with the actual
+// computed depths, because the picture's shape (heavy string in tension
+// throughout, light string in compression throughout, or a genuine
+// neutral point splitting the string into both zones) depends on the
+// answer itself. Returns the same `.dim-diagram` markup as the rest, but
+// with its own taller SVG (a vertical wellbore reads better tall).
+function fmtFt(x) {
+  return Math.round(x).toLocaleString('es-AR')
+}
+
+export function wellboreNeutralPointDiagram({ totalDepthFt, neutralDepthFt, regime, bhaLabel = 'BHA' }) {
+  const top = 24,
+    bottom = 290,
+    cx = 110
+  const depthToY = (d) => top + (bottom - top) * (Math.max(0, Math.min(totalDepthFt, d)) / totalDepthFt)
+  const neutralY = regime === 'neutral' ? depthToY(neutralDepthFt) : null
+  const tensionStroke = 'stroke="currentColor" stroke-width="5" fill="none"'
+  const compressionStroke = 'stroke="currentColor" stroke-width="5" stroke-dasharray="3 5" fill="none" opacity="0.65"'
+
+  let inner = `
+    <line x1="70" y1="${top}" x2="150" y2="${top}" ${STROKE}/>
+    <path d="M70 ${top} l10 -10 M90 ${top} l10 -10 M110 ${top} l10 -10 M130 ${top} l10 -10" stroke="currentColor" stroke-width="1" opacity="0.5"/>
+  `
+  if (regime === 'heavy') {
+    inner += `<line x1="${cx}" y1="${top}" x2="${cx}" y2="${bottom}" ${tensionStroke}/>`
+  } else if (regime === 'light') {
+    inner += `<line x1="${cx}" y1="${top}" x2="${cx}" y2="${bottom}" ${compressionStroke}/>`
+  } else {
+    inner += `<line x1="${cx}" y1="${top}" x2="${cx}" y2="${neutralY}" ${tensionStroke}/>`
+    inner += `<line x1="${cx}" y1="${neutralY}" x2="${cx}" y2="${bottom}" ${compressionStroke}/>`
+    inner += `<line x1="50" y1="${neutralY}" x2="170" y2="${neutralY}" stroke="currentColor" stroke-width="1" stroke-dasharray="2 3" opacity="0.7"/>`
+    inner += text(175, neutralY + 3, 'Punto neutro', { anchor: 'start', size: 10 })
+    inner += text(175, neutralY + 15, `${fmtFt(neutralDepthFt)} ft`, { anchor: 'start', size: 10 })
+  }
+  inner += `<rect x="${cx - 10}" y="${bottom}" width="20" height="16" ${STROKE}/>`
+  inner += text(cx, bottom + 32, bhaLabel, { size: 10 })
+  inner += text(cx + 50, top + 4, '0 ft', { anchor: 'start', size: 10 })
+  inner += text(cx + 50, bottom + 4, `${fmtFt(totalDepthFt)} ft`, { anchor: 'start', size: 10 })
+
+  const legendPairs =
+    regime === 'neutral'
+      ? [
+          ['—', 'Tensión (tramo pesado)'],
+          ['┄', 'Compresión (tramo liviano, riesgo de pandeo)'],
+        ]
+      : regime === 'heavy'
+        ? [['—', 'Toda la sarta en tensión (pesada): entra por gravedad, sin snubbing']]
+        : [['┄', 'Toda la sarta en compresión (liviana): necesita snubbing en toda su longitud']]
+
+  return `<div class="dim-diagram">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 340" class="well-diagram-svg">${inner}</svg>
+    <p class="dim-legend">${legend(legendPairs)}</p>
+  </div>`
+}
+
 export const diagrams = {
   pipeCrossSection,
   annulusCrossSection,

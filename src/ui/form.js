@@ -1,7 +1,25 @@
 import { el, fmt, clear } from './dom.js'
-import { pipeLabel } from '../data/pipes.js'
 import { UNIT_CATEGORIES } from '../data/units.js'
 import { diagramMarkup } from './diagrams.js'
+import { PIPE_GRADES } from '../data/strengths.js'
+import { CT_GRADES } from '../data/ctStrength.js'
+
+const DRILL_PIPE_GRADES = [
+  { id: 'D', label: 'Grado D' },
+  { id: 'E', label: 'Grado E' },
+  { id: 'G', label: 'Grado G' },
+  { id: 'S135', label: 'Grado S-135' },
+]
+
+// Fixed display order for the "Tipo" step of the cascading pipe selector —
+// only the kinds actually present in a given dataset are shown.
+const PIPE_KIND_ORDER = ['Tubing', 'Casing', 'Drill Pipe', 'Coiled Tbg']
+
+function gradesForKind(kind) {
+  if (kind === 'Drill Pipe') return DRILL_PIPE_GRADES
+  if (kind === 'Coiled Tbg') return CT_GRADES
+  return PIPE_GRADES
+}
 
 function numberInput(spec, value, onChange) {
   const input = el('input', {
@@ -76,7 +94,7 @@ function unitNumberInput(spec, values, setValue, rerenderAll) {
 // survives result re-renders triggered by input changes.
 export function resultValueNode(r, key, values, setValue, rerenderResultsOnly) {
   if (typeof r.value === 'string') {
-    return el('span', { class: 'result-value' }, [el('strong', {}, r.value)])
+    return el('span', { class: 'result-value result-value-text' }, [el('strong', {}, r.value)])
   }
   if (!r.category || !UNIT_CATEGORIES[r.category]) {
     return el('span', { class: 'result-value' }, [
@@ -105,26 +123,102 @@ export function resultValueNode(r, key, values, setValue, rerenderResultsOnly) {
   ])
 }
 
+// Cascading pipe selector: Tipo (Tubing/Casing/Drill Pipe/Coiled Tbg) ->
+// Diámetro (OD) -> Libraje (peso nominal) -> Grado (informativo). Narrowing
+// step by step instead of one flat list of every OD+weight combination.
+// Grado doesn't affect OD/ID (geometry doesn't depend on steel grade) so
+// it's kept purely as a reference tag, not fed into odField/idField.
+// Hand-editing the OD/ID fields below still works exactly like before and
+// drops the whole cascade back to "Tamaño personalizado…".
 function pipePresetInput(spec, values, setValue, rerender, onFieldEdit) {
-  const presetKey = '__preset_' + spec.id
-  const selectedIdx = values[presetKey] ?? ''
-  const options = [el('option', { value: '', selected: selectedIdx === '' }, 'Tamaño personalizado…')].concat(
-    spec.dataset.map((row, i) =>
-      el('option', { value: String(i), selected: String(i) === String(selectedIdx) }, pipeLabel(row))
+  const kindKey = '__kind_' + spec.id
+  const odKey = '__od_' + spec.id
+  const rowKey = '__row_' + spec.id
+  const gradeKey = '__grade_' + spec.id
+
+  const selectedKind = values[kindKey] ?? ''
+  const kinds = PIPE_KIND_ORDER.filter((k) => spec.dataset.some((r) => r.kind === k))
+
+  const nodes = []
+
+  const kindSelect = el(
+    'select',
+    {
+      onChange: (e) => {
+        setValue(kindKey, e.target.value)
+        setValue(odKey, '')
+        setValue(rowKey, '')
+        if (spec.wtField) setValue(spec.wtField, null)
+        rerender()
+      },
+    },
+    [el('option', { value: '', selected: selectedKind === '' }, 'Tamaño personalizado…')].concat(
+      kinds.map((k) => el('option', { value: k, selected: k === selectedKind }, k))
     )
   )
-  const select = el('select', {
-    onChange: (e) => {
-      const idx = e.target.value
-      setValue(presetKey, idx)
-      if (idx === '') return
-      const row = spec.dataset[Number(idx)]
-      setValue(spec.odField, row.od)
-      setValue(spec.idField, row.id)
-      if (spec.wtField) setValue(spec.wtField, row.wt)
-      rerender()
-    },
-  }, options)
+  nodes.push(el('label', { class: 'field' }, [el('span', { class: 'field-label' }, spec.label), kindSelect]))
+
+  if (selectedKind) {
+    const rowsOfKind = spec.dataset.filter((r) => r.kind === selectedKind)
+    const odRows = []
+    const seenOd = new Set()
+    for (const r of rowsOfKind) {
+      if (!seenOd.has(r.od)) {
+        seenOd.add(r.od)
+        odRows.push(r)
+      }
+    }
+    const selectedOd = values[odKey] ?? ''
+    const odSelect = el(
+      'select',
+      {
+        onChange: (e) => {
+          setValue(odKey, e.target.value)
+          setValue(rowKey, '')
+          if (spec.wtField) setValue(spec.wtField, null)
+          rerender()
+        },
+      },
+      [el('option', { value: '', selected: selectedOd === '' }, 'Elegí diámetro…')].concat(
+        odRows.map((r) => el('option', { value: String(r.od), selected: String(r.od) === String(selectedOd) }, `${r.odLabel}"`))
+      )
+    )
+    nodes.push(el('label', { class: 'field' }, [el('span', { class: 'field-label' }, 'Diámetro (OD)'), odSelect]))
+
+    if (selectedOd !== '') {
+      const rowsOfOd = rowsOfKind.filter((r) => String(r.od) === String(selectedOd))
+      const selectedRow = values[rowKey] ?? ''
+      const rowSelect = el(
+        'select',
+        {
+          onChange: (e) => {
+            setValue(rowKey, e.target.value)
+            if (e.target.value !== '') {
+              const row = rowsOfOd[Number(e.target.value)]
+              setValue(spec.odField, row.od)
+              setValue(spec.idField, row.id)
+              if (spec.wtField) setValue(spec.wtField, row.wt)
+            }
+            rerender()
+          },
+        },
+        [el('option', { value: '', selected: selectedRow === '' }, 'Elegí libraje…')].concat(
+          rowsOfOd.map((r, i) => el('option', { value: String(i), selected: String(i) === String(selectedRow) }, `${r.wt} lb/ft (ID ${r.id}")`))
+        )
+      )
+      nodes.push(el('label', { class: 'field' }, [el('span', { class: 'field-label' }, 'Libraje (peso nominal)'), rowSelect]))
+    }
+
+    const grades = gradesForKind(selectedKind)
+    const selectedGrade = values[gradeKey] ?? ''
+    const gradeSelect = el(
+      'select',
+      { onChange: (e) => { setValue(gradeKey, e.target.value); rerender() } },
+      [el('option', { value: '', selected: selectedGrade === '' }, 'Sin especificar')].concat(
+        grades.map((g) => el('option', { value: g.id, selected: g.id === selectedGrade }, g.label)))
+    )
+    nodes.push(el('label', { class: 'field' }, [el('span', { class: 'field-label' }, 'Grado (referencia)'), gradeSelect]))
+  }
 
   const odSpec = {
     id: spec.odField,
@@ -140,31 +234,25 @@ function pipePresetInput(spec, values, setValue, rerender, onFieldEdit) {
     canonicalUnit: 'Pulgadas (in)',
     step: 0.001,
   }
-
-  const wrap = el('div', { class: 'pipe-preset' }, [
-    el('label', { class: 'field' }, [
-      el('span', { class: 'field-label' }, spec.label),
-      select,
-    ]),
+  const onManualEdit = (full) => {
+    // A hand-edited OD/ID no longer matches the cascade's cataloged
+    // nominal weight, so drop back to "tamaño personalizado" entirely
+    // rather than silently keeping a stale, mismatched selection.
+    setValue(kindKey, '')
+    setValue(odKey, '')
+    setValue(rowKey, '')
+    if (spec.wtField) setValue(spec.wtField, null)
+    if (full) rerender()
+    else onFieldEdit()
+  }
+  nodes.push(
     el('div', { class: 'stack' }, [
-      unitNumberInput(odSpec, values, setValue, (full) => {
-        // A hand-edited OD no longer matches the preset's cataloged
-        // nominal weight, so drop back to "tamaño personalizado" and clear
-        // it rather than silently keeping a stale, mismatched weight.
-        setValue(presetKey, '')
-        if (spec.wtField) setValue(spec.wtField, null)
-        if (full) rerender()
-        else onFieldEdit()
-      }),
-      unitNumberInput(idSpec, values, setValue, (full) => {
-        setValue(presetKey, '')
-        if (spec.wtField) setValue(spec.wtField, null)
-        if (full) rerender()
-        else onFieldEdit()
-      }),
-    ]),
-  ])
-  return wrap
+      unitNumberInput(odSpec, values, setValue, onManualEdit),
+      unitNumberInput(idSpec, values, setValue, onManualEdit),
+    ])
+  )
+
+  return el('div', { class: 'pipe-preset' }, nodes)
 }
 
 // Generic "pick a standard size" dropdown that fills one or more other
@@ -225,7 +313,7 @@ export function renderCalculatorForm(container, calc) {
     try {
       const out = calc.compute(values)
       if (!out) return
-      const { results = [], notes = [] } = out
+      const { results = [], notes = [], diagramHtml } = out
       if (results.length) {
         resultsEl.appendChild(
           el(
@@ -240,6 +328,13 @@ export function renderCalculatorForm(container, calc) {
           )
         )
       }
+      // Unlike `calc.diagram` (static, rendered from input labels before
+      // compute() ever runs), `diagramHtml` is produced BY compute() from
+      // the actual computed values — for results whose shape depends on
+      // the answer itself (e.g. where a neutral point lands along a string).
+      if (diagramHtml) {
+        resultsEl.appendChild(el('div', { html: diagramHtml }))
+      }
       for (const n of notes) {
         resultsEl.appendChild(el('p', { class: 'note' }, n))
       }
@@ -252,6 +347,7 @@ export function renderCalculatorForm(container, calc) {
     clear(formEl)
     for (const rawInput of calc.inputs) {
       const input = typeof rawInput === 'function' ? rawInput(values) : rawInput
+      if (!input) continue
       let node
       if (input.type === 'number') {
         node = numberInput(input, values[input.id], (v) => {
