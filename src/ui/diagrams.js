@@ -275,40 +275,77 @@ export function multiStringCrossSection({ outer = 'D', inner: innerSym = 'd' } =
 // like the diagrams above, but driven by a specific flange row's real
 // numbers rather than a calculator's symbolic input labels, so it's
 // called directly from the flange browser (not through `calc.diagram`).
-function fmtMm(v) {
+function fmtIn(v) {
   if (v == null) return '—'
-  return (Math.round(v * 100) / 100).toLocaleString('es-AR') + ' mm'
+  return v + '"'
 }
 
-export function flangeDetailDiagram(row) {
-  const left = 34,
-    right = 226,
-    flangeTop = 86,
-    flangeBottom = 120
-  const neckOuterL = 98,
-    neckOuterR = 162,
-    neckInnerL = 110,
-    neckInnerR = 150,
-    neckTop = 20
-  const boreL = 120,
-    boreR = 140
-  const midY = (flangeTop + flangeBottom) / 2
-  let inner = `
-    <path d="M ${left} ${flangeTop} L ${right} ${flangeTop} L ${right} ${flangeBottom} L ${left} ${flangeBottom} Z" ${STROKE}/>
-    <path d="M ${neckOuterL} ${flangeTop} L ${neckInnerL} ${neckTop} L ${neckInnerR} ${neckTop} L ${neckOuterR} ${flangeTop} Z" ${STROKE}/>
-    <line x1="${boreL}" y1="${neckTop}" x2="${boreL}" y2="${flangeBottom}" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3" opacity="0.55"/>
-    <line x1="${boreR}" y1="${neckTop}" x2="${boreR}" y2="${flangeBottom}" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3" opacity="0.55"/>
-    <rect x="${neckOuterL - 7}" y="${flangeTop - 4}" width="9" height="6" ${STROKE}/>
-    <rect x="${neckOuterR - 2}" y="${flangeTop - 4}" width="9" height="6" ${STROKE}/>
-    <circle cx="${left + 16}" cy="${midY}" r="4.5" ${STROKE}/>
-    <circle cx="${right - 16}" cy="${midY}" r="4.5" ${STROKE}/>
+// Flange cross-section drawing matching the manufacturer's own dimensional
+// sheet layout: a welding-neck hub with the RTJ ring groove at its base,
+// a tapped stud on one side (screws directly into the body — only one
+// nut) and a through stud bolt on the other side (nut at both ends), plus
+// the two small bolt-circle indicator holes — framed left/right by the
+// same two stacked cotas columns the sheet itself uses (DIA/O.D./I.D./
+// GROOVE DEPTH/MAX/DIA on the left; DIA/P.D./GROOVE WIDTH/BORE/MIN/RADIUS
+// on the right). All values baked onto it come from the matching
+// dimensional-spec entry (inches).
+export function flangeSheetDiagram(entry) {
+  const { size, spec: s } = entry
+  const bodyL = 220,
+    bodyR = 380,
+    bodyTop = 260,
+    bodyBottom = 320
+  const hubOuterL = 268,
+    hubOuterR = 332,
+    hubInnerL = 286,
+    hubInnerR = 314,
+    hubTop = 128
+  const boreL = 293,
+    boreR = 307
+  const midY = (bodyTop + bodyBottom) / 2
+  const inner = `
+    <path d="M ${bodyL} ${bodyTop} L ${bodyR} ${bodyTop} L ${bodyR} ${bodyBottom} L ${bodyL} ${bodyBottom} Z" ${STROKE}/>
+    <path d="M ${hubOuterL} ${bodyTop} L ${hubInnerL} ${hubTop} L ${hubInnerR} ${hubTop} L ${hubOuterR} ${bodyTop} Z" ${STROKE}/>
+    <line x1="${boreL}" y1="${hubTop}" x2="${boreL}" y2="${bodyBottom}" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3" opacity="0.55"/>
+    <line x1="${boreR}" y1="${hubTop}" x2="${boreR}" y2="${bodyBottom}" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3" opacity="0.55"/>
+    <rect x="${hubOuterL - 9}" y="${bodyTop - 6}" width="11" height="8" ${STROKE}/>
+    <rect x="${hubOuterR - 2}" y="${bodyTop - 6}" width="11" height="8" ${STROKE}/>
+    <circle cx="${bodyL + 22}" cy="${midY}" r="6" ${STROKE}/>
+    <circle cx="${bodyR - 22}" cy="${midY}" r="6" ${STROKE}/>
+    <line x1="150" y1="70" x2="150" y2="380" ${STROKE}/>
+    <rect x="137" y="54" width="26" height="18" ${STROKE}/>
+    <text x="150" y="400" font-size="10" text-anchor="middle" fill="currentColor">Tap End Stud</text>
+    <line x1="450" y1="50" x2="450" y2="400" ${STROKE}/>
+    <rect x="437" y="34" width="26" height="18" ${STROKE}/>
+    <rect x="437" y="398" width="26" height="18" ${STROKE}/>
+    <text x="450" y="432" font-size="10" text-anchor="middle" fill="currentColor">Stud Bolt</text>
+    ${text(30, 60, 'DIA. (OD)', { anchor: 'start', size: 11 })}
+    ${text(30, 82, fmtIn(s.od), { anchor: 'start', size: 12 })}
+    ${text(30, 110, 'O.D. anillo', { anchor: 'start', size: 11 })}
+    ${text(30, 132, fmtIn(s.ringOD), { anchor: 'start', size: 12 })}
+    ${text(30, 160, 'I.D. anillo', { anchor: 'start', size: 11 })}
+    ${text(30, 182, fmtIn(s.ringID), { anchor: 'start', size: 12 })}
+    ${text(30, 210, 'Profundidad de ranura', { anchor: 'start', size: 11 })}
+    ${text(30, 232, fmtIn(s.grooveDepth), { anchor: 'start', size: 12 })}
+    ${text(30, 260, 'Max.', { anchor: 'start', size: 11 })}
+    ${text(30, 282, fmtIn(s.max), { anchor: 'start', size: 12 })}
+    ${text(30, 310, 'Diámetro de referencia', { anchor: 'start', size: 11 })}
+    ${text(30, 332, fmtIn(s.dia2), { anchor: 'start', size: 12 })}
+    ${text(470, 60, 'DIA. (ref.)', { anchor: 'start', size: 11 })}
+    ${text(470, 82, fmtIn(s.refDia), { anchor: 'start', size: 12 })}
+    ${text(470, 110, 'P.D.', { anchor: 'start', size: 11 })}
+    ${text(470, 132, fmtIn(s.pd), { anchor: 'start', size: 12 })}
+    ${text(470, 160, 'Ancho de ranura', { anchor: 'start', size: 11 })}
+    ${text(470, 182, fmtIn(s.grooveWidth), { anchor: 'start', size: 12 })}
+    ${text(470, 210, 'Bore', { anchor: 'start', size: 11 })}
+    ${text(470, 232, size + '"', { anchor: 'start', size: 12 })}
+    ${text(470, 260, 'Min.', { anchor: 'start', size: 11 })}
+    ${text(470, 282, fmtIn(s.min), { anchor: 'start', size: 12 })}
+    ${text(470, 310, 'Radio', { anchor: 'start', size: 11 })}
+    ${text(470, 332, fmtIn(s.radius), { anchor: 'start', size: 12 })}
   `
-  inner += hDim(left, right, flangeBottom + 20, `OD ${fmtMm(row.od)}`)
-  inner += hDim(left + 16, right - 16, flangeTop - 10, `BC ${fmtMm(row.bc)}`)
-  inner += vDim(right + 8, flangeTop, flangeBottom, `T ${fmtMm(row.t)}`)
-  if (row.b != null) inner += hDim(boreL, boreR, neckTop - 8, `B ${fmtMm(row.b)}`)
   return `<div class="dim-diagram flange-detail-diagram">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 150" class="dim-svg">${inner}</svg>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 440" class="dim-svg">${inner}</svg>
   </div>`
 }
 
