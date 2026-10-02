@@ -12,6 +12,7 @@ dist
 dist-artifact
 dist-ssr
 *.local
+artifact.html
 
 # Editor directories and files
 .vscode/*
