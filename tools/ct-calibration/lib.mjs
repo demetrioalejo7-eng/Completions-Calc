@@ -31,6 +31,12 @@ export function loadData() {
     })
     .filter((b) => b.bin > 60 && Number.isFinite(b.W) && Number.isFinite(b.WHP))
     .map((b) => ({ ...b, survey: b.survey || b.well, ert: b.ert === '' || b.ert === undefined ? 1 : Number(b.ert) }))
+  // The final trip out was pumped through the multicycle valve with the ERT
+  // bypassed: POOH points after the deepest point of the run have no ERT
+  // (intermediate wiper trips keep it).
+  const tMax = {}
+  for (const b of bins) if (!tMax[b.well] || b.bin > tMax[b.well].bin) tMax[b.well] = b
+  for (const b of bins) b.finalPooh = b.dir === 'POOH' && String(b.t) >= String(tMax[b.well].t)
   const paths = Object.fromEntries(Object.entries(surveys).map(([w, s]) => [w, buildWellPath(s, 10)]))
   return { surveys, bins, paths }
 }
@@ -71,7 +77,7 @@ export function makePredictor(paths, { ert = 1000 } = {}) {
       speedRIH: b.v,
       speedPOOH: b.v,
       rateBpm: b.Q > 0 ? b.Q : 4,
-      ertLbfPerBpm: b.ert === 0 ? 0 : P.ertLbfPerBpm ?? ert,
+      ertLbfPerBpm: b.ert === 0 || (b.finalPooh && !P.ertInFinalPooh) ? 0 : P.ertLbfPerBpm ?? ert,
       fluidPpg: FLUID_PPG,
       bha: DEFAULT_BHA,
       annularGradient: annularFrictionGradient({ rateBpm: b.Q, casingId: 4.126, od: 2.375, densityPpg: FLUID_PPG, dragReduction: model.frDragReduction }),

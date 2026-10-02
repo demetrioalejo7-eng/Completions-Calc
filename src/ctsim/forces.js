@@ -245,7 +245,9 @@ export function forcesAtDepth(ctx, depthM, dir, bottomForce = 0) {
   const { path, string, casing, p, model } = ctx
   const sign = dir === 'POOH' ? 1 : -1
   const mu = frictionFactor(dir === 'POOH' ? p.muPOOH : p.muRIH, dir, dir === 'POOH' ? p.speedPOOH : p.speedRIH, model)
-  const ertEff = dir === 'POOH' ? model.ertPoohEfficiency : 1
+  // POOH: the ERT is usually bypassed (pumping through the multicycle valve);
+  // p.ertInPooh = true keeps it working at model.ertPoohEfficiency
+  const ertEff = dir === 'POOH' ? (p.ertInPooh === false ? 0 : model.ertPoohEfficiency) : 1
   const ertLbf = model.ertMode === 'mu' ? 0 : (p.ertLbfPerBpm || 0) * (p.rateBpm || 0) * ertEff
   const ertZoneFt = model.ertZoneM * M_TO_FT
   const ertPerFt = ertZoneFt > 0 ? ertLbf / ertZoneFt : 0
