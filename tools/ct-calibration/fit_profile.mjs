@@ -46,12 +46,15 @@ export function evaluate(P, set) {
     // stripper from reel tension → nominal stripper, RBT from the residual
     if (!g.RIH.length || !g.POOH.length) {
       const strip = 5000
-      surf[w] = g.RIH.length ? { strip, rbt: -med(g.RIH) - strip } : { strip, rbt: strip - med(g.POOH) }
+      const rbt = g.RIH.length ? -med(g.RIH) - strip : strip - med(g.POOH)
+      surf[w] = { strip, rbt: Math.max(Number(args.rbtMin ?? -Infinity), rbt) }
       continue
     }
     const aR = med(g.RIH)
     const aP = med(g.POOH)
-    surf[w] = { strip: (aP - aR) / 2, rbt: -(aP + aR) / 2 }
+    // --rbtMin: the reel back tension can't be below this (operator setting);
+    // with RBT clamped the stripper keeps its least-squares value (aP − aR)/2
+    surf[w] = { strip: (aP - aR) / 2, rbt: Math.max(Number(args.rbtMin ?? -Infinity), -(aP + aR) / 2) }
   }
   const res = set.map((b, i) => {
     const s = surf[b.well] || { strip: 0, rbt: 0 }
@@ -104,23 +107,23 @@ const f = (x) => {
   if (P.muRIH < 0.03 || P.muPOOH < 0.03 || P.muRIH > 0.9 || P.muPOOH > 0.9 || P.muLatRIH < 0.2 || P.muLatPOOH < 0.2 || P.residualContact < 0 || P.ertMuReductionRef < 0 || P.ertMuReductionRef > 0.95 || P.ertZoneM < 100 || P.ertPoohEfficiency < 0 || P.ertPoohEfficiency > 1) return 1e30
   return huber(evaluate(P, train).res) + stallPenalty(P)
 }
-// Lock-up constraints (--stall 1). BdC-1030h run 1 (ERT failed) was still
-// milling at 5590-5632 m MD with ~25-30 klb slacked off (1 s data), so the
-// model without ERT must not lock up before 5632 m. (The 4 min data looked
-// like a stall at ~5580 m; it was plug milling.)
-const STALLS = [{ well: 'BdC-1030h-r1', survey: 'BdC-1030h', pad: 'B1B', ert: 0, v: 1, Q: 4.3, WHP: 3420, minDepth: 5632 }]
+// Lock-up constraints (--stall 1). BdC-1030h run 1 (ERT jammed): milled
+// to 5632 m and was pulled because the speed dropped while the set-down grew,
+// i.e. incipient lock-up → the model without ERT must lock up between
+// minDepth and maxDepth.
+const STALLS = [{ well: 'BdC-1030h-r1', survey: 'BdC-1030h', pad: 'B1B', ert: 0, v: 1, Q: 4.3, WHP: 3420, minDepth: 5632, maxDepth: 5800 }]
 export function lockDepth(P, s, from = 4500, to = 6720) {
   for (let d = from; d <= to; d += 20) if (!Number.isFinite(predict({ ...P, strip: 0, rbt: 0 }, { ...s, dir: 'RIH', bin: d }))) return d
   return to + 200
 }
-const stallPenalty = (P) => (args.stall ? STALLS.filter((s) => trainPads.includes(s.pad)).reduce((a, s) => a + Number(args.stall) * 1e6 * (Math.max(0, s.minDepth - lockDepth(P, s)) / 100) ** 2, 0) : 0)
+const stallPenalty = (P) => (args.stall ? STALLS.filter((s) => trainPads.includes(s.pad)).reduce((a, s) => a + Number(args.stall) * 1e6 * ((Math.max(0, s.minDepth - lockDepth(P, s)) + Math.max(0, lockDepth(P, s) - s.maxDepth)) / 100) ** 2, 0) : 0)
 const t0 = Date.now()
 const r = nelderMead(f, names.map((n) => START[n]), names.map((n) => STEP[n]), Number(args.iters || 400))
 const P = toP(r.x)
 console.log(`train=${trainPads} test=${testPads} params=${names} — ${((Date.now() - t0) / 1000).toFixed(0)} s, loss ${r.fx.toFixed(0)}`)
 console.log(Object.fromEntries(Object.entries(P).map(([k, v]) => [k, typeof v === "number" ? +v.toFixed(4) : v])))
 const tr = evaluate(P, train)
-for (const st of STALLS) console.log(`${st.well} (sin ERT): sin lock-up hasta ${st.minDepth} m observado, modelo lock-up ${lockDepth(P, st)} m`)
+for (const st of STALLS) console.log(`${st.well} (sin ERT): lock-up observado ${st.minDepth}–${st.maxDepth} m, modelo ${lockDepth(P, st)} m`)
 const fmtSurf = (s) => Object.fromEntries(Object.entries(s).map(([w, v]) => [w, `Fs ${Math.round(v.strip)} / RBT ${Math.round(v.rbt)}`]))
 console.log('surface offsets (train):', fmtSurf(tr.surf))
 console.log('TRAIN')
