@@ -316,8 +316,10 @@ export function surfaceWeight(Fsurf, dir, p, string, model = DEFAULT_MODEL) {
   const speed = (dir === 'POOH' ? p.speedPOOH : p.speedRIH) || 0
   const stripDyn = (dir === 'POOH' ? model.speedSurfPOOH || 0 : model.speedSurfRIH || 0) * (speed - (model.speedSurfRef || 0))
   const strip = dir === 'POOH' ? p.stripperLbf + stripDyn : -(p.stripperLbf + stripDyn)
-  const rbt = dir === 'POOH' ? p.reelTensionPOOH : p.reelTensionRIH
-  return Fsurf - p.whp * Ao + strip - rbt
+  // the indicator is usually zeroed with the CT stabbed and the reel under
+  // tension (p.reelTared): then the reel back tension is not in the reading
+  const rbt = p.reelTared ? 0 : dir === 'POOH' ? p.reelTensionPOOH : p.reelTensionRIH
+  return Fsurf - p.whp * Ao + strip - rbt - (p.indicatorOffset || 0)
 }
 
 export function makeCasing(casingList) {
