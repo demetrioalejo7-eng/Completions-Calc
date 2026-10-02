@@ -34,8 +34,8 @@ suben al repositorio**. Solo se versionan los coeficientes resultantes en
 
    ```bash
    node tools/ct-calibration/fit_profile.mjs --train B3A2,C1A,B1B --ert 1500 \
-     --ertMode mu --stall 1 --fix speedSurfRef=20 --iters 700 \
-     --params muRIH,muPOOH,speedCoefRIH,speedCoefPOOH,residualContact,ertMuReductionRef,ertZoneM,speedSurfRIH,speedSurfPOOH \
+     --ertMode mu --stall 1 --poohRatio 0.85 --fix speedSurfRef=20 --iters 700 \
+     --params muRIH,speedCoefRIH,speedCoefPOOH,residualContact,ertMuReductionRef,ertZoneM,speedSurfRIH,speedSurfPOOH \
      [--test PAD] [--tag nombre] [--global 1]
    ```
 
@@ -85,8 +85,14 @@ suben al repositorio**. Solo se versionan los coeficientes resultantes en
   carrera 2 (ERT funcionando) llegó a TD (6745 m). En marcha libre la
   carrera 2 lee ~3,5 klb menos en RIH **y** en POOH que la 1: es un offset de
   superficie, no menor arrastre. El ajuste (lock-up sin ERT entre 5632 y
-  5800 m) da −21 % de µ en los últimos ~3900 m (1500 lbf/bpm a 4,2 bpm),
-  pero varía 12–47 % entre pliegues de la validación cruzada.
+  5800 m) da −30 % de µ en los últimos ~4250 m (1500 lbf/bpm a 4,2 bpm),
+  15–30 % entre pliegues de la validación cruzada.
+- µ RIH vs µ POOH: con un offset de superficie libre por carrera los datos
+  casi no los distinguen (ajuste libre 0,254 / 0,263; fijar µPOOH = 0,85·µRIH
+  sube el error 1,1 %, 0,75 lo sube 3,7 %). Se usa la relación física de CTES
+  (µRIH > µPOOH por la curvatura residual): µ 0,309 / 0,263 (`--poohRatio
+  0.85`). La pendiente fuerte del POOH en el lateral (~12 lb/m) la explican
+  la tensión en la curva y los doglegs del lateral, y el modelo la reproduce.
 - Reel: cerca de superficie (60–400 m, fricción despreciable) las lecturas
   dan stripper ≈ 4,7–11 klb y un término de reel ≈ 0, aunque la tensión real
   del reel es ≥ 4000 lbf: el indicador se tara con el CT en el inyector y el
@@ -96,7 +102,7 @@ suben al repositorio**. Solo se versionan los coeficientes resultantes en
   entra en la capacidad del modelo; las 15 restantes están cerca de TD
   (6550–6750 m), donde el modelo es algo conservador.
 - Validación cruzada por pad (física de dos pads, offsets por carrera):
-  error mediano 1,0–4,7 klb.
+  error mediano 0,9–5,4 klb; µ RIH 0,25–0,29 según el pad.
 - El offset de superficie (stripper + reel) varía entre pozos del mismo pad
   (hasta ~12 klb): conviene ajustarlo con la primera lectura real
   ("Ajustar a la carrera" en la app).

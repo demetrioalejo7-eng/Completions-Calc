@@ -101,7 +101,12 @@ function table(res) {
 
 const train = bins.filter((b) => trainPads.includes(b.pad))
 const test = bins.filter((b) => testPads.includes(b.pad))
-const toP = (x) => ({ ...START, ...fixed, ...Object.fromEntries(names.map((n, i) => [n, x[i]])) })
+const toP = (x) => {
+  const P = { ...START, ...fixed, ...Object.fromEntries(names.map((n, i) => [n, x[i]])) }
+  // --poohRatio r: µPOOH tied to r·µRIH (CTES: µRIH > µPOOH by residual bend)
+  if (args.poohRatio) P.muPOOH = Number(args.poohRatio) * P.muRIH
+  return P
+}
 const f = (x) => {
   const P = toP(x)
   if (P.muRIH < 0.03 || P.muPOOH < 0.03 || P.muRIH > 0.9 || P.muPOOH > 0.9 || P.muLatRIH < 0.2 || P.muLatPOOH < 0.2 || P.residualContact < 0 || P.ertMuReductionRef < 0 || P.ertMuReductionRef > 0.95 || P.ertZoneM < 100 || P.ertPoohEfficiency < 0 || P.ertPoohEfficiency > 1) return 1e30

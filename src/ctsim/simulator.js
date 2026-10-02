@@ -675,7 +675,7 @@ export function mountCtSimulator(container) {
         'Modelo: dF/ds = W_B·cosθ ± µ(v)·F_N, con F_N por peso y curvatura (Johancsik / CTES Orpheus), pandeo helicoidal y contacto adicional r_c·F²/(4EI) en compresión. ',
         state.reelTared ? 'Peso en superficie = F_E − WHP·A_o ∓ stripper − corrección del cero (indicador tarado con el reel: la tensión del reel no aparece en la lectura). ' : 'Peso en superficie = F_E − WHP·A_o ∓ stripper − tensión del reel. ',
         `µ(v) = µ·[1 + k·ln(v/${cal.model.speedRef} m/min)] (k RIH ${cal.model.speedCoefRIH}, k POOH ${cal.model.speedCoefPOOH}); término de superficie ≈ +${Math.round((cal.model.speedSurfPOOH - cal.model.speedSurfRIH) / 2)} lb por m/min respecto de ${cal.model.speedSurfRef} m/min. `,
-        `ERT: reduce µ en los ${cal.model.ertZoneM} m sobre la herramienta, ${Math.round(cal.model.ertMuReductionRef * 100)} % con ${cal.model.ertRefLbfPerBpm} lbf/bpm a ${cal.model.ertRefRateBpm} bpm, proporcional a k_ERT·caudal (calibrado con BdC-1030h: con el ERT trabado se sacó a 5632 m por lock-up incipiente, con ERT llegó a TD; efecto incierto, 12–47 % según el pad). En POOH actúa al ${Math.round(cal.model.ertPoohEfficiency * 100)} %. `,
+        `ERT: reduce µ en los ${cal.model.ertZoneM} m sobre la herramienta, ${Math.round(cal.model.ertMuReductionRef * 100)} % con ${cal.model.ertRefLbfPerBpm} lbf/bpm a ${cal.model.ertRefRateBpm} bpm, proporcional a k_ERT·caudal (calibrado con BdC-1030h: con el ERT trabado se sacó a 5632 m por lock-up incipiente, con ERT llegó a TD; efecto incierto, 15–30 % según el pad). En POOH actúa al ${Math.round(cal.model.ertPoohEfficiency * 100)} %. `,
         'La banda sombreada es µ ± 0,05. ',
         cal.note,
       ])
