@@ -7,6 +7,32 @@ function fmtMm(v) {
   return fmt(v, 2) + ' mm'
 }
 
+function fmtIn(v) {
+  if (v == null) return 'No publicado en la hoja de datos'
+  return v + '"'
+}
+
+// Orden y etiquetas tal cual figuran en la hoja dimensional Valveworks
+// (una ficha por tamaño + clase de presión): primero las cotas del
+// propio anillo/ranura RTJ, después los herrajes de unión (tap end
+// stud / stud bolt / tuerca / agujero de bulón).
+const VW_FIELD_LABELS = [
+  ['face', 'Largo cara a cara (Face-to-Face / API Gate Valve Length)'],
+  ['od', 'Diámetro exterior de la brida'],
+  ['ringOD', 'O.D. del anillo RTJ'],
+  ['ringID', 'I.D. del anillo RTJ'],
+  ['pd', 'P.D. (diámetro de paso del anillo)'],
+  ['grooveWidth', 'Ancho de ranura'],
+  ['grooveDepth', 'Profundidad de ranura'],
+  ['dia2', 'Diámetro de referencia (hub)'],
+  ['refDia', 'Diámetro de referencia (contorno)'],
+  ['max', 'Max.'],
+  ['min', 'Min.'],
+  ['radius', 'Radio'],
+  ['hexNut', 'Tuerca hexagonal — entre caras'],
+  ['boltHoleSize', 'Diámetro de agujero de bulón'],
+]
+
 // Field order mirrors the manufacturer's own drawing (outer dimensions
 // first, then the welding-neck/hub cotas, then the secondary ones).
 // Fields absent on a given row (e.g. B/J2/J3 on the low-pressure 6BX
@@ -141,6 +167,36 @@ function mountFlangeBrowser(container) {
     root.appendChild(
       el('p', { class: 'note' }, 'OD, BC, N, H y el número de anillo son comunes a Blind y Welding Neck. B, K, P/G, T, Q, X (o J1-J3) corresponden a la vista Welding Neck RTJ; los tamaños que el fabricante no publica en esa vista muestran "no publicado en la hoja de datos".')
     )
+
+    if (entry.vw) {
+      const vw = entry.vw
+      root.appendChild(el('h3', { class: 'flange-detail-title' }, 'Ficha técnica Valveworks (pulgadas)'))
+      root.appendChild(
+        el('p', { class: 'calc-description' }, `Anillo estándar: ${vw.ringStd ?? '—'} · Anillo energizado por presión: ${vw.ringPE}`)
+      )
+      const vwCard = el('div', { class: 'result-card' })
+      for (const [key, label] of VW_FIELD_LABELS) {
+        vwCard.appendChild(
+          el('div', { class: 'result-row' }, [el('span', { class: 'result-label' }, label), el('span', { class: 'result-value result-value-text' }, fmtIn(vw[key]))])
+        )
+      }
+      vwCard.appendChild(
+        el('div', { class: 'result-row' }, [
+          el('span', { class: 'result-label' }, 'Tap End Stud — diámetro / largo'),
+          el('span', { class: 'result-value result-value-text' }, `${fmtIn(vw.tapStud.dia)} / ${fmtIn(vw.tapStud.len)}`),
+        ])
+      )
+      vwCard.appendChild(
+        el('div', { class: 'result-row' }, [
+          el('span', { class: 'result-label' }, 'Stud Bolt — diámetro / largo'),
+          el('span', { class: 'result-value result-value-text' }, `${fmtIn(vw.studBolt.dia)} / ${fmtIn(vw.studBolt.len)}`),
+        ])
+      )
+      root.appendChild(vwCard)
+      root.appendChild(
+        el('p', { class: 'note' }, 'Tomado de la hoja dimensional Valveworks USA para esta brida (tamaños 1-13/16" a 9"). El largo del stud bolt no incluye la cara realzada (raised face) en bridas con ranura BX; sumarla según corresponda.')
+      )
+    }
   }
 
   render()
