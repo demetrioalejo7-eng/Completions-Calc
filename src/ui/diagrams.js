@@ -270,187 +270,245 @@ export function multiStringCrossSection({ outer = 'D', inner: innerSym = 'd' } =
   return frame(inner, [[outer, 'Diámetro exterior (pozo / ID de casing)'], [innerSym, 'OD de cada sarta (n sartas iguales)']])
 }
 
-// Flange detail diagram with the ACTUAL dimension values baked into the
-// drawing itself (OD/BC/T, and the bore when the size publishes one) —
-// like the diagrams above, but driven by a specific flange row's real
-// numbers rather than a calculator's symbolic input labels, so it's
-// called directly from the flange browser (not through `calc.diagram`).
+// Flange dimensional sheet, drawn in the same coordinate system and layout
+// as the manufacturer's sheet (940×510): a full section through the flange
+// axis (axis vertical), so each wall appears once on either side of the
+// white bore — flange plate on top, hub hanging below it, the ring groove
+// cut into each wall's top face, a stud with its nut in the left bolt hole
+// and the right bolt hole empty. Values sit in boxes that alternate
+// between a left and a right column, one dimension per row, each on its
+// own dimension line between extension lines dropped from the real
+// feature. Black on white regardless of app theme, like the printed sheet.
 function fmtIn(v) {
   if (v == null) return '—'
   return v + '"'
 }
 
-// A boxed value with its field label in the margin, and a dimension
-// line (with a real filled arrowhead at the far end, not just a tick)
-// running from the box toward the actual feature on the drawing — the
-// layout the manufacturer's own dimensional sheet uses for every
-// callout (value in a box, a line, the field name). `side` says which
-// edge of the box the line leaves from: 'right' for the left-margin
-// column (line runs into the drawing to the right), 'left' for the
-// right-margin column.
-function dimRow(boxCx, y, targetX, value, label, side) {
-  const bw = 58,
-    bh = 18
-  const leaderStart = side === 'right' ? boxCx + bw / 2 : boxCx - bw / 2
-  const dir = side === 'right' ? 1 : -1
-  const baseX = targetX - dir * 7
-  const labelX = side === 'right' ? boxCx - bw / 2 - 8 : boxCx + bw / 2 + 8
-  const labelAnchor = side === 'right' ? 'end' : 'start'
-  return `
-    <line x1="${leaderStart}" y1="${y}" x2="${targetX}" y2="${y}" ${DIM_STROKE}/>
-    <path d="M ${targetX} ${y} L ${baseX} ${y - 3.5} L ${baseX} ${y + 3.5} Z" fill="currentColor" opacity="0.65"/>
-    <rect x="${boxCx - bw / 2}" y="${y - bh / 2}" width="${bw}" height="${bh}" fill="var(--bg-card, #fff)" ${STROKE}/>
-    ${text(boxCx, y + 4, value, { size: 11 })}
-    ${text(labelX, y + 4, label, { anchor: labelAnchor, size: 10 })}
-  `
+const FL_INK = '#000'
+const FL_GRAY = '#c6c6c6'
+const FL_FONT = 'Arial, Helvetica, sans-serif'
+
+function flText(x, y, s, { anchor = 'start', size = 12.5, bold = false } = {}) {
+  return `<text x="${x}" y="${y}" font-size="${size}" text-anchor="${anchor}" fill="${FL_INK}"${bold ? ' font-weight="bold"' : ''}>${s}</text>`
 }
 
-function labeledBox(x, y, w, h, value, label, labelX) {
-  return `
-    <rect x="${x}" y="${y}" width="${w}" height="${h}" fill="var(--bg-card, #fff)" ${STROKE}/>
-    ${text(x + w / 2, y + h / 2 + 4, value, { size: 11 })}
-    ${text(labelX, y + h / 2 + 4, label, { anchor: 'start', size: 10 })}
-  `
+function flTextW(s, size = 12.5) {
+  return String(s).length * size * 0.62
 }
 
-// Flange dimensional-sheet drawing, reproducing the manufacturer's own
-// layout: one single SYMMETRIC flange cross-section (side view), shown
-// as a shaded machined part — a flat flange body with one central hub
-// rising out of it, the RTJ groove cut into the hub's top face, and
-// the through-bore running the full height between dashed projection
-// lines. The cutting plane passes through two diametrically opposite
-// bolt holes, so a Tap End Stud (threads into a blind hole — no nut,
-// a pointed tip) is drawn standing at one hole and a through Stud Bolt
-// (nut visible at both ends, rod passing clean through the body) at
-// the other, each with a diagonal leader down to its own callout box.
-// Framed left/right by the sheet's two stacked, boxed dimension
-// columns (DIA/O.D./I.D./GROOVE DEPTH/MAX/DIA on the left; DIA/P.D./
-// GROOVE WIDTH/BORE/MIN/RADIUS on the right), three header boxes
-// (standard ring / pressure-energized ring / face-to-face, which is
-// reference data for the equivalent API gate valve, not a dimension
-// of the flange itself), the Tap End Stud / Stud Bolt / Hex Nut /
-// Holes / Bolt Hole callouts, and a full-width Bolt Circle dimension
-// line at the very bottom, same as the source sheet. Field names are
-// kept in English, exactly as printed on the sheet. All values come
-// from the matching dimensional-spec entry (inches).
+function flLine(x1, y1, x2, y2, extra = '') {
+  return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${FL_INK}" stroke-width="1"${extra}/>`
+}
+
+// Filled arrowhead with its tip at (x, y), pointing l / r / u / d.
+function flArrow(x, y, dir) {
+  const L = 9,
+    W = 3.5
+  const pts = {
+    l: [[x, y], [x + L, y - W], [x + L, y + W]],
+    r: [[x, y], [x - L, y - W], [x - L, y + W]],
+    u: [[x, y], [x - W, y + L], [x + W, y + L]],
+    d: [[x, y], [x - W, y - L], [x + W, y - L]],
+  }[dir]
+  return `<path d="M ${pts.map((p) => p.join(' ')).join(' L ')} Z" fill="${FL_INK}"/>`
+}
+
+function flBox(x, y, w, h, value, bold = false) {
+  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#fff" stroke="${FL_INK}" stroke-width="1"/>
+    ${flText(x + w / 2, y + h / 2 + 4.5, value, { anchor: 'middle', size: 12, bold })}`
+}
+
+// Value box + label in the left (box at x=305) or right (box at x=485)
+// column, and a horizontal dimension line from x1 to x2 (arrowheads at
+// both ends, pointing outward to the features) broken where the box and
+// label sit.
+const COL_X = { L: 305, R: 485 }
+const BOX_W = 90,
+  BOX_H = 22
+function flDimRow(col, y, value, label, x1, x2, { bold = false } = {}) {
+  const bx = COL_X[col]
+  const lx = bx + BOX_W + 10
+  const gapA = bx
+  const gapB = lx + flTextW(label) + 6
+  let out = ''
+  if (x1 != null && x2 != null) {
+    if (x1 < gapA) out += flLine(x1, y, Math.min(x2, gapA), y)
+    if (x2 > gapB) out += flLine(Math.max(x1, gapB), y, x2, y)
+    out += flArrow(x1, y, 'l') + flArrow(x2, y, 'r')
+  }
+  out += flBox(bx, y - BOX_H / 2, BOX_W, BOX_H, value, bold)
+  out += flText(lx, y + 4.5, label)
+  return out
+}
+
+function flExt(x, yTop, yBottom) {
+  return flLine(x, yTop, x, yBottom)
+}
+
 export function flangeSheetDiagram(entry) {
-  const { size, pressureLabel, row, spec: s } = entry
-  const leftCx = 150,
-    rightCx = 810
-  const cx = 480
+  const { size, pressureLabel, type, row, spec: s } = entry
+  const M = (x) => 940 - x // mirror about the flange axis (x = 470)
+  // Rows the sheet leaves blank for this flange (6B has no raised-face
+  // diameter / max raised-face height) are left off rather than invented.
+  const hasRF = s.refDia != null
+  const hasMax = s.max != null
 
-  const baseTop = 280,
-    baseBottom = 345,
-    hubTop = 195,
-    grooveBottom = 213
-  const outerL = 400,
-    outerR = 560,
-    innerL = 435,
-    innerR = 525,
-    grooveL = 458,
-    grooveR = 502
+  // --- Section geometry (left wall; right wall is its mirror) ---
+  const FACE = 155, // top (ring-groove) face
+    BACK = 280, // back face of the flange plate
+    HUB_BOT = 330, // end of the hub
+    GROOVE_BOT = 172
+  const OD = 20, // flange outside diameter edge
+    BH_L = 62, // bolt hole edges
+    BH_R = 108,
+    BOLT_C = 85, // bolt centerline
+    RF = 122, // raised-face diameter edge
+    G_OD = 150, // ring groove O.D.
+    G_PD = 167.5, // ring groove pitch diameter
+    G_ID = 185, // ring groove I.D.
+    HUB = 152, // hub O.D.
+    BORE = 237, // bore wall
+    THK_X = 130 // plate-thickness dimension
 
-  const studL = 230,
-    studR = 730
-  const tapTopY = baseTop - 15,
-    tapTipY = baseBottom - 20
-  const boltRodTop = baseTop - 45,
-    boltRodBottom = baseBottom + 30
+  const leftWall = `M ${OD} 165 L 30 ${FACE} L ${G_OD} ${FACE} L 156 ${GROOVE_BOT} L 179 ${GROOVE_BOT} L ${G_ID} ${FACE}
+    L 229 ${FACE} L ${BORE} 163 L ${BORE} ${HUB_BOT} L ${HUB} ${HUB_BOT} L ${HUB} 293 Q ${HUB} ${BACK} 139 ${BACK}
+    L 30 ${BACK} L ${OD} 270 Z`
+  const rightWall = `M ${M(OD)} 165 L ${M(30)} ${FACE} L ${M(G_OD)} ${FACE} L ${M(156)} ${GROOVE_BOT} L ${M(179)} ${GROOVE_BOT} L ${M(G_ID)} ${FACE}
+    L ${M(229)} ${FACE} L ${M(BORE)} 163 L ${M(BORE)} ${HUB_BOT} L ${M(HUB)} ${HUB_BOT} L ${M(HUB)} 293 Q ${M(HUB)} ${BACK} ${M(139)} ${BACK}
+    L ${M(30)} ${BACK} L ${M(OD)} 270 Z`
 
-  const rows = [60, 84, 108, 132, 156, 178]
-  const leftTargets = [outerL - 40, outerL - 10, outerL + 15, outerL - 25, outerL - 5, outerL - 20]
-  const leftVals = [fmtIn(s.od), fmtIn(s.ringOD), fmtIn(s.ringID), fmtIn(s.grooveDepth), fmtIn(s.max), fmtIn(s.dia2)]
-  const leftLabels = ['DIA.', 'O.D.', 'I.D.', 'GROOVE DEPTH', 'MAX.', 'DIA.']
-  const rightTargets = [outerR + 40, outerR + 10, outerR - 15, outerR + 25, outerR + 5, outerR + 20]
-  const rightVals = [fmtIn(s.refDia), fmtIn(s.pd), fmtIn(s.grooveWidth), size + '"', fmtIn(s.min), fmtIn(s.radius)]
-  const rightLabels = ['DIA.', 'P.D.', 'GROOVE WIDTH', 'BORE', 'MIN.', 'RADIUS']
-
-  let dims = ''
-  for (let i = 0; i < 6; i++) dims += dimRow(leftCx, rows[i], leftTargets[i], leftVals[i], leftLabels[i], 'right')
-  for (let i = 0; i < 6; i++) dims += dimRow(rightCx, rows[i], rightTargets[i], rightVals[i], rightLabels[i], 'left')
-
-  const body = `<path d="M 20 ${baseTop} L 940 ${baseTop} L 940 ${baseBottom} L 20 ${baseBottom} Z" fill="currentColor" opacity="0.07" ${STROKE}/>`
-  const hub = `<path d="M ${outerL} ${baseTop} L ${innerL} ${hubTop} L ${grooveL} ${hubTop} L ${grooveL} ${grooveBottom} L ${grooveR} ${grooveBottom} L ${grooveR} ${hubTop} L ${innerR} ${hubTop} L ${outerR} ${baseTop} Z" fill="currentColor" opacity="0.13" ${STROKE}/>`
-  const bore = `
-    <line x1="${grooveL}" y1="${grooveBottom}" x2="${grooveL}" y2="${baseBottom}" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3" opacity="0.5"/>
-    <line x1="${grooveR}" y1="${grooveBottom}" x2="${grooveR}" y2="${baseBottom}" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3" opacity="0.5"/>
-  `
-  // Tap End Stud: threads into a blind tapped hole — a plain rod with a
-  // small domed head above the face, ending in a slim taper (not a
-  // dimension-style arrowhead) inside the body, no nut.
-  const tapStud = `
-    <circle cx="${studL}" cy="${tapTopY}" r="4" fill="var(--bg-card, #fff)" ${STROKE}/>
-    <line x1="${studL}" y1="${tapTopY}" x2="${studL}" y2="${tapTipY - 12}" stroke="currentColor" stroke-width="2.5" fill="none"/>
-    <path d="M ${studL - 2.5} ${tapTipY - 12} L ${studL + 2.5} ${tapTipY - 12} L ${studL} ${tapTipY} Z" fill="currentColor" opacity="0.8"/>
-  `
-  // Stud Bolt: a through bolt, with a hex nut visible above the top
-  // face and another below the bottom face.
-  const studBoltDraw = `
-    <line x1="${studR}" y1="${boltRodTop - 14}" x2="${studR}" y2="${boltRodBottom + 14}" stroke="currentColor" stroke-width="2.5" fill="none"/>
-    <rect x="${studR - 8}" y="${boltRodTop - 14}" width="16" height="14" fill="var(--bg-card, #fff)" ${STROKE}/>
-    <rect x="${studR - 8}" y="${boltRodBottom}" width="16" height="14" fill="var(--bg-card, #fff)" ${STROKE}/>
-  `
-  const drawing = body + hub + bore + tapStud + studBoltDraw
-
-  // Diagonal leaders from each stud's actual position in the drawing
-  // down to its own callout box below.
-  const leaders = `
-    <line x1="${studL}" y1="${tapTipY}" x2="300" y2="440" ${DIM_STROKE}/>
-    <line x1="${studR}" y1="${boltRodBottom + 14}" x2="560" y2="450" ${DIM_STROKE}/>
+  const section = `
+    <path d="${leftWall}" fill="${FL_GRAY}" stroke="${FL_INK}" stroke-width="1.2"/>
+    <path d="${rightWall}" fill="${FL_GRAY}" stroke="${FL_INK}" stroke-width="1.2"/>
+    ${flLine(BORE, 163, M(BORE), 163)}
+    ${flLine(BORE, HUB_BOT, M(BORE), HUB_BOT)}
+    <rect x="${BH_L}" y="${FACE}" width="${BH_R - BH_L}" height="${BACK - FACE}" fill="#fff"/>
+    ${flLine(BH_L, FACE, BH_L, BACK)}${flLine(BH_R, FACE, BH_R, BACK)}
+    <rect x="${M(BH_R)}" y="${FACE}" width="${BH_R - BH_L}" height="${BACK - FACE}" fill="#fff"/>
+    ${flLine(M(BH_L), FACE, M(BH_L), BACK)}${flLine(M(BH_R), FACE, M(BH_R), BACK)}
+    ${hasRF ? `<path d="M ${OD} 175 L 112 175 Q ${RF} 175 ${RF} 165 L ${RF} ${FACE}" fill="none" stroke="${FL_INK}" stroke-width="1" stroke-dasharray="5 3"/>
+    <path d="M ${M(OD)} 175 L ${M(112)} 175 Q ${M(RF)} 175 ${M(RF)} 165 L ${M(RF)} ${FACE}" fill="none" stroke="${FL_INK}" stroke-width="1" stroke-dasharray="5 3"/>` : ''}
   `
 
-  const studBrace = `
-    ${text(298, 448, 'TAP END STUD {', { anchor: 'end', size: 11 })}
-    ${labeledBox(310, 438, 58, 18, fmtIn(s.tapStud.dia), 'DIAMETER', 374)}
-    ${labeledBox(310, 460, 58, 18, fmtIn(s.tapStud.len), 'LENGTH', 374)}
-    ${text(560, 463, 'STUD BOLT {', { anchor: 'end', size: 11 })}
-    ${labeledBox(572, 453, 58, 18, fmtIn(s.studBolt.dia), 'DIAMETER', 636)}
-    ${labeledBox(572, 475, 58, 18, fmtIn(s.studBolt.len), 'LENGTH', 636)}
-    ${text(572, 500, '(ADD AMOUNT OF RAISED FACE)', { anchor: 'start', size: 7 })}
+  // Stud standing in the left bolt hole (rounded end above the face),
+  // nut against the back face; right bolt hole left empty.
+  const stud = `
+    <path d="M 67 ${BACK} L 67 100 Q 67 90 77 90 L 93 90 Q 103 90 103 100 L 103 ${BACK}" fill="#fff" stroke="${FL_INK}" stroke-width="1.2"/>
+    <rect x="49" y="${BACK}" width="72" height="38" fill="#fff" stroke="${FL_INK}" stroke-width="1.2"/>
+    ${flLine(67, BACK, 67, BACK + 38)}${flLine(103, BACK, 103, BACK + 38)}
+  `
+  const centerDash = ' stroke-dasharray="14 3 3 3"'
+  const centerlines = `
+    ${flLine(BOLT_C, 80, BOLT_C, 497, centerDash)}
+    ${flLine(M(BOLT_C), 140, M(BOLT_C), 290, centerDash)}
+    ${flLine(M(BOLT_C), 410, M(BOLT_C), 497, centerDash)}
   `
 
-  const bottomInfo = `
-    ${text(195, 500, 'HEX NUT SIZE ACROSS FLATS', { anchor: 'end', size: 10 })}
-    ${labeledBox(205, 490, 58, 18, fmtIn(s.hexNut), '', 270)}
-    ${text(195, 524, 'NUMBER OF HOLES', { anchor: 'end', size: 10 })}
-    ${labeledBox(205, 514, 58, 18, row.n != null ? String(row.n) : '—', '', 270)}
-    ${text(195, 548, 'BOLT HOLE SIZE', { anchor: 'end', size: 10 })}
-    ${labeledBox(205, 538, 58, 18, fmtIn(s.boltHoleSize), '', 270)}
+  // --- Dimension rows (same order, column and row spacing as the sheet) ---
+  const ext = `
+    ${flExt(OD, 44, FACE + 8)}${flExt(M(OD), 44, FACE + 8)}
+    ${hasRF ? flExt(RF, 62, FACE) + flExt(M(RF), 62, FACE) : ''}
+    ${flExt(G_OD, 80, FACE)}${flExt(M(G_OD), 80, FACE)}
+    ${flExt(G_PD, 97, FACE + 6)}${flExt(M(G_PD), 97, FACE + 6)}
+    ${flExt(G_ID, 114, FACE)}${flExt(M(G_ID), 114, FACE)}
+  `
+  const isBX = type === '6bx'
+  const dims = `
+    ${flDimRow('L', 52, fmtIn(s.od), 'DIA.', OD, M(OD))}
+    ${hasRF ? flDimRow('R', 70, fmtIn(s.refDia), 'DIA.', RF, M(RF)) : ''}
+    ${flDimRow('L', 88, fmtIn(s.ringOD), 'O.D.', G_OD, M(G_OD))}
+    ${flDimRow('R', 105, fmtIn(s.pd), 'P.D.', G_PD, M(G_PD))}
+    ${flDimRow('L', 122, fmtIn(s.ringID), 'I.D.', G_ID, M(G_ID))}
+
+    ${flDimRow('R', 140, fmtIn(s.grooveWidth), 'GROOVE WIDTH', null, null)}
+    ${flLine(COL_X.R + BOX_W + 10 + flTextW('GROOVE WIDTH') + 6, 140, M(G_ID), 140)}${flArrow(M(G_ID), 140, 'r')}
+    ${flLine(M(G_OD) + 22, 140, M(G_OD), 140)}${flArrow(M(G_OD), 140, 'l')}
+
+    ${flDimRow('L', 190, fmtIn(s.grooveDepth), 'GROOVE DEPTH', null, null)}
+    ${flLine(COL_X.L + BOX_W + 10 + flTextW('GROOVE DEPTH') + 6, 190, M(G_PD), 190)}
+    ${flLine(M(G_PD), 190, M(G_PD), GROOVE_BOT)}${flArrow(M(G_PD), GROOVE_BOT, 'u')}
+    ${flLine(M(G_PD) - 16, 146, M(G_PD), FACE)}${flArrow(M(G_PD), FACE, 'd')}
+
+    ${flDimRow('R', 213, `${size}"`, 'BORE', BORE, M(BORE))}
+
+    ${hasMax ? `${flDimRow('L', 241, fmtIn(s.max), 'MAX.', null, null)}
+    ${flLine(COL_X.L + BOX_W + 10 + flTextW('MAX.') + 6, 241, 808, 241)}${flLine(808, 241, 845, 202)}
+    ${flLine(845, 120, 845, FACE)}${flArrow(845, FACE, 'd')}
+    ${flLine(845, 290, 845, 175)}${flArrow(845, 175, 'u')}` : ''}
+
+    ${flDimRow('R', 273, fmtIn(s.min), 'MIN.', null, null)}
+    ${flLine(COL_X.R, 273, BORE, 273)}${flLine(BORE, 273, THK_X, 222)}
+    ${flLine(THK_X, FACE, THK_X, BACK)}${flArrow(THK_X, FACE, 'u')}${flArrow(THK_X, BACK, 'd')}
+
+    ${flDimRow('L', 305, fmtIn(s.dia2), 'DIA.', HUB, M(HUB))}
+
+    ${flDimRow('R', 345, fmtIn(s.radius), 'RADIUS', null, null)}
+    <path d="M ${COL_X.R + BOX_W + 10 + flTextW('RADIUS') + 6} 345 L 810 345 L 810 302 L ${M(HUB) + 5} 286" fill="none" stroke="${FL_INK}" stroke-width="1"/>
+    ${flArrow(M(HUB) + 4, 285, 'u')}
   `
 
-  // Full-width Bolt Circle dimension at the very bottom, same as the
-  // source sheet's own layout (one arrow spanning the whole flange,
-  // broken by the value box at its centre).
-  const boltCircleY = 585
-  const bcBoxW = 70
-  const boltCircle = `
-    <line x1="20" y1="${boltCircleY}" x2="${cx - bcBoxW / 2}" y2="${boltCircleY}" ${DIM_STROKE}/>
-    <path d="M 20 ${boltCircleY} L 28 ${boltCircleY - 3.5} L 28 ${boltCircleY + 3.5} Z" fill="currentColor" opacity="0.65"/>
-    <line x1="${cx + bcBoxW / 2}" y1="${boltCircleY}" x2="940" y2="${boltCircleY}" ${DIM_STROKE}/>
-    <path d="M 940 ${boltCircleY} L 932 ${boltCircleY - 3.5} L 932 ${boltCircleY + 3.5} Z" fill="currentColor" opacity="0.65"/>
-    <rect x="${cx - bcBoxW / 2}" y="${boltCircleY - 9}" width="${bcBoxW}" height="18" fill="var(--bg-card, #fff)" ${STROKE}/>
-    ${text(cx, boltCircleY + 4, fmtIn(s.boltCircle), { size: 11 })}
-    ${text(cx, boltCircleY - 14, 'BOLT CIRCLE', { size: 10 })}
-  `
-
+  // --- Header ---
   const header = `
-    <rect x="15" y="14" width="75" height="22" fill="var(--bg-card, #fff)" ${STROKE}/>
-    ${text(52, 29, s.ringStd ?? '-', { size: 11 })}
-    ${text(98, 22, 'STANDARD RING NUMBER', { anchor: 'start', size: 9 })}
-    ${text(98, 44, `Flange Size: ${size}"`, { anchor: 'start', size: 9 })}
-    <rect x="330" y="14" width="75" height="22" fill="var(--bg-card, #fff)" ${STROKE}/>
-    ${text(367, 29, s.ringPE, { size: 11 })}
-    ${text(413, 22, 'PRESSURE ENERGIZED RING NUMBER', { anchor: 'start', size: 9 })}
-    <rect x="720" y="14" width="75" height="22" fill="var(--bg-card, #fff)" ${STROKE}/>
-    ${text(757, 29, fmtIn(s.face), { size: 11 })}
-    ${text(803, 22, 'FACE-TO-FACE', { anchor: 'start', size: 9 })}
-    ${text(803, 34, 'API GATE VALVE LENGTH', { anchor: 'start', size: 9 })}
-    ${text(720, 48, `Pressure Rating: ${pressureLabel}`, { anchor: 'start', size: 9 })}
+    ${flBox(20, 8, 90, 22, s.ringStd ?? '-', true)}
+    ${flText(120, 23, 'STANDARD RING NUMBER', { size: 13 })}
+    ${flText(148, 39, `Flange Size: ${String(size).replace(' ', '-')}"`, { size: 11 })}
+    ${flBox(305, 8, 90, 22, s.ringPE ?? '-', true)}
+    ${flText(405, 23, 'PRESSURE ENERGIZED RING NUMBER', { size: 13 })}
+    ${flText(660, 39, `Pressure Rating: ${pressureLabel}`, { anchor: 'end', size: 11 })}
+    ${flBox(672, 8, 90, 22, fmtIn(s.face))}
+    ${flText(772, 21, 'FACE-TO-FACE', { size: 13, bold: true })}
+    ${flText(772, 41, 'API GATE VALVE LENGTH', { size: 12 })}
   `
 
-  const inner = header + dims + drawing + leaders + studBrace + bottomInfo + boltCircle
-  return `<div class="dim-diagram flange-detail-diagram">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 610" class="dim-svg">${inner}</svg>
+  // --- Lower callouts ---
+  const legendBox = `
+    <rect x="152" y="337" width="133" height="32" fill="${FL_GRAY}"/>
+    ${flText(158, 350, '** NOT API', { size: 12 })}
+    ${flText(158, 364, '* OBSOLETE FLANGE', { size: 12 })}
+  `
+  const raisedFaceNote = isBX
+    ? ['1/8" MIN. RAISED', 'FACE ON', 'OPEN-FACED', 'FLANGES WITH', 'BX GROOVES.', 'RAISED FACE', 'MAY BE OMITTED', 'ON STUDDED', 'FLANGES.']
+        .map((l, i) => flText(830, 302 + i * 12.5, l, { size: 10.5 }))
+        .join('')
+    : ''
+  const studLeaders = `
+    <path d="M 112 323 L 112 377 L 452 377 L 462 391" fill="none" stroke="${FL_INK}" stroke-width="1"/>${flArrow(112, 321, 'u')}
+    <path d="M 66 323 L 66 392 L 440 392 L 487 455" fill="none" stroke="${FL_INK}" stroke-width="1"/>${flArrow(66, 321, 'u')}
+  `
+  const brackets = `
+    ${flText(566, 399, 'TAP END STUD', { anchor: 'end', size: 13 })}
+    ${flText(570, 405, '{', { size: 32 })}
+    ${flBox(595, 373, 90, 22, fmtIn(s.tapStud.dia), true)}
+    ${flBox(595, 396, 90, 22, fmtIn(s.tapStud.len), true)}
+    ${flText(695, 388, 'DIAMETER')}
+    ${flText(695, 411, 'LENGTH')}
+    ${flText(690, 429, '(ADD AMOUNT OF RAISED FACE)', { size: 8.5 })}
+    ${flText(566, 463, 'STUD BOLT', { anchor: 'end', size: 13 })}
+    ${flText(570, 469, '{', { size: 32 })}
+    ${flBox(595, 437, 90, 22, fmtIn(s.studBolt.dia), true)}
+    ${flBox(595, 460, 90, 22, fmtIn(s.studBolt.len), true)}
+    ${flText(695, 452, 'DIAMETER')}
+    ${flText(695, 475, 'LENGTH')}
+  `
+  const boltInfo = `
+    ${flText(350, 417, 'HEX NUT SIZE ACROSS FLATS', { anchor: 'end' })}
+    ${flBox(360, 403, 70, 22, fmtIn(s.hexNut))}
+    ${flText(350, 449, 'NUMBER OF HOLES', { anchor: 'end' })}
+    ${flBox(360, 434, 70, 22, row.n != null ? String(row.n) : '—', true)}
+    ${flText(350, 472, 'BOLT HOLE SIZE', { anchor: 'end' })}
+    ${flBox(360, 457, 70, 22, fmtIn(s.boltHoleSize))}
+    ${flText(350, 496, 'BOLT CIRCLE', { anchor: 'end' })}
+    ${flBox(360, 480, 70, 22, fmtIn(s.boltCircle))}
+    ${flLine(BOLT_C, 491, 350 - flTextW('BOLT CIRCLE') - 6, 491)}${flArrow(BOLT_C, 491, 'l')}
+    ${flLine(430, 491, M(BOLT_C), 491)}${flArrow(M(BOLT_C), 491, 'r')}
+  `
+
+  const inner =
+    `<rect x="0" y="0" width="940" height="510" fill="#fff"/>` +
+    section + stud + centerlines + ext + dims + header + legendBox + raisedFaceNote + studLeaders + brackets + boltInfo +
+    `<rect x="2" y="2" width="936" height="506" fill="none" stroke="#9a9a9a" stroke-width="1"/>`
+  return `<div class="flange-sheet flange-detail-diagram">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 510" class="flange-sheet-svg" font-family="${FL_FONT}">${inner}</svg>
   </div>`
 }
 

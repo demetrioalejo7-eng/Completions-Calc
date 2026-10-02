@@ -214,6 +214,34 @@ a {
   margin-bottom: 10px;
 }
 
+.flange-sheet {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin: 0 0 6px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.flange-sheet-svg {
+  display: block;
+  width: 100%;
+  min-width: 760px;
+  height: auto;
+}
+
+.flange-sheet-hint {
+  font-size: 12px;
+  color: var(--text-dim, #888);
+  margin: 0 0 14px;
+}
+
+@media (min-width: 800px) {
+  .flange-sheet-hint {
+    display: none;
+  }
+}
+
 .flange-detail-title {
   font-size: 16px;
   margin: 0 0 4px;

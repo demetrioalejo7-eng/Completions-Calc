@@ -93,6 +93,7 @@ function mountFlangeBrowser(container) {
       el('p', { class: 'calc-description' }, `Anillo estándar: ${s.ringStd ?? '—'} · Anillo energizado por presión: ${s.ringPE}${row.n != null ? ` · ${row.n} bulones` : ''}`)
     )
     root.appendChild(el('div', { html: flangeSheetDiagram(entry) }))
+    root.appendChild(el('p', { class: 'flange-sheet-hint' }, 'Deslizá el dibujo hacia los costados para verlo completo.'))
 
     const card = el('div', { class: 'result-card' })
     card.appendChild(
