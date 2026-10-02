@@ -280,72 +280,128 @@ function fmtIn(v) {
   return v + '"'
 }
 
-// Flange cross-section drawing matching the manufacturer's own dimensional
-// sheet layout: a welding-neck hub with the RTJ ring groove at its base,
-// a tapped stud on one side (screws directly into the body — only one
-// nut) and a through stud bolt on the other side (nut at both ends), plus
-// the two small bolt-circle indicator holes — framed left/right by the
-// same two stacked cotas columns the sheet itself uses (DIA/O.D./I.D./
-// GROOVE DEPTH/MAX/DIA on the left; DIA/P.D./GROOVE WIDTH/BORE/MIN/RADIUS
-// on the right). All values baked onto it come from the matching
-// dimensional-spec entry (inches).
-export function flangeSheetDiagram(entry) {
-  const { size, spec: s } = entry
-  const bodyL = 220,
-    bodyR = 380,
-    bodyTop = 260,
-    bodyBottom = 320
-  const hubOuterL = 268,
-    hubOuterR = 332,
-    hubInnerL = 286,
-    hubInnerR = 314,
-    hubTop = 128
-  const boreL = 293,
-    boreR = 307
-  const midY = (bodyTop + bodyBottom) / 2
-  const inner = `
-    <path d="M ${bodyL} ${bodyTop} L ${bodyR} ${bodyTop} L ${bodyR} ${bodyBottom} L ${bodyL} ${bodyBottom} Z" ${STROKE}/>
-    <path d="M ${hubOuterL} ${bodyTop} L ${hubInnerL} ${hubTop} L ${hubInnerR} ${hubTop} L ${hubOuterR} ${bodyTop} Z" ${STROKE}/>
-    <line x1="${boreL}" y1="${hubTop}" x2="${boreL}" y2="${bodyBottom}" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3" opacity="0.55"/>
-    <line x1="${boreR}" y1="${hubTop}" x2="${boreR}" y2="${bodyBottom}" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3" opacity="0.55"/>
-    <rect x="${hubOuterL - 9}" y="${bodyTop - 6}" width="11" height="8" ${STROKE}/>
-    <rect x="${hubOuterR - 2}" y="${bodyTop - 6}" width="11" height="8" ${STROKE}/>
-    <circle cx="${bodyL + 22}" cy="${midY}" r="6" ${STROKE}/>
-    <circle cx="${bodyR - 22}" cy="${midY}" r="6" ${STROKE}/>
-    <line x1="150" y1="70" x2="150" y2="380" ${STROKE}/>
-    <rect x="137" y="54" width="26" height="18" ${STROKE}/>
-    <text x="150" y="400" font-size="10" text-anchor="middle" fill="currentColor">Tap End Stud</text>
-    <line x1="450" y1="50" x2="450" y2="400" ${STROKE}/>
-    <rect x="437" y="34" width="26" height="18" ${STROKE}/>
-    <rect x="437" y="398" width="26" height="18" ${STROKE}/>
-    <text x="450" y="432" font-size="10" text-anchor="middle" fill="currentColor">Stud Bolt</text>
-    ${text(30, 60, 'DIA. (OD)', { anchor: 'start', size: 11 })}
-    ${text(30, 82, fmtIn(s.od), { anchor: 'start', size: 12 })}
-    ${text(30, 110, 'O.D. anillo', { anchor: 'start', size: 11 })}
-    ${text(30, 132, fmtIn(s.ringOD), { anchor: 'start', size: 12 })}
-    ${text(30, 160, 'I.D. anillo', { anchor: 'start', size: 11 })}
-    ${text(30, 182, fmtIn(s.ringID), { anchor: 'start', size: 12 })}
-    ${text(30, 210, 'Profundidad de ranura', { anchor: 'start', size: 11 })}
-    ${text(30, 232, fmtIn(s.grooveDepth), { anchor: 'start', size: 12 })}
-    ${text(30, 260, 'Max.', { anchor: 'start', size: 11 })}
-    ${text(30, 282, fmtIn(s.max), { anchor: 'start', size: 12 })}
-    ${text(30, 310, 'Diámetro de referencia', { anchor: 'start', size: 11 })}
-    ${text(30, 332, fmtIn(s.dia2), { anchor: 'start', size: 12 })}
-    ${text(470, 60, 'DIA. (ref.)', { anchor: 'start', size: 11 })}
-    ${text(470, 82, fmtIn(s.refDia), { anchor: 'start', size: 12 })}
-    ${text(470, 110, 'P.D.', { anchor: 'start', size: 11 })}
-    ${text(470, 132, fmtIn(s.pd), { anchor: 'start', size: 12 })}
-    ${text(470, 160, 'Ancho de ranura', { anchor: 'start', size: 11 })}
-    ${text(470, 182, fmtIn(s.grooveWidth), { anchor: 'start', size: 12 })}
-    ${text(470, 210, 'Bore', { anchor: 'start', size: 11 })}
-    ${text(470, 232, size + '"', { anchor: 'start', size: 12 })}
-    ${text(470, 260, 'Min.', { anchor: 'start', size: 11 })}
-    ${text(470, 282, fmtIn(s.min), { anchor: 'start', size: 12 })}
-    ${text(470, 310, 'Radio', { anchor: 'start', size: 11 })}
-    ${text(470, 332, fmtIn(s.radius), { anchor: 'start', size: 12 })}
+// A boxed value with its field label in the margin, plus a short leader
+// line (with an arrowhead tick at the far end) running from the box
+// toward the actual feature on the drawing — the layout the
+// manufacturer's own dimensional sheet uses for every callout (value in
+// a box, a line, the field name). `side` says which edge of the box the
+// leader leaves from: 'right' for the left-margin column (leader runs
+// into the drawing to the right), 'left' for the right-margin column.
+function dimRow(boxCx, y, targetX, value, label, side) {
+  const tick = 5,
+    bw = 58,
+    bh = 18
+  const leaderStart = side === 'right' ? boxCx + bw / 2 : boxCx - bw / 2
+  const labelX = side === 'right' ? boxCx - bw / 2 - 8 : boxCx + bw / 2 + 8
+  const labelAnchor = side === 'right' ? 'end' : 'start'
+  return `
+    <line x1="${leaderStart}" y1="${y}" x2="${targetX}" y2="${y}" ${DIM_STROKE}/>
+    <line x1="${targetX}" y1="${y - tick}" x2="${targetX}" y2="${y + tick}" ${DIM_STROKE}/>
+    <rect x="${boxCx - bw / 2}" y="${y - bh / 2}" width="${bw}" height="${bh}" fill="var(--bg-card, #fff)" ${STROKE}/>
+    ${text(boxCx, y + 4, value, { size: 11 })}
+    ${text(labelX, y + 4, label, { anchor: labelAnchor, size: 10 })}
   `
+}
+
+function labeledBox(x, y, w, h, value, label, labelX) {
+  return `
+    <rect x="${x}" y="${y}" width="${w}" height="${h}" fill="var(--bg-card, #fff)" ${STROKE}/>
+    ${text(x + w / 2, y + h / 2 + 4, value, { size: 11 })}
+    ${text(labelX, y + h / 2 + 4, label, { anchor: 'start', size: 10 })}
+  `
+}
+
+// Flange dimensional-sheet drawing, reproducing the manufacturer's own
+// layout: one single SYMMETRIC flange cross-section (side view) — the
+// cutting plane passes through two diametrically opposite bolt holes,
+// so the same central hub/ring groove is seen once, with a Tap End
+// Stud (threads into the body — one nut) visible at the bolt hole on
+// one side and a through Stud Bolt (nut both ends) at the opposite
+// bolt hole — framed left/right by the same two stacked, boxed
+// dimension columns the sheet uses (DIA/O.D./I.D./GROOVE DEPTH/MAX/DIA
+// on the left; DIA/P.D./GROOVE WIDTH/BORE/MIN/RADIUS on the right),
+// plus three header boxes (standard ring / pressure-energized ring /
+// face-to-face, which is reference data for the equivalent API gate
+// valve, not a dimension of the flange itself) and the Tap End Stud /
+// Stud Bolt / Hex Nut / Holes / Bolt Hole / Bolt Circle callouts
+// below. Field names are kept in English, exactly as printed on the
+// sheet. All values come from the matching dimensional-spec entry
+// (inches).
+export function flangeSheetDiagram(entry) {
+  const { size, pressureLabel, row, spec: s } = entry
+  const leftCx = 150,
+    rightCx = 810
+  const cx = 480
+  const baseTop = 330,
+    baseBottom = 385,
+    hubTop = 230
+  const hub = { outerL: cx - 60, outerR: cx + 60, innerL: cx - 30, innerR: cx + 30, boreL: cx - 15, boreR: cx + 15 }
+
+  const rows = [70, 97, 124, 151, 178, 205]
+  const leftTargets = [hub.outerL - 40, hub.outerL - 10, hub.outerL + 15, hub.outerL - 25, hub.outerL - 5, hub.outerL - 20]
+  const leftVals = [fmtIn(s.od), fmtIn(s.ringOD), fmtIn(s.ringID), fmtIn(s.grooveDepth), fmtIn(s.max), fmtIn(s.dia2)]
+  const leftLabels = ['DIA.', 'O.D.', 'I.D.', 'GROOVE DEPTH', 'MAX.', 'DIA.']
+  const rightTargets = [hub.outerR + 40, hub.outerR + 10, hub.outerR - 15, hub.outerR + 25, hub.outerR + 5, hub.outerR + 20]
+  const rightVals = [fmtIn(s.refDia), fmtIn(s.pd), fmtIn(s.grooveWidth), size + '"', fmtIn(s.min), fmtIn(s.radius)]
+  const rightLabels = ['DIA.', 'P.D.', 'GROOVE WIDTH', 'BORE', 'MIN.', 'RADIUS']
+
+  let dims = ''
+  for (let i = 0; i < 6; i++) dims += dimRow(leftCx, rows[i], leftTargets[i], leftVals[i], leftLabels[i], 'right')
+  for (let i = 0; i < 6; i++) dims += dimRow(rightCx, rows[i], rightTargets[i], rightVals[i], rightLabels[i], 'left')
+
+  const drawing = `
+    <path d="M 20 ${baseTop} L 940 ${baseTop} L 940 ${baseBottom} L 20 ${baseBottom} Z" ${STROKE}/>
+    <path d="M ${hub.outerL} ${baseTop} L ${hub.innerL} ${hubTop} L ${hub.innerR} ${hubTop} L ${hub.outerR} ${baseTop} Z" ${STROKE}/>
+    <line x1="${hub.boreL}" y1="${hubTop}" x2="${hub.boreL}" y2="${baseBottom}" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3" opacity="0.55"/>
+    <line x1="${hub.boreR}" y1="${hubTop}" x2="${hub.boreR}" y2="${baseBottom}" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3" opacity="0.55"/>
+    <rect x="${hub.outerL - 9}" y="${baseTop - 6}" width="10" height="8" ${STROKE}/>
+    <rect x="${hub.outerR - 1}" y="${baseTop - 6}" width="10" height="8" ${STROKE}/>
+    <line x1="60" y1="200" x2="60" y2="365" ${STROKE}/>
+    <rect x="47" y="186" width="26" height="16" fill="var(--bg-card, #fff)" ${STROKE}/>
+    <line x1="900" y1="190" x2="900" y2="405" ${STROKE}/>
+    <rect x="887" y="176" width="26" height="16" fill="var(--bg-card, #fff)" ${STROKE}/>
+    <rect x="887" y="403" width="26" height="16" fill="var(--bg-card, #fff)" ${STROKE}/>
+  `
+
+  const studBrace = `
+    ${text(298, 440, 'TAP END STUD {', { anchor: 'end', size: 11 })}
+    ${labeledBox(310, 430, 58, 18, fmtIn(s.tapStud.dia), 'DIAMETER', 374)}
+    ${labeledBox(310, 452, 58, 18, fmtIn(s.tapStud.len), 'LENGTH', 374)}
+    ${text(550, 475, 'STUD BOLT {', { anchor: 'end', size: 11 })}
+    ${labeledBox(562, 465, 58, 18, fmtIn(s.studBolt.dia), 'DIAMETER', 626)}
+    ${labeledBox(562, 487, 58, 18, fmtIn(s.studBolt.len), 'LENGTH', 626)}
+    ${text(562, 512, '(ADD AMOUNT OF RAISED FACE)', { anchor: 'start', size: 7 })}
+  `
+
+  const bottomInfo = `
+    ${text(195, 492, 'HEX NUT SIZE ACROSS FLATS', { anchor: 'end', size: 10 })}
+    ${labeledBox(205, 482, 58, 18, fmtIn(s.hexNut), '', 270)}
+    ${text(195, 516, 'NUMBER OF HOLES', { anchor: 'end', size: 10 })}
+    ${labeledBox(205, 506, 58, 18, row.n != null ? String(row.n) : '—', '', 270)}
+    ${text(195, 540, 'BOLT HOLE SIZE', { anchor: 'end', size: 10 })}
+    ${labeledBox(205, 530, 58, 18, fmtIn(s.boltHoleSize), '', 270)}
+    ${text(195, 564, 'BOLT CIRCLE', { anchor: 'end', size: 10 })}
+    ${labeledBox(205, 554, 58, 18, fmtIn(s.boltCircle), '', 270)}
+  `
+
+  const header = `
+    <rect x="15" y="14" width="75" height="22" fill="var(--bg-card, #fff)" ${STROKE}/>
+    ${text(52, 29, s.ringStd ?? '-', { size: 11 })}
+    ${text(98, 22, 'STANDARD RING NUMBER', { anchor: 'start', size: 9 })}
+    ${text(98, 44, `Flange Size: ${size}"`, { anchor: 'start', size: 9 })}
+    <rect x="330" y="14" width="75" height="22" fill="var(--bg-card, #fff)" ${STROKE}/>
+    ${text(367, 29, s.ringPE, { size: 11 })}
+    ${text(413, 22, 'PRESSURE ENERGIZED RING NUMBER', { anchor: 'start', size: 9 })}
+    <rect x="720" y="14" width="75" height="22" fill="var(--bg-card, #fff)" ${STROKE}/>
+    ${text(757, 29, fmtIn(s.face), { size: 11 })}
+    ${text(803, 22, 'FACE-TO-FACE', { anchor: 'start', size: 9 })}
+    ${text(803, 34, 'API GATE VALVE LENGTH', { anchor: 'start', size: 9 })}
+    ${text(720, 48, `Pressure Rating: ${pressureLabel}`, { anchor: 'start', size: 9 })}
+  `
+
+  const inner = header + dims + drawing + studBrace + bottomInfo
   return `<div class="dim-diagram flange-detail-diagram">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 440" class="dim-svg">${inner}</svg>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 580" class="dim-svg">${inner}</svg>
   </div>`
 }
 
