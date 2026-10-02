@@ -14,7 +14,7 @@ const median = (a) => {
 }
 
 function residuals(ctx, pts, dir, mu) {
-  const p = { ...ctx.p, stripperLbf: 0, reelTensionRIH: 0, reelTensionPOOH: 0 }
+  const p = { ...ctx.p, stripperLbf: 0, reelTensionRIH: 0, reelTensionPOOH: 0, indicatorOffset: 0 }
   if (dir === 'RIH') p.muRIH = mu
   else p.muPOOH = mu
   const out = []
@@ -75,7 +75,7 @@ export function matchRun(params, model, points, { minDepthM = 150 } = {}) {
 // the model reproduces both readings with the current µ.
 export function matchSurfaceReadings(params, model, rih, pooh) {
   const ctx = buildContext(params, model)
-  const p = { ...ctx.p, stripperLbf: 0, reelTensionRIH: 0, reelTensionPOOH: 0 }
+  const p = { ...ctx.p, stripperLbf: 0, reelTensionRIH: 0, reelTensionPOOH: 0, indicatorOffset: 0 }
   const base = (dir, md) => {
     if (p.speedAt) {
       p.speedRIH = p.speedAt(md, 'RIH')

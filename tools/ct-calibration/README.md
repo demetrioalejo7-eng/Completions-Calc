@@ -34,19 +34,27 @@ suben al repositorio**. Solo se versionan los coeficientes resultantes en
 
    ```bash
    node tools/ct-calibration/fit_profile.mjs --train B3A2,C1A,B1B --ert 1500 \
-     --ertMode mu --stall 1 --fix speedSurfRef=20 --iters 600 \
+     --ertMode mu --stall 1 --fix speedSurfRef=20 --iters 700 \
      --params muRIH,muPOOH,speedCoefRIH,speedCoefPOOH,residualContact,ertMuReductionRef,ertZoneM,speedSurfRIH,speedSurfPOOH \
      [--test PAD] [--tag nombre] [--global 1]
    ```
 
-   `--stall 1` agrega como restricción el atascamiento observado de
-   BdC-1030h carrera 1 (ERT fallado, ~5580 m). `--global 1` usa un único
+   `--stall 1` agrega como restricción que BdC-1030h carrera 1 (ERT
+   trabado) llegue al lock-up entre 5632 y 5800 m. `--rbtMin N` impone una
+   tensión de reel mínima en cada carrera. `--global 1` usa un único
    stripper / reel para todas las carreras (como la app con sus valores por
    defecto) en lugar de resolverlos por carrera.
 
-   Los datos de 4 min del pad B1B se procesan con `build_bins_4min.py`
-   (la velocidad sale de la diferencia de profundidad; carreras con
-   `survey` y `ert` propios, p. ej. las dos carreras de BdC-1030h).
+   Los datos de 1 s del pad B1B se procesan con `build_bins_1s.py` (la
+   velocidad sale de la diferencia de profundidad porque en BdC-1030h r1 el
+   canal de velocidad está escalado ×0,1; carreras con `survey` y `ert`
+   propios). `build_bins_4min.py` sirve para exportaciones de baja
+   frecuencia.
+
+   `build_slack.py` extrae los eventos de asentamiento (fresado / tag en el
+   lateral): slack-off = peso libre RIH − peso en el indicador, donde los
+   offsets de superficie se cancelan. Sirve para contrastar la capacidad de
+   set-down del modelo.
 
    Nelder-Mead sobre los parámetros físicos; para cada candidato la fricción
    del stripper y la tensión del reel de **cada pozo** se resuelven en forma
@@ -66,19 +74,37 @@ suben al repositorio**. Solo se versionan los coeficientes resultantes en
 - La fricción aumenta con la velocidad (ley logarítmica, tipo rate-and-state):
   en el lateral, RIH más rápido pesa menos y POOH más rápido pesa más.
 - Hay un término de superficie que depende de la velocidad y no de la
-  fricción en el pozo (reel / stripper / inyector), ≈ 300 lb por m/min.
+  fricción en el pozo (reel / stripper / inyector), ≈ 370 lb por m/min.
   Se referencia a 20 m/min: referenciado a 0 m/min hacía que la rama
   vertical en RIH (20–27 m/min) diera 8–11 klb más pesada que la real con
   los valores por defecto de stripper / reel.
 - Las pendientes de peso en la vertical (10–13 lb/m) coinciden con el
-  modelo; el contacto extra por curvatura residual ajusta ≈ 0.
-- ERT: BdC-1030h carrera 1 (ERT fallado) se atascó a ~5580 m y la carrera 2
-  (ERT funcionando) llegó a TD (6718 m). Con el ERT como reducción de µ en
-  los últimos ~4100 m el ajuste da −29 % de µ para 1500 lbf/bpm a 4,2 bpm
-  y reproduce ambas carreras. Sin esa restricción (validación cruzada con
-  B1B fuera del ajuste) el modelo predice el atascamiento a 6020 m.
+  modelo; el contacto extra por curvatura residual ajusta chico (0,09 lbf/ft).
+- ERT: BdC-1030h carrera 1 (ERT trabado) fresó hasta 5632 m y se sacó por
+  caída de velocidad con asentamiento creciente (lock-up incipiente); la
+  carrera 2 (ERT funcionando) llegó a TD (6745 m). En marcha libre la
+  carrera 2 lee ~3,5 klb menos en RIH **y** en POOH que la 1: es un offset de
+  superficie, no menor arrastre. El ajuste (lock-up sin ERT entre 5632 y
+  5800 m) da −48 % de µ en los últimos ~2350 m (1500 lbf/bpm a 4,2 bpm);
+  entre pliegues de la validación cruzada, 20–34 % en 2700–3750 m.
+- POOH sin ERT: la sacada final se hace bombeando por la válvula multiciclo
+  con el ERT baypaseado (`lib.mjs` marca `finalPooh` a los puntos POOH
+  posteriores a la máxima profundidad; los viajes intermedios conservan el
+  ERT). Con eso el ajuste libre da µ RIH 0,295 > µ POOH 0,270, como indica
+  CTES por la curvatura residual, y todos los pliegues mantienen µ RIH >
+  µ POOH. Suponer el ERT activo en POOH había invertido las dos fricciones.
+  La pendiente fuerte del POOH en el lateral (~12 lb/m) la explican la
+  tensión en la curva y los doglegs del lateral, y el modelo la reproduce.
+- Reel: cerca de superficie (60–400 m, fricción despreciable) las lecturas
+  dan stripper ≈ 4,7–11 klb y un término de reel ≈ 0, aunque la tensión real
+  del reel es ≥ 4000 lbf: el indicador se tara con el CT en el inyector y el
+  reel tensionado. Forzar RBT ≥ 4000 lbf en la lectura empeora el ajuste un
+  50 % y baja artificialmente el µ RIH a 0,15 (`--rbtMin 4000`).
+- Asentamiento: en 121 de 136 bandas de fresado el slack-off observado
+  entra en la capacidad del modelo; las 15 restantes están cerca de TD
+  (6550–6750 m), donde el modelo es algo conservador.
 - Validación cruzada por pad (física de dos pads, offsets por carrera):
-  error mediano 1,2–4,4 klb.
+  error mediano 1,0–5,1 klb; µ RIH 0,26–0,29 > µ POOH 0,23–0,28 según el pad.
 - El offset de superficie (stripper + reel) varía entre pozos del mismo pad
   (hasta ~12 klb): conviene ajustarlo con la primera lectura real
   ("Ajustar a la carrera" en la app).

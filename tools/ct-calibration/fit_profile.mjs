@@ -46,12 +46,15 @@ export function evaluate(P, set) {
     // stripper from reel tension → nominal stripper, RBT from the residual
     if (!g.RIH.length || !g.POOH.length) {
       const strip = 5000
-      surf[w] = g.RIH.length ? { strip, rbt: -med(g.RIH) - strip } : { strip, rbt: strip - med(g.POOH) }
+      const rbt = g.RIH.length ? -med(g.RIH) - strip : strip - med(g.POOH)
+      surf[w] = { strip, rbt: Math.max(Number(args.rbtMin ?? -Infinity), rbt) }
       continue
     }
     const aR = med(g.RIH)
     const aP = med(g.POOH)
-    surf[w] = { strip: (aP - aR) / 2, rbt: -(aP + aR) / 2 }
+    // --rbtMin: the reel back tension can't be below this (operator setting);
+    // with RBT clamped the stripper keeps its least-squares value (aP − aR)/2
+    surf[w] = { strip: (aP - aR) / 2, rbt: Math.max(Number(args.rbtMin ?? -Infinity), -(aP + aR) / 2) }
   }
   const res = set.map((b, i) => {
     const s = surf[b.well] || { strip: 0, rbt: 0 }
@@ -98,28 +101,34 @@ function table(res) {
 
 const train = bins.filter((b) => trainPads.includes(b.pad))
 const test = bins.filter((b) => testPads.includes(b.pad))
-const toP = (x) => ({ ...START, ...fixed, ...Object.fromEntries(names.map((n, i) => [n, x[i]])) })
+const toP = (x) => {
+  const P = { ...START, ...fixed, ...Object.fromEntries(names.map((n, i) => [n, x[i]])) }
+  // --poohRatio r: µPOOH tied to r·µRIH (CTES: µRIH > µPOOH by residual bend)
+  if (args.poohRatio) P.muPOOH = Number(args.poohRatio) * P.muRIH
+  return P
+}
 const f = (x) => {
   const P = toP(x)
   if (P.muRIH < 0.03 || P.muPOOH < 0.03 || P.muRIH > 0.9 || P.muPOOH > 0.9 || P.muLatRIH < 0.2 || P.muLatPOOH < 0.2 || P.residualContact < 0 || P.ertMuReductionRef < 0 || P.ertMuReductionRef > 0.95 || P.ertZoneM < 100 || P.ertPoohEfficiency < 0 || P.ertPoohEfficiency > 1) return 1e30
   return huber(evaluate(P, train).res) + stallPenalty(P)
 }
-// Observed stalls used as lock-up constraints (--stall 1): BdC-1030h run 1
-// (ERT failed) stalled at ~5580 m MD, while run 2 (same well, ERT working)
-// reached TD 6718 m (enforced by its RIH bins).
-const STALLS = [{ well: 'BdC-1030h-r1', survey: 'BdC-1030h', pad: 'B1B', ert: 0, v: 3.3, Q: 4.15, WHP: 3350, depth: 5580 }]
+// Lock-up constraints (--stall 1). BdC-1030h run 1 (ERT jammed): milled
+// to 5632 m and was pulled because the speed dropped while the set-down grew,
+// i.e. incipient lock-up → the model without ERT must lock up between
+// minDepth and maxDepth.
+const STALLS = [{ well: 'BdC-1030h-r1', survey: 'BdC-1030h', pad: 'B1B', ert: 0, v: 1, Q: 4.3, WHP: 3420, minDepth: 5632, maxDepth: 5800 }]
 export function lockDepth(P, s, from = 4500, to = 6720) {
   for (let d = from; d <= to; d += 20) if (!Number.isFinite(predict({ ...P, strip: 0, rbt: 0 }, { ...s, dir: 'RIH', bin: d }))) return d
   return to + 200
 }
-const stallPenalty = (P) => (args.stall ? STALLS.filter((s) => trainPads.includes(s.pad)).reduce((a, s) => a + Number(args.stall) * 1e6 * ((lockDepth(P, s) - s.depth) / 100) ** 2, 0) : 0)
+const stallPenalty = (P) => (args.stall ? STALLS.filter((s) => trainPads.includes(s.pad)).reduce((a, s) => a + Number(args.stall) * 1e6 * ((Math.max(0, s.minDepth - lockDepth(P, s)) + Math.max(0, lockDepth(P, s) - s.maxDepth)) / 100) ** 2, 0) : 0)
 const t0 = Date.now()
 const r = nelderMead(f, names.map((n) => START[n]), names.map((n) => STEP[n]), Number(args.iters || 400))
 const P = toP(r.x)
 console.log(`train=${trainPads} test=${testPads} params=${names} — ${((Date.now() - t0) / 1000).toFixed(0)} s, loss ${r.fx.toFixed(0)}`)
 console.log(Object.fromEntries(Object.entries(P).map(([k, v]) => [k, typeof v === "number" ? +v.toFixed(4) : v])))
 const tr = evaluate(P, train)
-for (const st of STALLS) console.log(`stall ${st.well}: observed ${st.depth} m, model lock-up ${lockDepth(P, st)} m`)
+for (const st of STALLS) console.log(`${st.well} (sin ERT): lock-up observado ${st.minDepth}–${st.maxDepth} m, modelo ${lockDepth(P, st)} m`)
 const fmtSurf = (s) => Object.fromEntries(Object.entries(s).map(([w, v]) => [w, `Fs ${Math.round(v.strip)} / RBT ${Math.round(v.rbt)}`]))
 console.log('surface offsets (train):', fmtSurf(tr.surf))
 console.log('TRAIN')

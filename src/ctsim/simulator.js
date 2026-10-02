@@ -68,6 +68,9 @@ export function mountCtSimulator(container) {
     stripper: cal.stripperLbf,
     rbtRIH: cal.reelTensionLbf,
     rbtPOOH: cal.reelTensionLbf,
+    reelTared: cal.reelTared,
+    ertInPooh: false,
+    indicatorOffset: 0,
     // speed plan per section (m/min): vertical to KOP, curve KOP–LP, lateral
     speeds: { vert: { RIH: 23, POOH: 23 }, curve: { RIH: 10, POOH: 10 }, lat: { RIH: 3.5, POOH: 10 } },
     ertLevel: cal.ertDefault,
@@ -463,11 +466,20 @@ export function mountCtSimulator(container) {
         }
       ),
       state.ertLevel === 'custom' ? numField('Reducción de fricción ERT', state.ert, set('ert'), { unit: 'lbf/bpm', step: 50 }) : null,
+      el('label', { class: 'ctsim-chk' }, [
+        el('input', { type: 'checkbox', checked: state.ertInPooh, onChange: (e) => ((state.ertInPooh = e.target.checked), schedule()) }),
+        'ERT activo en POOH (sin tildar: se saca bombeando por la válvula multiciclo, ERT baypaseado)',
+      ]),
       numField('Fuerza de fricción del stripper', state.stripper, set('stripper'), { unit: 'lbf', step: 250 }),
       el('div', { class: 'row' }, [
         numField('Tensión del reel RIH', state.rbtRIH, set('rbtRIH'), { unit: 'lbf', step: 100 }),
         numField('Tensión del reel POOH', state.rbtPOOH, set('rbtPOOH'), { unit: 'lbf', step: 100 }),
       ]),
+      el('label', { class: 'ctsim-chk' }, [
+        el('input', { type: 'checkbox', checked: state.reelTared, onChange: (e) => ((state.reelTared = e.target.checked), renderForm(), schedule()) }),
+        'Indicador de peso tarado con el CT en el inyector y tensión de reel (el reel no aparece en la lectura)',
+      ]),
+      numField('Corrección del cero del indicador', state.indicatorOffset, set('indicatorOffset'), { unit: 'lbf', step: 250, hint: 'Se resta de la lectura en RIH y POOH. La completa el ajuste con lecturas de campo o con una carrera.' }),
     ])
   }
 
@@ -487,6 +499,18 @@ export function mountCtSimulator(container) {
     )
   }
 
+  // The common offset of RIH and POOH found by a match is the reel back
+  // tension when the indicator sees it, else a correction of its zero.
+  function applySurfaceOffset(v) {
+    if (state.reelTared) {
+      state.indicatorOffset = Math.round(v)
+      return 'corrección del cero'
+    }
+    state.rbtRIH = v
+    state.rbtPOOH = v
+    return 'reel'
+  }
+
   function fitReadings() {
     const rd = state.readings
     if (!state.survey) return
@@ -496,9 +520,8 @@ export function mountCtSimulator(container) {
       try {
         const r = matchSurfaceReadings(params(state.muRIH, state.muPOOH), cal.model, { md: rd.rihMd, w: rd.rihW }, { md: rd.poohMd, w: rd.poohW })
         state.stripper = r.stripperLbf
-        state.rbtRIH = r.reelTension
-        state.rbtPOOH = r.reelTension
-        state.readingsMsg = `Stripper ${fmt(r.stripperLbf, 0)} lbf · reel ${fmt(r.reelTension, 0)} lbf (cargados en el formulario).${r.stripperLbf < 0 ? ' ⚠ Stripper negativo: revisá las lecturas o el µ.' : ''}`
+        const offLabel = applySurfaceOffset(r.reelTension)
+        state.readingsMsg = `Stripper ${fmt(r.stripperLbf, 0)} lbf · ${offLabel} ${fmt(r.reelTension, 0)} lbf (cargados en el formulario).${r.stripperLbf < 0 ? ' ⚠ Stripper negativo: revisá las lecturas o el µ.' : ''}`
       } catch (err) {
         state.readingsMsg = err.message
       }
@@ -532,10 +555,10 @@ export function mountCtSimulator(container) {
         fileInput,
         el('p', { class: 'note' }, state.run ? `✓ ${state.runName}: ${state.run.points.length} puntos (medianas cada 25 m en movimiento estable).` : 'CSV del sistema de adquisición (columnas de Peso y Profundidad; Velocidad opcional). Se grafica sobre la simulación.'),
         state.run && state.survey
-          ? el('button', { class: 'btn-secondary', type: 'button', onClick: fitRun }, 'Ajustar µ, stripper y reel a esta carrera')
+          ? el('button', { class: 'btn-secondary', type: 'button', onClick: fitRun }, state.reelTared ? 'Ajustar µ, stripper y cero del indicador a esta carrera' : 'Ajustar µ, stripper y reel a esta carrera')
           : null,
         state.match
-          ? el('p', { class: 'note' }, `Ajuste: µ RIH ${state.match.muRIH.toFixed(2)} · µ POOH ${state.match.muPOOH.toFixed(2)} · stripper ${fmt(state.match.stripperLbf, 0)} lbf · reel ${fmt(state.match.reelTension, 0)} lbf. Error mediano ${fmt(state.match.maeRIH, 0)} lb RIH / ${fmt(state.match.maePOOH, 0)} lb POOH (${state.match.nRIH + state.match.nPOOH} puntos). Valores cargados en el formulario.`)
+          ? el('p', { class: 'note' }, `Ajuste: µ RIH ${state.match.muRIH.toFixed(2)} · µ POOH ${state.match.muPOOH.toFixed(2)} · stripper ${fmt(state.match.stripperLbf, 0)} lbf · ${state.reelTared ? 'corrección del cero' : 'reel'} ${fmt(state.match.reelTension, 0)} lbf. Error mediano ${fmt(state.match.maeRIH, 0)} lb RIH / ${fmt(state.match.maePOOH, 0)} lb POOH (${state.match.nRIH + state.match.nPOOH} puntos). Valores cargados en el formulario.`)
           : null,
         state.run ? el('button', { class: 'btn-secondary', type: 'button', onClick: () => ((state.run = null), (state.match = null), renderForm(), renderResults()) }, 'Quitar carrera') : null,
       ],
@@ -552,8 +575,7 @@ export function mountCtSimulator(container) {
       state.muRIH = m.muRIH
       state.muPOOH = m.muPOOH
       state.stripper = Math.max(0, m.stripperLbf)
-      state.rbtRIH = m.reelTension
-      state.rbtPOOH = m.reelTension
+      applySurfaceOffset(m.reelTension)
       state.error = ''
     } catch (err) {
       state.error = err.message
@@ -592,6 +614,9 @@ export function mountCtSimulator(container) {
       stripperLbf: state.stripper || 0,
       reelTensionRIH: state.rbtRIH || 0,
       reelTensionPOOH: state.rbtPOOH || 0,
+      reelTared: state.reelTared,
+      ertInPooh: state.ertInPooh,
+      indicatorOffset: state.indicatorOffset || 0,
       bha: state.bha,
       outStepM: 50,
     }
@@ -654,9 +679,9 @@ export function mountCtSimulator(container) {
     resultsEl.appendChild(
       el('p', { class: 'formula-note' }, [
         'Modelo: dF/ds = W_B·cosθ ± µ(v)·F_N, con F_N por peso y curvatura (Johancsik / CTES Orpheus), pandeo helicoidal y contacto adicional r_c·F²/(4EI) en compresión. ',
-        'Peso en superficie = F_E − WHP·A_o ∓ stripper − tensión del reel. ',
+        state.reelTared ? 'Peso en superficie = F_E − WHP·A_o ∓ stripper − corrección del cero (indicador tarado con el reel: la tensión del reel no aparece en la lectura). ' : 'Peso en superficie = F_E − WHP·A_o ∓ stripper − tensión del reel. ',
         `µ(v) = µ·[1 + k·ln(v/${cal.model.speedRef} m/min)] (k RIH ${cal.model.speedCoefRIH}, k POOH ${cal.model.speedCoefPOOH}); término de superficie ≈ +${Math.round((cal.model.speedSurfPOOH - cal.model.speedSurfRIH) / 2)} lb por m/min respecto de ${cal.model.speedSurfRef} m/min. `,
-        `ERT: reduce µ en los ${cal.model.ertZoneM} m sobre la herramienta, ${Math.round(cal.model.ertMuReductionRef * 100)} % con ${cal.model.ertRefLbfPerBpm} lbf/bpm a ${cal.model.ertRefRateBpm} bpm, proporcional a k_ERT·caudal (calibrado con BdC-1030h: sin ERT se trabó a ~5580 m, con ERT llegó a TD). En POOH actúa al ${Math.round(cal.model.ertPoohEfficiency * 100)} %. `,
+        `ERT: reduce µ en los ${cal.model.ertZoneM} m sobre la herramienta, ${Math.round(cal.model.ertMuReductionRef * 100)} % con ${cal.model.ertRefLbfPerBpm} lbf/bpm a ${cal.model.ertRefRateBpm} bpm, proporcional a k_ERT·caudal (calibrado con BdC-1030h: con el ERT trabado se sacó a 5632 m por lock-up incipiente, con ERT llegó a TD; efecto incierto, 20–48 % según el pad). ${state.ertInPooh ? `En POOH actúa al ${Math.round(cal.model.ertPoohEfficiency * 100)} %. ` : 'En POOH no actúa (ERT baypaseado por la válvula multiciclo). '}`,
         'La banda sombreada es µ ± 0,05. ',
         cal.note,
       ])
@@ -1094,7 +1119,7 @@ export function mountCtSimulator(container) {
     // real axial force above the stripper at max POOH: F_R = Weight + P_i·A_i + RBT (Tech Note Eq 17)
     const maxPooh = rows.reduce((a, r) => (r.pooh > a.pooh ? r : a), rows[0])
     const tp = tubeProps(str.od, str.wallAt(Math.max(0, maxPooh.depth - (state.bha.length || 0))))
-    const realTop = maxPooh.pooh + (state.ctp || 0) * tp.Ai + (state.rbtPOOH || 0)
+    const realTop = maxPooh.pooh + (state.ctp || 0) * tp.Ai + (state.reelTared ? 0 : state.rbtPOOH || 0) + (state.indicatorOffset || 0)
     const yield80 = 0.8 * grade.smys * tp.As
     const r = (label, value, unit, strong) =>
       el('div', { class: 'result-row' }, [el('span', { class: 'result-label' }, label), el('span', { class: 'result-value' }, [el('strong', {}, value), unit ? el('span', { class: 'result-unit' }, ' ' + unit) : null])])
