@@ -270,45 +270,46 @@ export function multiStringCrossSection({ outer = 'D', inner: innerSym = 'd' } =
   return frame(inner, [[outer, 'Diámetro exterior (pozo / ID de casing)'], [innerSym, 'OD de cada sarta (n sartas iguales)']])
 }
 
-// RTJ flange, side (elevation) view: flange body with a raised welding
-// neck/hub, bore straight through, bolt holes on the flange face, and a
-// small RTJ ring-groove notch on the face (schematic, not to scale).
-export function flangeSection({ od = 'OD', bc = 'BC', b = 'B', t = 'T', h = 'H' } = {}) {
-  const left = 28,
-    right = 192,
+// Flange detail diagram with the ACTUAL dimension values baked into the
+// drawing itself (OD/BC/T, and the bore when the size publishes one) —
+// like the diagrams above, but driven by a specific flange row's real
+// numbers rather than a calculator's symbolic input labels, so it's
+// called directly from the flange browser (not through `calc.diagram`).
+function fmtMm(v) {
+  if (v == null) return '—'
+  return (Math.round(v * 100) / 100).toLocaleString('es-AR') + ' mm'
+}
+
+export function flangeDetailDiagram(row) {
+  const left = 34,
+    right = 226,
     flangeTop = 86,
     flangeBottom = 120
-  const neckOuterL = 84,
-    neckOuterR = 136,
-    neckInnerL = 92,
-    neckInnerR = 128,
+  const neckOuterL = 98,
+    neckOuterR = 162,
+    neckInnerL = 110,
+    neckInnerR = 150,
     neckTop = 20
-  const boreL = 100,
-    boreR = 120
+  const boreL = 120,
+    boreR = 140
   const midY = (flangeTop + flangeBottom) / 2
   let inner = `
     <path d="M ${left} ${flangeTop} L ${right} ${flangeTop} L ${right} ${flangeBottom} L ${left} ${flangeBottom} Z" ${STROKE}/>
     <path d="M ${neckOuterL} ${flangeTop} L ${neckInnerL} ${neckTop} L ${neckInnerR} ${neckTop} L ${neckOuterR} ${flangeTop} Z" ${STROKE}/>
     <line x1="${boreL}" y1="${neckTop}" x2="${boreL}" y2="${flangeBottom}" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3" opacity="0.55"/>
     <line x1="${boreR}" y1="${neckTop}" x2="${boreR}" y2="${flangeBottom}" stroke="currentColor" stroke-width="1" stroke-dasharray="3 3" opacity="0.55"/>
-    <line x1="${(boreL + boreR) / 2}" y1="${neckTop - 8}" x2="${(boreL + boreR) / 2}" y2="${flangeBottom + 2}" stroke="currentColor" stroke-width="0.8" stroke-dasharray="1 3" opacity="0.4"/>
     <rect x="${neckOuterL - 7}" y="${flangeTop - 4}" width="9" height="6" ${STROKE}/>
     <rect x="${neckOuterR - 2}" y="${flangeTop - 4}" width="9" height="6" ${STROKE}/>
     <circle cx="${left + 16}" cy="${midY}" r="4.5" ${STROKE}/>
     <circle cx="${right - 16}" cy="${midY}" r="4.5" ${STROKE}/>
   `
-  inner += hDim(left, right, flangeBottom + 16, od)
-  inner += hDim(left + 16, right - 16, flangeTop - 10, bc)
-  inner += hDim(boreL, boreR, neckTop - 8, b)
-  inner += vDim(right + 14, flangeTop, flangeBottom, t)
-  inner += vDim(left - 14, neckTop, flangeBottom, h)
-  return frame(inner, [
-    [od, 'Diámetro exterior'],
-    [bc, 'Diámetro de círculo de bulones (BC)'],
-    [b, 'Diámetro de paso / bore'],
-    [t, 'Espesor del cuerpo'],
-    [h, 'Altura total'],
-  ])
+  inner += hDim(left, right, flangeBottom + 20, `OD ${fmtMm(row.od)}`)
+  inner += hDim(left + 16, right - 16, flangeTop - 10, `BC ${fmtMm(row.bc)}`)
+  inner += vDim(right + 8, flangeTop, flangeBottom, `T ${fmtMm(row.t)}`)
+  if (row.b != null) inner += hDim(boreL, boreR, neckTop - 8, `B ${fmtMm(row.b)}`)
+  return `<div class="dim-diagram flange-detail-diagram">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 150" class="dim-svg">${inner}</svg>
+  </div>`
 }
 
 // Dynamic wellbore diagram showing where a hanging string's neutral point
@@ -382,7 +383,6 @@ export const diagrams = {
   wallThickness,
   goosenecArc,
   reelSide,
-  flangeSection,
 }
 
 export function diagramMarkup(spec) {

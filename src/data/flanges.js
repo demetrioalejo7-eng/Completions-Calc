@@ -64,6 +64,112 @@ export const FLANGE_6B_CLASSES = [
   },
 ]
 
+// Legacy API nominal flange designation / ANSI class -> current API 6A
+// nominal flange size + pressure class ("2M" = 13.8 MPa/2000 psi, "3M" =
+// 20.7 MPa/3000 psi, "5M" = 34.5 MPa/5000 psi), for cross-referencing old
+// equipment and drawings against the current size/class naming.
+export const API_ANSI_REFERENCE = [
+  { legacy: '2" Series / ANSI Class 600', current: '2 1/16" 2M' },
+  { legacy: '2" Series / ANSI Class 900', current: '2 1/16" 3M' },
+  { legacy: '2" Series / ANSI Class 1500', current: '2 1/16" 5M' },
+  { legacy: '2" Series 2900 / No ANSI', current: 'No corresponde a ninguna brida actual' },
+  { legacy: '2 1/2" Series / ANSI Class 600', current: '2 9/16" 2M' },
+  { legacy: '2 1/2" Series / ANSI Class 900', current: '2 9/16" 3M' },
+  { legacy: '2 1/2" Series / ANSI Class 1500', current: '2 9/16" 5M' },
+  { legacy: '2 1/2" Series 2900 / No ANSI', current: 'No corresponde a ninguna brida actual' },
+  { legacy: '3" Series / ANSI Class 600', current: '3 1/8" 2M' },
+  { legacy: '3" Series / ANSI Class 900', current: '3 1/8" 3M' },
+  { legacy: '3" Series / ANSI Class 1500', current: '3 1/8" 5M' },
+  { legacy: '3" Series 2900 / No ANSI', current: 'No corresponde a ninguna brida actual' },
+  { legacy: '3 1/2" Series 2900 / No ANSI', current: 'No corresponde a ninguna brida actual' },
+  { legacy: '4" Series / ANSI Class 600', current: '4 1/16" 2M' },
+  { legacy: '4" Series / ANSI Class 900', current: '4 1/16" 3M' },
+  { legacy: '4" Series / ANSI Class 1500', current: '4 1/16" 5M' },
+  { legacy: '4" Series 2900 / No ANSI', current: 'No corresponde a ninguna brida actual' },
+  { legacy: '5" Series / ANSI Class 600', current: '5 1/8" 2M' },
+  { legacy: '5" Series / ANSI Class 900', current: '5 1/8" 3M' },
+  { legacy: '5" Series / ANSI Class 1500', current: '5 1/8" 5M' },
+  { legacy: '5" Series 2900 / No ANSI', current: 'No corresponde a ninguna brida actual' },
+  { legacy: '6" Series / ANSI Class 600', current: '7 1/16" 2M' },
+  { legacy: '6" Series / ANSI Class 900', current: '7 1/16" 3M' },
+  { legacy: '6" Series / ANSI Class 1500', current: '7 1/16" 5M' },
+  { legacy: '6" Series 2900 / No ANSI', current: 'No corresponde a ninguna brida actual' },
+  { legacy: '8" Series / ANSI Class 600', current: '9" 2M' },
+  { legacy: '8" Series / ANSI Class 900', current: '9" 3M' },
+  { legacy: '8" Series / ANSI Class 1500', current: '9" 5M' },
+  { legacy: '10" Series / ANSI Class 600', current: '11" 2M' },
+  { legacy: '10" Series / ANSI Class 900', current: '11" 3M' },
+  { legacy: '10" Series / ANSI Class 1500', current: '11" 5M' },
+  { legacy: '10" Series 2900 / No ANSI', current: 'No corresponde a ninguna brida actual' },
+  { legacy: '12" Series / ANSI Class 600', current: '13 5/8" 2M' },
+  { legacy: '12" Series / ANSI Class 900', current: '13 5/8" 3M' },
+  { legacy: '14" Series / ANSI Class 1500', current: 'No corresponde a ninguna brida actual' },
+  { legacy: '16" Series / ANSI Class 600', current: '16 3/4" 2M' },
+  { legacy: '16" Series / ANSI Class 900', current: '16 3/4" 3M' },
+  { legacy: '20" Series / ANSI Class 600', current: '21 1/4" 2M' },
+  { legacy: '20" Series / ANSI Class 900', current: '20 3/4" 3M' },
+]
+
+function parseSizeToIn(size) {
+  const parts = size.trim().split(' ')
+  if (parts.length === 2 && parts[1].includes('/')) {
+    const [num, den] = parts[1].split('/').map(Number)
+    return Number(parts[0]) + num / den
+  }
+  return Number(parts[0])
+}
+
+function psiShort(psi) {
+  return String(psi / 1000)
+}
+
+// Fields compared to decide whether two adjacent pressure classes for the
+// same size/type are dimensionally identical — the manufacturer's own
+// tool lists those as a single combined row (e.g. "2-1/16 - 3/5M").
+// LN/HL/JL are excluded: they vary slightly even when the ring number and
+// every other dimension match.
+const SIG_FIELDS_6B = ['b', 'od', 'c', 'k', 'p', 'e', 't', 'q', 'x', 'bc', 'n', 'h', 'ring']
+const SIG_FIELDS_6BX = ['b', 'od', 'c', 'e1', 'q', 'g', 'k', 't', 'j1', 'j2', 'j3', 'j4', 'r', 'bc', 'n', 'h', 'ring']
+
+function signature(row, fields) {
+  return fields.map((f) => String(row[f])).join('|')
+}
+
+// Flattens both tables into one browsable list (sorted by size, then by
+// pressure class), merging adjacent pressure classes that share identical
+// dimensions for the same size/type into a single entry with a combined
+// pressure label — the same "Flange Size - Pressure Rating" list a
+// physical slide-rule / the vendor's own lookup tool presents.
+export function buildFlangeBrowseList() {
+  const entries = []
+  for (const cls of FLANGE_6B_CLASSES) {
+    for (const row of cls.rows) entries.push({ type: '6b', psi: cls.psi, size: row.size, row })
+  }
+  for (const cls of FLANGE_6BX_CLASSES) {
+    for (const row of cls.rows) entries.push({ type: '6bx', psi: cls.psi, size: row.size, row })
+  }
+  entries.sort((a, b) => parseSizeToIn(a.size) - parseSizeToIn(b.size) || a.psi - b.psi)
+
+  const groups = []
+  for (const entry of entries) {
+    const fields = entry.type === '6b' ? SIG_FIELDS_6B : SIG_FIELDS_6BX
+    const sig = signature(entry.row, fields)
+    const last = groups[groups.length - 1]
+    if (last && last.type === entry.type && last.size === entry.size && last.sig === sig) {
+      last.psiList.push(entry.psi)
+    } else {
+      groups.push({ type: entry.type, size: entry.size, psiList: [entry.psi], row: entry.row, sig })
+    }
+  }
+  return groups.map((g) => ({
+    type: g.type,
+    size: g.size,
+    psiList: g.psiList,
+    pressureLabel: g.psiList.map(psiShort).join('/') + 'M',
+    row: g.row,
+  }))
+}
+
 export const FLANGE_6BX_CLASSES = [
   {
     psi: 2000,

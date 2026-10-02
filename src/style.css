@@ -200,6 +200,25 @@ a {
   font-size: 20px;
 }
 
+.flange-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.flange-back {
+  display: inline-block;
+  font-size: 13px;
+  color: var(--accent);
+  margin-bottom: 10px;
+}
+
+.flange-detail-title {
+  font-size: 16px;
+  margin: 0 0 4px;
+}
+
 .formula-note {
   margin: 14px 16px 0;
   padding: 12px 14px;
@@ -318,6 +337,7 @@ select.unit-select-output {
 }
 
 input[type='number'],
+input[type='text'],
 select {
   background: var(--bg-elev);
   border: 1px solid var(--border);
@@ -331,6 +351,7 @@ select {
 }
 
 input[type='number']:focus,
+input[type='text']:focus,
 select:focus {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
