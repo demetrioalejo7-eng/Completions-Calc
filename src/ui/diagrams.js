@@ -586,8 +586,8 @@ export function wellboreNeutralPointDiagram({ totalDepthFt, neutralDepthFt, regi
           ['┄', 'Compresión (tramo liviano, riesgo de pandeo)'],
         ]
       : regime === 'heavy'
-        ? [['—', 'Toda la sarta en tensión (pesada): si la soltás, cae al pozo']]
-        : [['┄', 'Sarta liviana: el pozo la empuja hacia arriba (hay que sujetarla / snubbing)']]
+        ? [['—', 'Sarta pesada (en tensión)']]
+        : [['┄', 'Sarta liviana']]
 
   return `<div class="dim-diagram">
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="-30 0 290 330" class="well-diagram-svg">${inner}</svg>

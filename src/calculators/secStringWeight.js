@@ -93,9 +93,9 @@ export const stringWeightCalculator = {
       weightResult('Peso neto con la formación comunicada (indicador)', net, { digits: 0 }),
     ]
     if (regime === 'light') {
-      results.push({ label: 'Condición', value: 'LIVIANA — el pozo empuja la tubería hacia afuera. No la sueltes: sujetala (cuñas invertidas / snubbing).' })
+      results.push({ label: 'Condición', value: 'LIVIANA' })
     } else {
-      results.push({ label: 'Condición', value: 'PESADA — queda en tensión: si la soltás, cae al pozo.' })
+      results.push({ label: 'Condición', value: 'PESADA' })
     }
     results.push(depthResult('Tubing mínimo bajado para que quede pesada (punto de balance)', balanceLen, { digits: 0 }))
     if (regime === 'neutral') {
