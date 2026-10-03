@@ -525,34 +525,59 @@ function fmtM(ft) {
   return Math.round(ft / 3.28084).toLocaleString('es-AR') + ' m'
 }
 
-export function wellboreNeutralPointDiagram({ totalDepthFt, neutralDepthFt, regime, bhaLabel = 'BHA' }) {
+export function wellboreNeutralPointDiagram({ totalDepthFt, neutralDepthFt, regime, packerFt, reservoirFt, balanceFt, bhaLabel = 'BHA' }) {
   const top = 24,
-    bottom = 290,
-    cx = 110
-  const depthToY = (d) => top + (bottom - top) * (Math.max(0, Math.min(totalDepthFt, d)) / totalDepthFt)
+    bottom = 300,
+    cx = 110,
+    casingL = 82,
+    casingR = 138
+  const scaleFt = Math.max(totalDepthFt, packerFt || 0, reservoirFt || 0)
+  const depthToY = (d) => top + (bottom - top) * (Math.max(0, Math.min(scaleFt, d)) / scaleFt)
+  const tubingY = depthToY(totalDepthFt)
   const neutralY = regime === 'neutral' ? depthToY(neutralDepthFt) : null
   const tensionStroke = 'stroke="currentColor" stroke-width="5" fill="none"'
   const compressionStroke = 'stroke="currentColor" stroke-width="5" stroke-dasharray="3 5" fill="none" opacity="0.65"'
 
   let inner = `
-    <line x1="70" y1="${top}" x2="150" y2="${top}" ${STROKE}/>
-    <path d="M70 ${top} l10 -10 M90 ${top} l10 -10 M110 ${top} l10 -10 M130 ${top} l10 -10" stroke="currentColor" stroke-width="1" opacity="0.5"/>
+    <line x1="60" y1="${top}" x2="160" y2="${top}" ${STROKE}/>
+    <path d="M60 ${top} l10 -10 M80 ${top} l10 -10 M100 ${top} l10 -10 M120 ${top} l10 -10 M140 ${top} l10 -10" stroke="currentColor" stroke-width="1" opacity="0.5"/>
+    <line x1="${casingL}" y1="${top}" x2="${casingL}" y2="${bottom + 8}" stroke="currentColor" stroke-width="1.4" opacity="0.55"/>
+    <line x1="${casingR}" y1="${top}" x2="${casingR}" y2="${bottom + 8}" stroke="currentColor" stroke-width="1.4" opacity="0.55"/>
   `
+  if (reservoirFt) {
+    const ry = depthToY(reservoirFt)
+    inner += `<rect x="${casingL - 18}" y="${ry - 7}" width="${casingR - casingL + 36}" height="14" fill="currentColor" opacity="0.18"/>`
+    for (let k = 0; k < 4; k++) {
+      inner += `<path d="M${casingL - 14 + k * 4} ${ry - 4 + k * 2}h-8M${casingR + 6 + k * 4} ${ry - 4 + k * 2}h8" stroke="currentColor" stroke-width="1.2" opacity="0.7"/>`
+    }
+    inner += text(casingR + 26, ry + 4, 'Reservorio ' + fmtM(reservoirFt), { anchor: 'start', size: 9.5 })
+  }
+  if (packerFt) {
+    const py = depthToY(packerFt)
+    inner += `<rect x="${casingL}" y="${py - 5}" width="${cx - casingL - 6}" height="10" fill="currentColor" opacity="0.75"/>`
+    inner += `<rect x="${cx + 6}" y="${py - 5}" width="${casingR - cx - 6}" height="10" fill="currentColor" opacity="0.75"/>`
+    inner += `<line x1="${cx - 6}" y1="${py + 4}" x2="${cx + 6}" y2="${py + 4}" stroke="currentColor" stroke-width="1.6"/>`
+    inner += text(casingR + 8, py + 4, 'Packer ' + fmtM(packerFt), { anchor: 'start', size: 9.5 })
+  }
   if (regime === 'heavy') {
-    inner += `<line x1="${cx}" y1="${top}" x2="${cx}" y2="${bottom}" ${tensionStroke}/>`
+    inner += `<line x1="${cx}" y1="${top}" x2="${cx}" y2="${tubingY}" ${tensionStroke}/>`
   } else if (regime === 'light') {
-    inner += `<line x1="${cx}" y1="${top}" x2="${cx}" y2="${bottom}" ${compressionStroke}/>`
+    inner += `<line x1="${cx}" y1="${top}" x2="${cx}" y2="${tubingY}" ${compressionStroke}/>`
   } else {
     inner += `<line x1="${cx}" y1="${top}" x2="${cx}" y2="${neutralY}" ${tensionStroke}/>`
-    inner += `<line x1="${cx}" y1="${neutralY}" x2="${cx}" y2="${bottom}" ${compressionStroke}/>`
-    inner += `<line x1="50" y1="${neutralY}" x2="170" y2="${neutralY}" stroke="currentColor" stroke-width="1" stroke-dasharray="2 3" opacity="0.7"/>`
-    inner += text(175, neutralY + 3, 'Punto neutro', { anchor: 'start', size: 10 })
-    inner += text(175, neutralY + 15, fmtM(neutralDepthFt), { anchor: 'start', size: 10 })
+    inner += `<line x1="${cx}" y1="${neutralY}" x2="${cx}" y2="${tubingY}" ${compressionStroke}/>`
+    inner += `<line x1="40" y1="${neutralY}" x2="${casingR + 4}" y2="${neutralY}" stroke="currentColor" stroke-width="1" stroke-dasharray="2 3" opacity="0.7"/>`
+    inner += text(36, neutralY - 2, 'Punto neutro', { anchor: 'end', size: 9.5 })
+    inner += text(36, neutralY + 10, fmtM(neutralDepthFt), { anchor: 'end', size: 9.5 })
   }
-  inner += `<rect x="${cx - 10}" y="${bottom}" width="20" height="16" ${STROKE}/>`
-  inner += text(cx, bottom + 32, bhaLabel, { size: 10 })
-  inner += text(cx + 50, top + 4, '0 m', { anchor: 'start', size: 10 })
-  inner += text(cx + 50, bottom + 4, fmtM(totalDepthFt), { anchor: 'start', size: 10 })
+  if (balanceFt != null && balanceFt > 0 && balanceFt < scaleFt) {
+    const by = depthToY(balanceFt)
+    inner += `<line x1="${casingL - 4}" y1="${by}" x2="${casingR + 4}" y2="${by}" stroke="currentColor" stroke-width="1" stroke-dasharray="6 3" opacity="0.55"/>`
+    inner += text(casingR + 8, by + 4, 'Balance ' + fmtM(balanceFt), { anchor: 'start', size: 9.5 })
+  }
+  inner += `<rect x="${cx - 7}" y="${tubingY}" width="14" height="10" ${STROKE}/>`
+  inner += text(casingL - 6, tubingY + 9, bhaLabel + ' ' + fmtM(totalDepthFt), { anchor: 'end', size: 9.5 })
+  inner += text(168, top + 4, '0 m', { anchor: 'start', size: 9.5 })
 
   const legendPairs =
     regime === 'neutral'
@@ -561,11 +586,11 @@ export function wellboreNeutralPointDiagram({ totalDepthFt, neutralDepthFt, regi
           ['┄', 'Compresión (tramo liviano, riesgo de pandeo)'],
         ]
       : regime === 'heavy'
-        ? [['—', 'Toda la sarta en tensión (pesada): entra por gravedad, sin snubbing']]
-        : [['┄', 'Toda la sarta en compresión (liviana): necesita snubbing en toda su longitud']]
+        ? [['—', 'Toda la sarta en tensión (pesada): si la soltás, cae al pozo']]
+        : [['┄', 'Sarta liviana: el pozo la empuja hacia arriba (hay que sujetarla / snubbing)']]
 
   return `<div class="dim-diagram">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 340" class="well-diagram-svg">${inner}</svg>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="-30 0 290 330" class="well-diagram-svg">${inner}</svg>
     <p class="dim-legend">${legend(legendPairs)}</p>
   </div>`
 }
