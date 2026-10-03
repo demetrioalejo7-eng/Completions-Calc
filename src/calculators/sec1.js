@@ -10,16 +10,7 @@ import {
   flowAreaAnnular,
 } from '../calc/geometry.js'
 import { ALL_PIPES } from '../data/pipes.js'
-import {
-  lengthIn,
-  lengthFt,
-  weightPerLength,
-  weightResult,
-  volumeResult,
-  lengthInResult,
-  weightPerLengthResult,
-  flow,
-} from '../ui/fieldHelpers.js'
+import { lengthIn, lengthFt, weightPerLength, weightResult, volumeResult, lengthInResult, weightPerLengthResult, flow, depth } from '../ui/fieldHelpers.js'
 
 function capacityResults(id, lengthFt) {
   if (!id || id <= 0) throw new Error('Ingresá un diámetro interior (ID) mayor a cero.')
@@ -66,7 +57,7 @@ export const section1 = {
           idField: 'id',
           wtField: 'wt',
         },
-        lengthFt('length', 'Longitud', { default: 1000 }),
+        depth('length', 'Longitud', { defaultM: 300 }),
       ],
       compute(v) {
         return { results: capacityResults(v.id, v.length) }
@@ -79,7 +70,7 @@ export const section1 = {
       diagram: { kind: 'pipeCrossSection', labels: { od: 'D', id: null } },
       inputs: [
         lengthIn('diameter', 'Diámetro de pozo', { default: 8.5 }),
-        lengthFt('length', 'Longitud', { default: 1000 }),
+        depth('length', 'Longitud', { defaultM: 300 }),
       ],
       compute(v) {
         return { results: capacityResults(v.diameter, v.length) }
@@ -102,7 +93,7 @@ export const section1 = {
           wtField: 'wt',
         },
         weightPerLength('weight', 'Peso (si no cargaste ID)'),
-        lengthFt('length', 'Longitud', { default: 1000 }),
+        depth('length', 'Longitud', { defaultM: 300 }),
         {
           type: 'select',
           id: 'method',

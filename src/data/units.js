@@ -97,6 +97,12 @@ export const UNIT_CATEGORIES = {
     'kg/cm²/m': 0.230670,
     'Bar/m': 0.226203,
   },
+  // A temperature *difference* (ΔT) scales without an offset.
+  'Diferencia de temperatura': {
+    '°F': 1,
+    '°C': 1.8,
+    K: 1.8,
+  },
   'Volumen de gas (estándar)': {
     SCF: 1,
     'Metros³ estándar (Nm³)': 1 / 35.3147,

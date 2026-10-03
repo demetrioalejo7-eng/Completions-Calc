@@ -12,6 +12,18 @@ export function lengthFt(id, label, opts = {}) {
   return { type: 'unitNumber', id, label, category: 'Longitud', canonicalUnit: 'Pies (ft)', step: 1, ...opts }
 }
 
+// Well depth / length along the string: computed in feet, shown in meters
+// by default. `defaultM` gives the starting value in meters.
+const FT_PER_M = 3.28084
+export function depth(id, label, { defaultM, ...opts } = {}) {
+  return lengthFt(id, label, { defaultUnit: 'Metros (m)', ...(defaultM != null ? { default: defaultM * FT_PER_M } : {}), ...opts })
+}
+
+// Temperature: computed in °F, shown in °C by default. `defaultC` in °C.
+export function temperature(id, label, { defaultC, ...opts } = {}) {
+  return { type: 'temperature', id, label, step: 1, ...(defaultC != null ? { default: (defaultC * 9) / 5 + 32 } : {}), ...opts }
+}
+
 export function pressure(id, label, opts = {}) {
   return { type: 'unitNumber', id, label, category: 'Presión', canonicalUnit: 'PSI', step: 1, ...opts }
 }
@@ -42,6 +54,15 @@ export function lengthInResult(label, value, opts = {}) {
 }
 export function lengthFtResult(label, value, opts = {}) {
   return { label, value, category: 'Longitud', canonicalUnit: 'Pies (ft)', unit: 'ft', ...opts }
+}
+export function depthResult(label, value, opts = {}) {
+  return lengthFtResult(label, value, { defaultUnit: 'Metros (m)', ...opts })
+}
+export function temperatureResult(label, valueF, opts = {}) {
+  return { label, value: valueF, category: 'Temperatura', ...opts }
+}
+export function temperatureDiffResult(label, valueF, opts = {}) {
+  return { label, value: valueF, category: 'Diferencia de temperatura', canonicalUnit: '°F', unit: '°F', ...opts }
 }
 export function pressureResult(label, value, opts = {}) {
   return { label, value, category: 'Presión', canonicalUnit: 'PSI', unit: 'psi', ...opts }

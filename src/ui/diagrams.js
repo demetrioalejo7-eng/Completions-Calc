@@ -521,8 +521,8 @@ export function flangeSheetDiagram(entry) {
 // neutral point splitting the string into both zones) depends on the
 // answer itself. Returns the same `.dim-diagram` markup as the rest, but
 // with its own taller SVG (a vertical wellbore reads better tall).
-function fmtFt(x) {
-  return Math.round(x).toLocaleString('es-AR')
+function fmtM(ft) {
+  return Math.round(ft / 3.28084).toLocaleString('es-AR') + ' m'
 }
 
 export function wellboreNeutralPointDiagram({ totalDepthFt, neutralDepthFt, regime, bhaLabel = 'BHA' }) {
@@ -547,12 +547,12 @@ export function wellboreNeutralPointDiagram({ totalDepthFt, neutralDepthFt, regi
     inner += `<line x1="${cx}" y1="${neutralY}" x2="${cx}" y2="${bottom}" ${compressionStroke}/>`
     inner += `<line x1="50" y1="${neutralY}" x2="170" y2="${neutralY}" stroke="currentColor" stroke-width="1" stroke-dasharray="2 3" opacity="0.7"/>`
     inner += text(175, neutralY + 3, 'Punto neutro', { anchor: 'start', size: 10 })
-    inner += text(175, neutralY + 15, `${fmtFt(neutralDepthFt)} ft`, { anchor: 'start', size: 10 })
+    inner += text(175, neutralY + 15, fmtM(neutralDepthFt), { anchor: 'start', size: 10 })
   }
   inner += `<rect x="${cx - 10}" y="${bottom}" width="20" height="16" ${STROKE}/>`
   inner += text(cx, bottom + 32, bhaLabel, { size: 10 })
-  inner += text(cx + 50, top + 4, '0 ft', { anchor: 'start', size: 10 })
-  inner += text(cx + 50, bottom + 4, `${fmtFt(totalDepthFt)} ft`, { anchor: 'start', size: 10 })
+  inner += text(cx + 50, top + 4, '0 m', { anchor: 'start', size: 10 })
+  inner += text(cx + 50, bottom + 4, fmtM(totalDepthFt), { anchor: 'start', size: 10 })
 
   const legendPairs =
     regime === 'neutral'

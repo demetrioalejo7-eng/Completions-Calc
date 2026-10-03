@@ -1,7 +1,6 @@
 import { n2BottomHolePressure, co2LiquidRate, pipelineVolumeBbl } from '../calc/nitrogenCalc.js'
 import { n2VolumeMultiplier, N2_PROPERTIES, CO2_PROPERTIES } from '../data/nitrogen.js'
-import { convertTemperature } from '../data/units.js'
-import { flow, lengthFt, lengthIn, pressure, pressureResult, volume, volumeResult, weightResult } from '../ui/fieldHelpers.js'
+import { flow, lengthIn, pressure, pressureResult, volume, volumeResult, weightResult, depth, temperature, temperatureResult } from '../ui/fieldHelpers.js'
 
 export const section11 = {
   id: 'nitrogen',
@@ -32,23 +31,13 @@ export const section11 = {
             ? volume('volumeBbl', 'Volumen geométrico del sistema', { step: 0.01, default: 10 })
             : null,
         (values) => (values.mode === 'volume' ? null : lengthIn('id', 'Diámetro interior de línea', { step: 0.001, default: 4.0 })),
-        (values) => (values.mode === 'volume' ? null : lengthFt('length', 'Longitud', { step: 1, default: 5000 })),
+        (values) => (values.mode === 'volume' ? null : depth('length', 'Longitud', { step: 1, defaultM: 1500 })),
         pressure('pressure', 'Presión (absoluta)', { step: 10, default: 1000 }),
-        { type: 'number', id: 'temp', label: 'Temperatura', step: 1, default: 100 },
-        {
-          type: 'select',
-          id: 'tempUnit',
-          label: 'Unidad de temperatura',
-          options: [
-            { value: 'F', label: '°F' },
-            { value: 'C', label: '°C' },
-          ],
-          default: 'F',
-        },
+        temperature('temp', 'Temperatura', { defaultC: 38 }),
       ],
       compute(v) {
         if (!v.pressure) throw new Error('Ingresá la presión.')
-        const tempF = v.temp == null ? 60 : v.tempUnit === 'C' ? convertTemperature(v.temp, 'C', 'F') : v.temp
+        const tempF = v.temp == null ? 60 : v.temp
         let volBbl
         if (v.mode === 'volume') {
           if (!v.volumeBbl) throw new Error('Ingresá el volumen geométrico del sistema.')
@@ -75,7 +64,7 @@ export const section11 = {
       title: 'Presión de Fondo — Columna de N2',
       inputs: [
         pressure('whp', 'Presión en cabeza (WHP)', { step: 10, default: 2000 }),
-        lengthFt('depth', 'Profundidad', { step: 10, default: 8000 }),
+        depth('depth', 'Profundidad', { step: 10, defaultM: 2500 }),
       ],
       compute(v) {
         if (!v.whp || !v.depth) throw new Error('Completá WHP y profundidad.')
@@ -100,7 +89,6 @@ export const section11 = {
         const out = co2LiquidRate(v.scfPerBbl, v.bpm)
         return {
           results: [
-            { label: 'Tasa de CO2 líquido', value: out.gpm, category: 'Caudal', canonicalUnit: 'Galones/min (gpm)', unit: 'gal/min', digits: 2 },
             { label: 'Tasa de CO2 líquido', value: out.bpm, category: 'Caudal', canonicalUnit: 'Barriles/min (bpm)', unit: 'bbl/min', digits: 4 },
           ],
         }
@@ -182,11 +170,11 @@ export const section11 = {
         return {
           results: [
             { label: 'N2 — Peso molecular', value: N2_PROPERTIES.molecularWeight, unit: '', digits: 3 },
-            { label: 'N2 — Punto de ebullición', value: N2_PROPERTIES.boilingPointF, unit: '°F', digits: 2 },
+            temperatureResult('N2 — Punto de ebullición', N2_PROPERTIES.boilingPointF, { digits: 1 }),
             { label: 'N2 — 1 lb líquido', value: N2_PROPERTIES.scfPerLbLiquid, category: 'Volumen de gas (estándar)', canonicalUnit: 'SCF', unit: 'SCF', digits: 2 },
             { label: 'N2 — 1 galón líquido', value: N2_PROPERTIES.scfPerGalLiquid, category: 'Volumen de gas (estándar)', canonicalUnit: 'SCF', unit: 'SCF', digits: 1 },
             { label: 'CO2 — Peso molecular', value: CO2_PROPERTIES.molecularWeight, unit: '', digits: 0 },
-            { label: 'CO2 — Punto crítico', value: CO2_PROPERTIES.criticalTempF, unit: '°F', digits: 1 },
+            temperatureResult('CO2 — Punto crítico', CO2_PROPERTIES.criticalTempF, { digits: 1 }),
             weightResult('CO2 — 1 galón líquido', CO2_PROPERTIES.lbPerGal, { digits: 2 }),
             { label: 'CO2 — 1 barril líquido', value: CO2_PROPERTIES.scfPerBblLiquid, category: 'Volumen de gas (estándar)', canonicalUnit: 'SCF', unit: 'SCF', digits: 0 },
           ],

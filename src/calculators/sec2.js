@@ -1,6 +1,6 @@
 import { annulusFactors, totalsFromFactors } from '../calc/geometry.js'
 import { ALL_PIPES } from '../data/pipes.js'
-import { lengthIn, lengthFt, volumeResult } from '../ui/fieldHelpers.js'
+import { lengthIn, lengthFt, volumeResult, depth } from '../ui/fieldHelpers.js'
 
 function annulusResults(outerD, innerD, lengthFt) {
   if (!outerD || !innerD) throw new Error('Completá ambos diámetros.')
@@ -45,7 +45,7 @@ export const section2 = {
           odField: 'pipeOd',
           idField: 'pipeId',
         },
-        lengthFt('length', 'Longitud', { default: 1000 }),
+        depth('length', 'Longitud', { defaultM: 300 }),
       ],
       compute(v) {
         return { results: annulusResults(v.holeD, v.pipeOd, v.length) }
@@ -73,7 +73,7 @@ export const section2 = {
           odField: 'innerOd',
           idField: 'innerId',
         },
-        lengthFt('length', 'Longitud', { default: 1000 }),
+        depth('length', 'Longitud', { defaultM: 300 }),
       ],
       compute(v) {
         return { results: annulusResults(v.outerId, v.innerOd, v.length) }

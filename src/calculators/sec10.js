@@ -11,7 +11,7 @@ import { CACL2_TABLE, NACL_TABLE, KCL_TABLE, ppgFromPct, pctFromPpg } from '../d
 import { PACKER_TUBING_WEIGHT_PSI } from '../data/misc.js'
 import { bariteWaterMudAt, bariteOilMudAt } from '../data/misc.js'
 import { PUMP_MODELS } from '../data/pumps.js'
-import { density, densityResult, lengthFt, lengthIn, lengthInResult, pressureResult, volumeResult, weight, weightResult } from '../ui/fieldHelpers.js'
+import { density, densityResult, lengthIn, lengthInResult, pressureResult, volumeResult, weight, weightResult, depth, temperature, temperatureDiffResult } from '../ui/fieldHelpers.js'
 
 const saltSets = {
   cacl2: { table: CACL2_TABLE, pctKey: 'pctAnhydrous', label: 'Cloruro de Calcio (CaCl2)' },
@@ -56,7 +56,6 @@ export const miscCalculators = [
         if (v.spm) {
           results.push(
             { label: 'Caudal', value: bblPerCycle * v.spm, category: 'Caudal', canonicalUnit: 'Barriles/min (bpm)', unit: 'bbl/min', digits: 3 },
-            { label: 'Caudal', value: bblPerCycle * v.spm * 42, category: 'Caudal', canonicalUnit: 'Galones/min (gpm)', unit: 'gal/min', digits: 1 }
           )
         }
         return { results }
@@ -111,7 +110,6 @@ export const miscCalculators = [
         const rodLoadLbf = psi * plungerAreaIn2
         return {
           results: [
-            { label: 'Caudal máximo', value: gpm, category: 'Caudal', canonicalUnit: 'Galones/min (gpm)', unit: 'gpm', digits: 0 },
             { label: 'Caudal máximo', value: bpm, category: 'Caudal', canonicalUnit: 'Barriles/min (bpm)', unit: 'bpm', digits: 3 },
             pressureResult('Presión máxima', psi, { digits: 0 }),
             { label: 'Potencia hidráulica (HHP)', value: hhp, category: 'Potencia', canonicalUnit: 'Caballos de fuerza (HP)', unit: 'hp', digits: 0 },
@@ -150,8 +148,8 @@ export const miscCalculators = [
       id: 'brine-temp-correction',
       title: 'Corrección de Densidad de Salmuera por Temperatura',
       inputs: [
-        { type: 'number', id: 'wellTemp', label: 'Temperatura de pozo (T1)', unit: '°F', step: 1, default: 200 },
-        { type: 'number', id: 'surfaceTemp', label: 'Temperatura de referencia (T2)', unit: '°F', step: 1, default: 80 },
+        temperature('wellTemp', 'Temperatura de pozo (T1)', { defaultC: 90 }),
+        temperature('surfaceTemp', 'Temperatura de referencia (T2)', { defaultC: 25 }),
         density('targetDensity', 'Densidad requerida a T1', { step: 0.01, default: 10 }),
       ],
       compute(v) {
@@ -160,7 +158,7 @@ export const miscCalculators = [
         return {
           results: [
             densityResult('Cambio de densidad', change, { digits: 3 }),
-            { label: `Densidad requerida a ${v.surfaceTemp}°F`, value: v.targetDensity + change, category: 'Densidad', canonicalUnit: 'Lb/galón (ppg)', unit: 'lb/gal', digits: 3 },
+            { label: 'Densidad requerida a la temperatura de referencia (T2)', value: v.targetDensity + change, category: 'Densidad', canonicalUnit: 'Lb/galón (ppg)', unit: 'lb/gal', digits: 3 },
           ],
         }
       },
@@ -169,16 +167,16 @@ export const miscCalculators = [
       id: 'pipe-stretch',
       title: 'Estiramiento/Contracción de Tubería',
       inputs: [
-        { type: 'number', id: 'bht', label: 'Temperatura de fondo (BHT)', unit: '°F', step: 1, default: 220 },
-        { type: 'number', id: 'surfaceT', label: 'Temperatura de superficie', unit: '°F', step: 1, default: 80 },
-        lengthFt('length', 'Longitud de tubería', { step: 1, default: 8000 }),
+        temperature('bht', 'Temperatura de fondo (BHT)', { defaultC: 105 }),
+        temperature('surfaceT', 'Temperatura de superficie', { defaultC: 25 }),
+        depth('length', 'Longitud de tubería', { step: 1, defaultM: 2500 }),
       ],
       compute(v) {
         if (v.bht == null || v.surfaceT == null || !v.length) throw new Error('Completá todos los campos.')
         const out = pipeStretchInches(v.bht, v.surfaceT, v.length)
         return {
           results: [
-            { label: 'ΔT', value: out.deltaT, unit: '°F', digits: 2 },
+            temperatureDiffResult('ΔT', out.deltaT, { digits: 2 }),
             { label: 'Cambio por cada 1000 ft', value: out.cPer1000Ft, unit: 'in/1000ft', digits: 3 },
             lengthInResult('Cambio total de longitud', out.totalStretchIn, { digits: 2 }),
           ],
@@ -193,7 +191,7 @@ export const miscCalculators = [
         { type: 'select', id: 'casing', label: 'Casing / Tubing EUE', options: PACKER_TUBING_WEIGHT_PSI.map((r, i) => ({ value: String(i), label: `${r.casingOD}"` })), default: '2' },
         { type: 'select', id: 'eue', label: 'Conexión de tubing', options: [{ value: 'eue2', label: '2" EUE' }, { value: 'eue25', label: '2 1/2" EUE' }], default: 'eue2' },
         weight('tubingWeight', 'Peso de tubing en el packer', { step: 100, default: 10000 }),
-        lengthFt('depth', 'Profundidad del packer', { step: 1, default: 7000 }),
+        depth('depth', 'Profundidad del packer', { step: 1, defaultM: 2100 }),
         { type: 'number', id: 'annulusGrad', label: 'Gradiente del fluido del anular', unit: 'psi/ft', step: 0.001, default: 0.519 },
         { type: 'number', id: 'tubingGrad', label: 'Gradiente del fluido de tubing', unit: 'psi/ft', step: 0.001, default: 0.438 },
       ],

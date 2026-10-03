@@ -1,6 +1,6 @@
 import { multipleStringsFactors, mixedAnnulusFactors, totalsFromFactors } from '../calc/geometry.js'
 import { ALL_PIPES } from '../data/pipes.js'
-import { lengthFt } from '../ui/fieldHelpers.js'
+import { depth } from '../ui/fieldHelpers.js'
 
 export const section3 = {
   id: 'multiple-strings',
@@ -35,7 +35,7 @@ export const section3 = {
           idField: 'stringId',
         },
         { type: 'number', id: 'n', label: 'Cantidad de sartas (n)', step: 1, default: 2 },
-        lengthFt('length', 'Longitud', { step: 1, default: 1000 }),
+        depth('length', 'Longitud', { step: 1, defaultM: 300 }),
       ],
       compute(v) {
         if (!v.outerD || !v.stringOd || !v.n) throw new Error('Completá todos los campos.')
@@ -112,7 +112,7 @@ export const section3 = {
           idField: 'od4Id',
           odDefault: 0,
         },
-        lengthFt('length', 'Longitud', { step: 1, default: 1000 }),
+        depth('length', 'Longitud', { step: 1, defaultM: 300 }),
       ],
       compute(v) {
         if (!v.outerD) throw new Error('Ingresá el diámetro exterior.')

@@ -139,7 +139,7 @@ export const section13 = {
       diagram: { kind: 'pipeCrossSection', labels: { od: 'd', id: null } },
       inputs: [
         flow('rate', 'Caudal', { step: 0.1, default: 10 }),
-        density('density', 'Densidad del fluido', { step: 0.01, default: 8.3454 }),
+        density('density', 'Densidad del fluido', { step: 0.01, default: 8.33 }),
         { type: 'number', id: 'n', label: 'Perforaciones abiertas', step: 1, default: 20 },
         lengthIn('diameter', 'Diámetro de perforación', { step: 0.01, default: 0.5 }),
         { type: 'number', id: 'cd', label: 'Coeficiente de descarga (Cd)', step: 0.01, default: 0.85 },

@@ -1,5 +1,5 @@
 import { el, fmt, clear } from './dom.js'
-import { UNIT_CATEGORIES } from '../data/units.js'
+import { UNIT_CATEGORIES, convertTemperature } from '../data/units.js'
 import { diagramMarkup } from './diagrams.js'
 import { PIPE_GRADES } from '../data/strengths.js'
 import { CT_GRADES } from '../data/ctStrength.js'
@@ -46,6 +46,76 @@ function selectInput(spec, value, onChange) {
   return el('label', { class: 'field' }, [el('span', { class: 'field-label' }, spec.label), select])
 }
 
+// Unit shown by default when it differs from the unit compute() works in:
+// a spec's own `defaultUnit` wins, then the category-wide preference.
+const CATEGORY_DISPLAY_DEFAULTS = {
+  Caudal: 'Barriles/min (bpm)',
+  'Diferencia de temperatura': '°C',
+}
+function defaultDisplayUnit(spec) {
+  return spec.defaultUnit || CATEGORY_DISPLAY_DEFAULTS[spec.category] || spec.canonicalUnit
+}
+
+// Temperatures need an offset, not just a factor, so they get their own
+// input: compute() always receives °F, the field shows °C by default.
+const TEMP_UNITS = [
+  ['C', '°C'],
+  ['F', '°F'],
+  ['K', 'K'],
+]
+function temperatureInput(spec, values, setValue, rerenderAll) {
+  const unitStateKey = '__unit_' + spec.id
+  const selectedUnit = values[unitStateKey] || 'C'
+  const canonicalVal = values[spec.id]
+  const rawVal = canonicalVal == null ? '' : convertTemperature(canonicalVal, 'F', selectedUnit)
+  const numInput = el('input', {
+    type: 'number',
+    step: spec.step ?? 'any',
+    value: rawVal === '' ? '' : Math.round(rawVal * 1e6) / 1e6,
+    inputmode: 'decimal',
+    onInput: (e) => {
+      const raw = e.target.value === '' ? null : Number(e.target.value)
+      setValue(spec.id, raw === null ? null : convertTemperature(raw, selectedUnit, 'F'))
+      rerenderAll(false)
+    },
+  })
+  const unitSelect = el(
+    'select',
+    {
+      class: 'unit-select',
+      onChange: (e) => {
+        setValue(unitStateKey, e.target.value)
+        rerenderAll(true)
+      },
+    },
+    TEMP_UNITS.map(([u, label]) => el('option', { value: u, selected: u === selectedUnit }, label))
+  )
+  return el('label', { class: 'field' }, [
+    el('span', { class: 'field-label' }, spec.label),
+    el('div', { class: 'unit-field-row' }, [numInput, unitSelect]),
+  ])
+}
+
+function temperatureResultNode(r, key, values, setValue, rerenderResultsOnly) {
+  const unitStateKey = '__outunit_' + key
+  const selectedUnit = values[unitStateKey] || 'C'
+  const unitSelect = el(
+    'select',
+    {
+      class: 'unit-select unit-select-output',
+      onChange: (e) => {
+        setValue(unitStateKey, e.target.value)
+        rerenderResultsOnly()
+      },
+    },
+    TEMP_UNITS.map(([u, label]) => el('option', { value: u, selected: u === selectedUnit }, label))
+  )
+  return el('span', { class: 'result-value result-value-unit' }, [
+    el('strong', {}, fmt(convertTemperature(r.value, 'F', selectedUnit), r.digits ?? 1)),
+    unitSelect,
+  ])
+}
+
 // A number input with a unit dropdown. `values[spec.id]` always holds the
 // value converted to `spec.canonicalUnit` (the unit compute() expects), so
 // compute() functions never need to know which unit the user picked.
@@ -53,7 +123,7 @@ function selectInput(spec, value, onChange) {
 function unitNumberInput(spec, values, setValue, rerenderAll) {
   const category = UNIT_CATEGORIES[spec.category]
   const unitStateKey = '__unit_' + spec.id
-  const selectedUnit = values[unitStateKey] || spec.canonicalUnit
+  const selectedUnit = values[unitStateKey] || defaultDisplayUnit(spec)
   const canonicalVal = values[spec.id]
   const rawVal =
     canonicalVal === null || canonicalVal === undefined
@@ -96,6 +166,7 @@ export function resultValueNode(r, key, values, setValue, rerenderResultsOnly) {
   if (typeof r.value === 'string') {
     return el('span', { class: 'result-value result-value-text' }, [el('strong', {}, r.value)])
   }
+  if (r.category === 'Temperatura') return temperatureResultNode(r, key, values, setValue, rerenderResultsOnly)
   if (!r.category || !UNIT_CATEGORIES[r.category]) {
     return el('span', { class: 'result-value' }, [
       el('strong', {}, fmt(r.value, r.digits ?? 4)),
@@ -104,7 +175,7 @@ export function resultValueNode(r, key, values, setValue, rerenderResultsOnly) {
   }
   const category = UNIT_CATEGORIES[r.category]
   const unitStateKey = '__outunit_' + key
-  const selectedUnit = values[unitStateKey] || r.canonicalUnit
+  const selectedUnit = values[unitStateKey] || defaultDisplayUnit(r)
   const converted = (r.value * category[r.canonicalUnit]) / category[selectedUnit]
   const unitSelect = el(
     'select',
@@ -421,6 +492,11 @@ export function renderCalculatorForm(container, calc) {
         })
       } else if (input.type === 'unitNumber') {
         node = unitNumberInput(input, values, setValue, (fullRerender) => {
+          if (fullRerender) renderForm()
+          renderResults()
+        })
+      } else if (input.type === 'temperature') {
+        node = temperatureInput(input, values, setValue, (fullRerender) => {
           if (fullRerender) renderForm()
           renderResults()
         })

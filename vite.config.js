@@ -26,8 +26,8 @@ export default defineConfig({
         short_name: 'Compl. Calc',
         description:
           'Calculadora de ingeniería de completions: capacidad, volumen anular, múltiples sartas, cemento, ácido, proppant, tanques, hidrostática, nitrógeno/CO2 y más.',
-        theme_color: '#0a0a0a',
-        background_color: '#0a0a0a',
+        theme_color: '#050b1a',
+        background_color: '#050b1a',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '.',

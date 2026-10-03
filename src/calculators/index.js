@@ -11,33 +11,35 @@ import { section11 } from './sec11.js'
 import { section12 } from './sec12.js'
 import { section13 } from './sec13.js'
 import { section14 } from './sec14.js'
+import { stringWeightCalculator } from './secStringWeight.js'
 
 // Capacidad, Volumen y Altura, Múltiples Sartas y Dimensiones y Resistencias
 // viven en distintos archivos por comodidad de desarrollo, pero se muestran
 // como una única sección en la app.
 const tubulares = {
   id: 'tubulares',
-  title: 'Tubulares — Capacidades y Resistencias',
-  summary: 'Capacidad interior, volumen anular, múltiples sartas y resistencias API de tubing, casing, drill pipe y coiled tubing.',
+  title: 'Workover y Tubulares',
+  summary: 'Capacidades, volumen anular, múltiples sartas, resistencias API y peso de sarta / punto neutro de tubing.',
   calculators: [
     ...section1.calculators,
     ...section2.calculators,
     ...section3.calculators,
     ...section4.calculators,
+    stringWeightCalculator,
   ],
 }
 
 export const SECTIONS = [
   tubulares,
   secFlanges,
-  section5,
-  section6,
-  section8,
-  section9,
-  section11,
-  section12,
-  section13,
-  section14,
+  section13, // Fractura
+  section12, // Coiled Tubing
+  section8, // Tanques
+  section9, // Cálculos Generales
+  section5, // Cemento
+  section6, // Ácido
+  section11, // Nitrógeno y CO2
+  section14, // Contingencias
 ]
 
 export function findSection(sectionId) {

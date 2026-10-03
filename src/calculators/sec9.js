@@ -16,7 +16,7 @@ import { capacityFactors, annulusFactors } from '../calc/geometry.js'
 import { ALL_PIPES } from '../data/pipes.js'
 import { UNIT_CATEGORIES, convertTemperature, VISCOSITY_TABLE } from '../data/units.js'
 import { el, fmt, clear } from '../ui/dom.js'
-import { density, lengthFt, lengthFtResult, lengthIn, pressure, pressureResult, volumeResult, weight, weightPerLength, weightResult } from '../ui/fieldHelpers.js'
+import { density, lengthFt, lengthIn, pressure, pressureResult, volumeResult, weight, weightPerLength, weightResult, depth, depthResult } from '../ui/fieldHelpers.js'
 import { miscCalculators, miscFormulaNote } from './sec10.js'
 
 const categoryNames = Object.keys(UNIT_CATEGORIES)
@@ -89,7 +89,7 @@ function mountUnitConverter(container) {
 
 function mountTemperatureConverter(container) {
   clear(container)
-  const state = { from: 'F', to: 'C', value: 100 }
+  const state = { from: 'C', to: 'F', value: 40 }
   const labels = { F: '°Fahrenheit', C: '°Celsius', K: 'Kelvin' }
   const formEl = el('div', { class: 'calc-form' })
   const resultsEl = el('div', { class: 'calc-results' })
@@ -136,7 +136,7 @@ export const section9 = {
       id: 'buoyancy',
       title: 'Factor de Flotabilidad y Peso Aparente',
       inputs: [
-        density('mudWeight', 'Peso del fluido', { step: 0.01, default: 10 }),
+        density('mudWeight', 'Peso del fluido', { step: 0.01, default: 8.33 }),
         weight('airWeight', 'Peso al aire (opcional)', { step: 1 }),
       ],
       compute(v) {
@@ -153,8 +153,8 @@ export const section9 = {
       id: 'hydrostatic',
       title: 'Presión Hidrostática',
       inputs: [
-        density('ppg', 'Peso del fluido', { step: 0.01, default: 9 }),
-        lengthFt('height', 'Altura de columna', { step: 1, default: 5000 }),
+        density('ppg', 'Peso del fluido', { step: 0.01, default: 8.33 }),
+        depth('height', 'Altura de columna', { step: 1, defaultM: 1500 }),
       ],
       compute(v) {
         if (!v.ppg) throw new Error('Ingresá el peso del fluido.')
@@ -169,8 +169,8 @@ export const section9 = {
       title: 'Hidráulica de Tratamiento (Frac)',
       inputs: [
         pressure('isip', 'ISIP', { step: 1, default: 3000 }),
-        density('ppg', 'Peso del fluido', { step: 0.01, default: 9 }),
-        lengthFt('depth', 'Profundidad', { step: 1, default: 8000 }),
+        density('ppg', 'Peso del fluido', { step: 0.01, default: 8.33 }),
+        depth('depth', 'Profundidad', { step: 1, defaultM: 2500 }),
         pressure('pf', 'Fricción en tubería (Pf)', { step: 1, default: 0 }),
         pressure('ppf', 'Fricción de perforaciones (Ppf)', { step: 1, default: 0 }),
       ],
@@ -228,7 +228,7 @@ export const section9 = {
           results: [
             { label: 'Capacidad sarta de trabajo', value: cfWs, category: 'Capacidad lineal', canonicalUnit: 'Pies³/pie (ft³/ft)', unit: 'ft³/ft', digits: 5 },
             { label: 'Capacidad anular', value: cfAnnulus, category: 'Capacidad lineal', canonicalUnit: 'Pies³/pie (ft³/ft)', unit: 'ft³/ft', digits: 5 },
-            lengthFtResult('Altura del tapón (sarta adentro)', height, { digits: 1 }),
+            depthResult('Altura del tapón (sarta adentro)', height, { digits: 1 }),
           ],
         }
       },
@@ -257,7 +257,7 @@ export const section9 = {
       title: 'Desplazamiento de Tubería (metal)',
       inputs: [
         weightPerLength('wt', 'Peso con acoples', { step: 0.01, default: 15.5 }),
-        lengthFt('depth', 'Profundidad / longitud', { step: 1, default: 5000 }),
+        depth('depth', 'Profundidad / longitud', { step: 1, defaultM: 1500 }),
       ],
       compute(v) {
         if (!v.wt || !v.depth) throw new Error('Completá peso y profundidad.')

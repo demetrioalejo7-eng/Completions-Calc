@@ -5,7 +5,7 @@
 const SVG_OPEN = 'xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"'
 
 const SECTION_ICONS = {
-  // Tubulares (Capacidades y Resistencias) — pipe cross-section with a
+  // Workover y Tubulares — pipe cross-section with a
   // dimension/caliper mark, combining capacity + strength at a glance.
   tubulares: `<svg ${SVG_OPEN}><circle cx="10" cy="12" r="8"/><circle cx="10" cy="12" r="3.5"/><path d="M20 6v12" stroke-width="1.2"/><path d="M18.6 6h2.8M18.6 18h2.8" stroke-width="1.2"/></svg>`,
 
