@@ -195,3 +195,31 @@ export function parseDepthList(text) {
   if (!out.length) throw new Error('No se encontraron profundidades de tapones válidas.')
   return [...new Set(out.map((d) => Math.round(d * 100) / 100))].sort((a, b) => a - b)
 }
+
+// Map coordinate (m) tolerant to thousands separators and units:
+// "5,826,574.00m", "5.826.574,00", "5826574", "2 487 407 m".
+export function parseCoordinate(x) {
+  if (typeof x === 'number') return Number.isFinite(x) ? x : null
+  let s = String(x ?? '').trim().replace(/\s|m$/gi, '')
+  if (!s) return null
+  const commas = (s.match(/,/g) || []).length
+  const dots = (s.match(/\./g) || []).length
+  if (commas && dots) return toNumber(s)
+  // a single separator followed by exactly three digits is a thousands one
+  // (coordinates are large numbers); several of the same kind always are
+  if (commas > 1 || (commas === 1 && /,\d{3}$/.test(s))) s = s.replace(/,/g, '')
+  else if (dots > 1 || (dots === 1 && /\.\d{3}$/.test(s) && s.indexOf('.') > 3)) s = s.replace(/\./g, '')
+  return toNumber(s)
+}
+
+// Wellhead from a pasted "WELL INFO" line such as
+// "X:: 5,826,574.00m  Y:: 2,487,407.00m" (optionally "Z: 650 m").
+// Returns { x, y, z } with nulls for what is missing.
+export function parseWellHead(text) {
+  const t = String(text ?? '')
+  const grab = (k) => {
+    const m = t.match(new RegExp(`\\b${k}\\s*:*\\s*(-?[\\d.,\\s]+?)\\s*m?(?=\\s+[A-Za-z]|\\s*$|\\s*[;|])`, 'i'))
+    return m ? parseCoordinate(m[1]) : null
+  }
+  return { x: grab('X'), y: grab('Y'), z: grab('Z') }
+}

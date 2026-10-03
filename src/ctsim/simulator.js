@@ -3,7 +3,7 @@
 // src/ctsim/calibration.js.
 import { el, fmt, clear } from '../ui/dom.js'
 import { simulateTrip, maxSetDown, buildString, tubeProps, kopLp, wellTrajectory, pointAtMd, buildContext, forcesAtDepth } from './forces.js'
-import { readSurveyFile, parseSurveyTable, splitTable, parseRunCsv, parseDepthList } from './parsers.js'
+import { readSurveyFile, parseSurveyTable, splitTable, parseRunCsv, parseDepthList, parseCoordinate, parseWellHead } from './parsers.js'
 import { STANDARD_STRING_2375, DEFAULT_BHA, STRING_PRESETS } from './defaults.js'
 import { CT_CALIBRATION, MU_LEVELS, ERT_LEVELS } from './calibration.js'
 import { CT_MANUFACTURERS, findGrade, minWall } from './grades.js'
@@ -47,7 +47,10 @@ export function mountCtSimulator(container) {
   const state = {
     survey: null,
     surveyName: '',
-    surveys: [], // [{ name, rows, plugs, plugsText }] up to MAX_SURVEYS
+    surveys: [], // [{ name, rows, plugs, plugsText, head: { x, y, z } }] up to MAX_SURVEYS
+    // wellhead coordinates: 'gk' = Gauss-Krüger (X = Norte, Y = Este), 'xe' = X = Este
+    coordConv: 'gk',
+    view3dAll: true,
     active: -1,
     pasteName: '',
     surveyText: '',
@@ -119,6 +122,9 @@ export function mountCtSimulator(container) {
 
   // "Survey_Final_Pozo_BdC-1034h.xlsx" → "BdC-1034h"
   function wellNameFromFile(fname) {
+    // a well code such as "BdC-1028h" or "LCav-123(h)" wins over the rest
+    const code = fname.match(/(?<![A-Za-z0-9])([A-Za-z]{1,6}[.\s-]?\d{2,5}(?:\([a-z]\)|[a-z])?)(?=[^A-Za-z0-9]|$)/)
+    if (code && /[-.\s]/.test(code[1])) return code[1]
     return (
       fname
         .replace(/\.(xlsx|csv|txt)$/i, '')
@@ -134,7 +140,7 @@ export function mountCtSimulator(container) {
     let n = name
     let k = 2
     while (state.surveys.some((x) => x.name === n)) n = `${name} (${k++})`
-    state.surveys.push({ name: n, rows, plugs: [], plugsText: '' })
+    state.surveys.push({ name: n, rows, plugs: [], plugsText: '', head: { x: null, y: null, z: null } })
     setActive(state.surveys.length - 1)
   }
 
@@ -238,6 +244,7 @@ export function mountCtSimulator(container) {
       list,
       state.surveys.length > 1 ? el('p', { class: 'note' }, 'El pozo marcado es el que se usa en Pesos, Límites triaxiales y 3D. En Sensibilidad podés comparar todos.') : null,
       preview,
+      state.surveys.length ? headCoords() : null,
       full ? el('p', { class: 'note' }, `Máximo ${MAX_SURVEYS} surveys: quitá alguno para agregar otro.`) : el('span', { class: 'field-label' }, 'Agregar desde archivo'),
       full ? null : fileInput,
       full ? null : el('span', { class: 'field-label' }, 'O pegando las columnas'),
@@ -250,6 +257,81 @@ export function mountCtSimulator(container) {
             el('button', { class: 'btn-secondary', type: 'button', onClick: () => ((state.surveyText = ''), renderForm()) }, 'Limpiar'),
           ]),
     ])
+  }
+
+  // ---- wellhead coordinates ---------------------------------------------------
+  function headCoords() {
+    const hasAny = state.surveys.some((w) => w.head && (w.head.x !== null || w.head.y !== null))
+    const shown = (v) => (v === null || v === undefined ? '' : fmt(v, v % 1 ? 2 : 0))
+    const cell = (w, k, ph) =>
+      el('td', {}, [
+        el('input', {
+          type: 'text',
+          inputmode: 'decimal',
+          placeholder: ph,
+          value: shown(w.head?.[k]),
+          'aria-label': `${ph} de ${w.name}`,
+          onChange: (e) => {
+            w.head ||= { x: null, y: null, z: null }
+            const t = e.target.value
+            // a pasted "X:: 5,826,574.00m  Y:: 2,487,407.00m" line fills X and Y
+            if (/[xy]\s*:/i.test(t)) {
+              const h = parseWellHead(t)
+              if (h.x !== null) w.head.x = h.x
+              if (h.y !== null) w.head.y = h.y
+              if (h.z !== null) w.head.z = h.z
+            } else w.head[k] = parseCoordinate(t)
+            renderForm()
+            renderResults()
+          },
+        }),
+      ])
+    const [lx, ly] = state.coordConv === 'gk' ? ['X (Norte)', 'Y (Este)'] : ['X (Este)', 'Y (Norte)']
+    return el('details', { class: 'ctsim-preview-det', open: hasAny }, [
+      el('summary', {}, 'Coordenadas de boca de pozo'),
+      selectField(
+        'Sistema',
+        [
+          { value: 'gk', label: 'Gauss-Krüger / POSGAR (X = Norte, Y = Este)' },
+          { value: 'xe', label: 'X = Este, Y = Norte (UTM / local)' },
+        ],
+        state.coordConv,
+        (v) => ((state.coordConv = v), renderForm(), renderResults())
+      ),
+      el('div', { class: 'ctsim-table-wrap ctsim-head-table' }, [
+        el('table', { class: 'ctsim-table' }, [
+          el('thead', {}, el('tr', {}, ['Pozo', `${lx} (m)`, `${ly} (m)`, 'Cota (m)'].map((h) => el('th', {}, h)))),
+          el(
+            'tbody',
+            {},
+            state.surveys.map((w, i) =>
+              el('tr', {}, [
+                el('td', {}, [el('span', { class: `ctsim-swatch ctsim-${WELL_CLS[i % WELL_CLS.length]}-bg` }), w.name]),
+                cell(w, 'x', 'X'),
+                cell(w, 'y', 'Y'),
+                cell(w, 'z', 'opcional'),
+              ])
+            )
+          ),
+        ]),
+      ]),
+      el('p', { class: 'note' }, 'Pegá la línea del WELL INFO (p. ej. "X:: 5,826,574.00m  Y:: 2,487,407.00m") en la columna X y se completan las dos. La cota (boca de pozo o mesa rotaria, la misma referencia de TVD en todos) es opcional: si falta, las bocas se dibujan a la misma altura. Se supone que el azimut de los surveys está referido al mismo norte que las coordenadas.'),
+    ])
+  }
+
+  // Offsets (m) of each wellhead from the first one with coordinates:
+  // { n, e, z, known } per survey index.
+  function headOffsets() {
+    const ne = (h) => (state.coordConv === 'gk' ? { n: h.x, e: h.y } : { n: h.y, e: h.x })
+    const ok = (w) => w.head && Number.isFinite(w.head.x) && Number.isFinite(w.head.y)
+    const ref = state.surveys.find(ok)
+    const r = ref ? ne(ref.head) : null
+    const zRef = state.surveys.find((w) => w.head && Number.isFinite(w.head.z))?.head.z
+    return state.surveys.map((w) => {
+      if (!ok(w) || !r) return { n: 0, e: 0, z: 0, known: false }
+      const p = ne(w.head)
+      return { n: p.n - r.n, e: p.e - r.e, z: Number.isFinite(w.head.z) && Number.isFinite(zRef) ? w.head.z - zRef : 0, known: true }
+    })
   }
 
   // ---- plugs ---------------------------------------------------------------
@@ -1166,30 +1248,111 @@ export function mountCtSimulator(container) {
     ])
   }
 
+  const WELL_VARS = ['--ctsim-rih', '--ctsim-pooh', '--ctsim-s3', '--ctsim-s4', '--ctsim-s5', '--ctsim-s6']
+
   function survey3dPanel() {
+    const multi = state.surveys.length > 1
+    const all = multi && state.view3dAll
     const holder = el('div', { class: 'ctsim-3d' })
     const btns = el('div', { class: 'ctsim-3d-btns' }, [
-      ['iso', 'Perspectiva'],
-      ['plan', 'Planta'],
-      ['section', 'Corte'],
-    ].map(([k, lab]) => el('button', { class: 'btn-secondary', type: 'button', onClick: () => view3d?.setView(k) }, lab)))
-    const traj = wellTrajectory(state.survey, 10)
-    const { kop, lp } = kopLp(state.survey)
-    const last = traj[traj.length - 1]
-    const info = el('p', { class: 'note ctsim-pad' }, `TVD ${fmt(last.tvd, 1)} m · desplazamiento ${fmt(Math.hypot(last.n, last.e), 0)} m · DLS máx. ${fmt(Math.max(...traj.map((t) => t.dls)), 1)}°/30 m. Arrastrá para rotar, rueda o pellizco para zoom.`)
-    const wrap = el('div', { class: 'ctsim-card' }, [el('div', { class: 'ctsim-card-body ctsim-pad-top' }, [btns, holder, info])])
+      ...(multi
+        ? [
+            el('button', { class: `btn-secondary${all ? ' active' : ''}`, type: 'button', onClick: () => ((state.view3dAll = true), renderResults()) }, 'Todos los pozos'),
+            el('button', { class: `btn-secondary${all ? '' : ' active'}`, type: 'button', onClick: () => ((state.view3dAll = false), renderResults()) }, `Solo ${state.surveyName}`),
+          ]
+        : []),
+      ...[
+        ['iso', 'Perspectiva'],
+        ['plan', 'Planta'],
+        ['section', 'Corte'],
+      ].map(([k, lab]) => el('button', { class: 'btn-secondary', type: 'button', onClick: () => view3d?.setView(k) }, lab)),
+    ])
+    const offs = headOffsets()
+    const wells = state.surveys
+      .map((w, i) => ({ w, i }))
+      .filter(({ i }) => all || i === state.active)
+      .map(({ w, i }) => {
+        const traj = wellTrajectory(w.rows, 10)
+        const { kop, lp } = kopLp(w.rows)
+        const last = traj[traj.length - 1]
+        const plugList = (i === state.active ? state.plugs : w.plugs || []).filter((d) => d <= last.md)
+        return {
+          idx: i,
+          name: w.name,
+          traj,
+          offset: all ? offs[i] : { n: 0, e: 0, z: 0 },
+          colorVar: all ? WELL_VARS[i % WELL_VARS.length] : '--ctsim-rih',
+          active: i === state.active,
+          marks: { kop: kop != null ? pointAtMd(traj, kop) : null, lp: lp != null ? pointAtMd(traj, lp) : null },
+          plugs: plugList.map((d, k) => ({ ...pointAtMd(traj, d), idx: k + 1 })),
+        }
+      })
+    const act = wells.find((w) => w.active) || wells[0]
+    const last = act.traj[act.traj.length - 1]
+    const missing = all ? state.surveys.filter((w, i) => !offs[i].known).map((w) => w.name) : []
+    const notes = [
+      el('p', { class: 'note ctsim-pad' }, `${act.name}: TVD ${fmt(last.tvd, 1)} m · desplazamiento ${fmt(Math.hypot(last.n, last.e), 0)} m · DLS máx. ${fmt(Math.max(...act.traj.map((t) => t.dls)), 1)}°/30 m. Arrastrá para rotar, rueda o pellizco para zoom.`),
+      missing.length
+        ? el('p', { class: 'note ctsim-pad' }, `⚠ Sin coordenadas de boca de pozo: ${missing.join(', ')}. ${missing.length === state.surveys.length ? 'Todos se dibujan' : 'Se dibuja'} desde el mismo punto; cargalas en "1 · Surveys → Coordenadas de boca de pozo".`)
+        : null,
+    ]
+    const wrap = el('div', { class: 'ctsim-card' }, [el('div', { class: 'ctsim-card-body ctsim-pad-top' }, [btns, holder, ...notes])])
+    const out = el('div', {}, [wrap, all && wells.length > 1 ? separationTable(wells) : null])
     holder.textContent = 'Cargando visor 3D…'
     requestAnimationFrame(async () => {
       try {
         const { mountSurvey3D } = await import('./view3d.js')
         if (state.tab !== '3d' || !holder.isConnected) return
-        const plugs = state.plugs.filter((d) => d <= last.md).map((d, i) => ({ ...pointAtMd(traj, d), idx: i + 1 }))
-        view3d = mountSurvey3D(holder, { traj, marks: { kop: kop != null ? pointAtMd(traj, kop) : null, lp: lp != null ? pointAtMd(traj, lp) : null }, plugs })
+        view3d = mountSurvey3D(holder, { wells })
       } catch (err) {
         holder.textContent = `No se pudo abrir el visor 3D: ${err.message}`
       }
     })
-    return wrap
+    return out
+  }
+
+  // Wellhead spacing and minimum 3-D separation between every pair of wells.
+  function separationTable(wells) {
+    const pts = wells.map((w) => w.traj.map((p) => ({ md: p.md, x: p.e + w.offset.e, y: p.n + w.offset.n, z: p.tvd - w.offset.z })))
+    const rows = []
+    for (let a = 0; a < wells.length; a++)
+      for (let b = a + 1; b < wells.length; b++) {
+        let best = { d: Infinity }
+        for (const p of pts[a])
+          for (const q of pts[b]) {
+            const d = Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z)
+            if (d < best.d) best = { d, mdA: p.md, mdB: q.md }
+          }
+        const h = Math.hypot(pts[a][0].x - pts[b][0].x, pts[a][0].y - pts[b][0].y)
+        // lateral spacing: for each point of A's lateral (inc > 80°), the
+        // closest point of B's trajectory; median over the lateral
+        const lat = pts[a].filter((p, k) => wells[a].traj[k].inc > 80)
+        const dl = lat.map((p) => Math.min(...pts[b].map((q) => Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z)))).sort((x, y) => x - y)
+        rows.push([wells[a], wells[b], h, best, dl.length ? dl[Math.floor(dl.length / 2)] : null])
+      }
+    const sw = (w) => el('span', { class: `ctsim-swatch ctsim-${WELL_CLS[w.idx % WELL_CLS.length]}-bg` })
+    return el('details', { class: 'ctsim-card ctsim-head-table', open: true }, [
+      el('summary', {}, 'Separación entre pozos'),
+      el('div', { class: 'ctsim-table-wrap' }, [
+        el('table', { class: 'ctsim-table' }, [
+          el('thead', {}, el('tr', {}, ['Pozos', 'Entre bocas (m)', 'Entre laterales (m)', 'Separación mínima (m)', 'MD donde ocurre (m)'].map((h) => el('th', {}, h)))),
+          el(
+            'tbody',
+            {},
+            rows.map(([A, B, h, m, lat]) =>
+              el('tr', {}, [
+                el('td', {}, [sw(A), A.name, ' – ', sw(B), B.name]),
+                el('td', {}, fmt(h, 1)),
+                el('td', {}, lat === null ? '—' : fmt(lat, 0)),
+                el('td', {}, fmt(m.d, 1)),
+                el('td', {}, `${fmt(m.mdA, 0)} / ${fmt(m.mdB, 0)}`),
+              ])
+            )
+          ),
+        ]),
+      ]),
+      el('p', { class: 'note' }, 'Distancia centro a centro entre las trayectorias (cada 10 m de MD), sin elipses de incertidumbre. "Entre laterales" es la mediana, a lo largo del lateral del primer pozo (inclinación > 80°), de la distancia al otro pozo.'),
+    ])
   }
 
   function speedTable() {

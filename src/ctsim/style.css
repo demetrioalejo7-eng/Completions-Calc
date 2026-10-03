@@ -693,3 +693,63 @@ input.ctsim-text {
   --ctsim-s4: #c98500;
   --ctsim-s5: #d55181;
 }
+
+/* well colours also in the 3D viewer and the wellhead table */
+.ctsim-3d,
+.ctsim-head-table {
+  --ctsim-rih: #2a78d6;
+  --ctsim-pooh: #eb6834;
+  --ctsim-s3: #1baf7a;
+  --ctsim-s4: #eda100;
+  --ctsim-s5: #e87ba4;
+  --ctsim-s6: #008300;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .ctsim-3d,
+  :root:not([data-theme='light']) .ctsim-head-table {
+    --ctsim-rih: #3987e5;
+    --ctsim-pooh: #d95926;
+    --ctsim-s3: #199e70;
+    --ctsim-s4: #c98500;
+    --ctsim-s5: #d55181;
+  }
+}
+
+:root[data-theme='dark'] .ctsim-3d,
+:root[data-theme='dark'] .ctsim-head-table {
+  --ctsim-rih: #3987e5;
+  --ctsim-pooh: #d95926;
+  --ctsim-s3: #199e70;
+  --ctsim-s4: #c98500;
+  --ctsim-s5: #d55181;
+}
+
+/* wellhead coordinates */
+.ctsim-head-table input {
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+.ctsim-head-table td:first-child {
+  white-space: nowrap;
+  font-weight: 600;
+}
+.ctsim-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.ctsim-3d-label.well {
+  font-weight: 700;
+}
+
+.ctsim-3d-btns .btn-secondary.active {
+  border-color: var(--accent, var(--ctsim-rih));
+  color: var(--accent, var(--ctsim-rih));
+  font-weight: 600;
+}
