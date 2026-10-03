@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite'
+import pkg from './package.json' with { type: 'json' }
 import { VitePWA } from 'vite-plugin-pwa'
 import { resolve } from 'node:path'
 
@@ -16,6 +17,8 @@ export default defineConfig({
   },
   define: {
     __ENABLE_PWA__: true,
+    __APP_VERSION__: JSON.stringify(pkg.version),
+    __BUILD_DATE__: JSON.stringify(new Date().toISOString().slice(0, 10)),
   },
   plugins: [
     VitePWA({

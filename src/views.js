@@ -21,17 +21,11 @@ const APP_MARK = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fi
 
 export function renderHome(root) {
   clear(root)
-  const calcCount = SECTIONS.reduce((n, s) => n + s.calculators.length, 0)
   root.appendChild(
     el('header', { class: 'hero' }, [
       el('div', { class: 'hero-mark', html: APP_MARK }),
       el('h1', { class: 'hero-title' }, 'Completions Calc'),
       el('p', { class: 'hero-sub' }, 'Calculadora de ingeniería de completions y workover'),
-      el('div', { class: 'hero-chips' }, [
-        el('span', { class: 'hero-chip' }, `${SECTIONS.length} secciones`),
-        el('span', { class: 'hero-chip' }, `${calcCount} calculadoras`),
-        el('span', { class: 'hero-chip' }, 'Funciona sin conexión'),
-      ]),
     ])
   )
   const grid = el(
@@ -46,6 +40,13 @@ export function renderHome(root) {
     )
   )
   root.appendChild(grid)
+  const [y, m, d] = __BUILD_DATE__.split('-')
+  root.appendChild(
+    el('footer', { class: 'app-footer' }, [
+      el('span', { class: 'app-version' }, `Versión ${__APP_VERSION__} · ${d}/${m}/${y}`),
+      el('span', { class: 'app-signature' }, 'ATD'),
+    ])
+  )
 }
 
 export function renderSection(root, sectionId) {
