@@ -22,8 +22,12 @@ function label(text, cls = '', color) {
 // wells: [{ name, traj: [{md,n,e,tvd}], offset: { n, e, z }, colorVar,
 //           marks: { kop, lp }, plugs: [{ md, n, e, tvd, idx }], active }]
 // (single-well callers may pass { traj, marks, plugs } instead)
-// measures: [{ kind: 'curve' | 'lateral', a, b: {n,e,tvd} (offsets applied),
-//              text }] → dimension lines between wells
+// measures: [{ id, kind: 'curve' | 'lateral' | 'min', a, b: {n,e,tvd}
+//              (offsets applied), text, shown }] → dimension lines between
+//              wells; `shown` ones follow their label toggle, the rest only
+//              appear when highlighted (highlight(id))
+// points: [{ id, p: {n,e,tvd} (offsets applied), text }] → key points, shown
+//         only when highlighted
 // labels: { names, heads, marks, tvd, plugs, north, curve, lateral } → initial
 //         visibility of each label group (setLabels() changes it later)
 export const LABEL_GROUPS = ['names', 'heads', 'marks', 'tvd', 'plugs', 'north', 'curve', 'lateral']
@@ -74,13 +78,16 @@ export function mountSurvey3D(container, opts) {
   grid.position.set(center.x, 0, center.z)
   scene.add(grid)
 
+  const tubes = [] // well meshes, for picking the rotation centre
   for (const w of wells) {
     const o = w.offset || { n: 0, e: 0, z: 0 }
     const color = cssVar(container, w.colorVar || '--ctsim-rih', '#2a78d6')
     const pts = w.traj.map((p) => P(p, o))
     const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal')
     const r = span * (multi && !w.active ? 0.003 : 0.004)
-    scene.add(new THREE.Mesh(new THREE.TubeGeometry(curve, Math.min(2000, pts.length * 2), r, 8, false), new THREE.MeshLambertMaterial({ color })))
+    const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, Math.min(2000, pts.length * 2), r, 8, false), new THREE.MeshLambertMaterial({ color }))
+    scene.add(tube)
+    tubes.push(tube)
     // plan projection (shadow of the well at the reference elevation)
     const shadow = new THREE.BufferGeometry().setFromPoints(w.traj.map((p) => new THREE.Vector3(p.e + o.e, 0, -(p.n + o.n))))
     const shadowLine = new THREE.Line(shadow, new THREE.LineDashedMaterial({ color: multi ? color : colText, dashSize: span * 0.01, gapSize: span * 0.01, transparent: true, opacity: multi ? 0.5 : 1 }))
@@ -97,10 +104,10 @@ export function mountSurvey3D(container, opts) {
       add(P(head, o), 'Boca de pozo', '', null, 'heads')
       add(P(td, o), `TD ${Math.round(td.md)} m`, '', null, 'names')
     }
-    if (w.active || !multi) {
-      if (w.marks?.kop) add(P(w.marks.kop, o), `KOP ${Math.round(w.marks.kop.md)} m`, '', null, 'marks')
-      if (w.marks?.lp) add(P(w.marks.lp, o), `LP ${Math.round(w.marks.lp.md)} m`, '', null, 'marks')
-    }
+    // KOP / LP of every well (in its colour when there are several)
+    const mc = multi ? color : null
+    if (w.marks?.kop) add(P(w.marks.kop, o), `KOP ${Math.round(w.marks.kop.md)} m`, '', mc, 'marks')
+    if (w.marks?.lp) add(P(w.marks.lp, o), `LP ${Math.round(w.marks.lp.md)} m`, '', mc, 'marks')
     const plugs = w.plugs || []
     for (const pl of plugs) {
       sphere(P(pl, o), multi ? color : colPlug, span * (multi ? 0.006 : 0.009))
@@ -133,24 +140,64 @@ export function mountSurvey3D(container, opts) {
 
   // dimension lines between wells (closest points in the curve / laterals)
   const Z = { n: 0, e: 0, z: 0 }
-  const colMeasure = { curve: cssVar(container, '--text', '#222222'), lateral: cssVar(container, '--text', '#222222') }
+  const colMeasure = cssVar(container, '--text', '#222222')
+  const colHl = cssVar(container, '--ctsim-hl', '#d6336c')
+  const items = {} // id → { group, kind, shown, mats, labelEl }
   for (const m of opts.measures || []) {
     const a = P(m.a, Z)
     const b = P(m.b, Z)
-    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), new THREE.LineDashedMaterial({ color: colMeasure[m.kind], dashSize: span * 0.006, gapSize: span * 0.004 }))
+    const g = new THREE.Group()
+    const lineMat = new THREE.LineDashedMaterial({ color: colMeasure, dashSize: span * 0.006, gapSize: span * 0.004 })
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), lineMat)
     line.computeLineDistances()
-    groups[m.kind].add(line)
+    g.add(line)
+    const mats = [lineMat]
     for (const q of [a, b]) {
-      const dot = new THREE.Mesh(new THREE.SphereGeometry(span * 0.004, 12, 8), new THREE.MeshBasicMaterial({ color: colMeasure[m.kind] }))
+      const mat = new THREE.MeshBasicMaterial({ color: colMeasure })
+      const dot = new THREE.Mesh(new THREE.SphereGeometry(span * 0.004, 12, 8), mat)
       dot.position.copy(q)
-      groups[m.kind].add(dot)
+      g.add(dot)
+      mats.push(mat)
     }
-    add(a.clone().add(b).multiplyScalar(0.5), m.text, `measure ${m.kind}`, null, m.kind)
+    const l = label(m.text, `measure ${m.kind}`)
+    l.position.copy(a.clone().add(b).multiplyScalar(0.5))
+    g.add(l)
+    scene.add(g)
+    items[m.id] = { group: g, kind: m.kind, shown: !!m.shown, mats, labelEl: l.element }
   }
-  function setLabels(vis) {
-    for (const k of LABEL_GROUPS) groups[k].visible = vis?.[k] !== false
+  for (const pt of opts.points || []) {
+    const pos = P(pt.p, Z)
+    const g = new THREE.Group()
+    const mat = new THREE.MeshBasicMaterial({ color: colHl })
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(span * 0.008, 16, 12), mat)
+    dot.position.copy(pos)
+    g.add(dot)
+    const l = label(pt.text, 'measure point')
+    l.position.copy(pos)
+    g.add(l)
+    scene.add(g)
+    items[pt.id] = { group: g, kind: 'point', shown: false, mats: [mat], labelEl: l.element }
   }
-  setLabels(opts.labels)
+  let vis = { ...(opts.labels || {}) }
+  let hl = null
+  function refresh() {
+    for (const k of LABEL_GROUPS) groups[k].visible = vis[k] === true
+    for (const [id, it] of Object.entries(items)) {
+      const on = id === hl
+      it.group.visible = on || (it.shown && vis[it.kind] === true)
+      for (const m of it.mats) m.color.set(on ? colHl : it.kind === 'point' ? colHl : colMeasure)
+      it.labelEl.classList.toggle('hl', on)
+    }
+  }
+  function setLabels(v) {
+    vis = { ...v }
+    refresh()
+  }
+  function highlight(id) {
+    hl = id && items[id] ? id : null
+    refresh()
+  }
+  refresh()
 
   scene.add(new THREE.AmbientLight(0xffffff, 1.4))
   const dir = new THREE.DirectionalLight(0xffffff, 1.6)
@@ -161,8 +208,31 @@ export function mountSurvey3D(container, opts) {
   camera.position.set(center.x + span * 1.45, center.y + span * 0.7, center.z + span * 1.45)
   const controls = new OrbitControls(camera, labels.domElement)
   controls.target.copy(center)
+  // left drag = rotate, right drag (or Shift + drag) = pan, wheel = zoom
+  // towards the cursor; little inertia so the view stops where you leave it
   controls.enableDamping = true
+  controls.dampingFactor = 0.3
+  controls.rotateSpeed = 0.8
+  controls.zoomToCursor = true
+  controls.screenSpacePanning = true
   controls.update()
+
+  // double click on a well: rotate around that point from now on
+  const raycaster = new THREE.Raycaster()
+  const pivot = new THREE.Mesh(new THREE.SphereGeometry(span * 0.005, 12, 8), new THREE.MeshBasicMaterial({ color: cssVar(container, '--ctsim-hl', '#d6336c') }))
+  pivot.visible = false
+  scene.add(pivot)
+  labels.domElement.addEventListener('dblclick', (e) => {
+    const r = labels.domElement.getBoundingClientRect()
+    const ndc = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1)
+    raycaster.setFromCamera(ndc, camera)
+    const hit = raycaster.intersectObjects(tubes, false)[0]
+    if (!hit) return
+    controls.target.copy(hit.point)
+    pivot.position.copy(hit.point)
+    pivot.visible = true
+    controls.update()
+  })
 
   let raf = 0
   const loop = () => {
@@ -192,6 +262,7 @@ export function mountSurvey3D(container, opts) {
   function setView(name) {
     views[name]()
     controls.target.copy(center)
+    pivot.visible = false
     controls.update()
   }
 
@@ -209,6 +280,7 @@ export function mountSurvey3D(container, opts) {
   return {
     setView,
     setLabels,
+    highlight,
     dispose() {
       cancelAnimationFrame(raf)
       window.removeEventListener('resize', onResize)
