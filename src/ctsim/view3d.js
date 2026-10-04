@@ -275,16 +275,28 @@ export function mountSurvey3D(container, opts) {
     controls.update()
   }
 
+  // the box always takes exactly the drawing's height (no dead band below)
+  container.style.minHeight = '0'
+  container.style.height = `${height}px`
+  let lastW = width
+  let lastH = height
   const onResize = () => {
     const w = container.clientWidth
     if (!w) return
     const h = heightFor(w)
+    if (w === lastW && h === lastH) return
+    lastW = w
+    lastH = h
+    container.style.height = `${h}px`
     renderer.setSize(w, h)
     labels.setSize(w, h)
     camera.aspect = w / h
     camera.updateProjectionMatrix()
   }
   window.addEventListener('resize', onResize)
+  // width changes that are not window resizes (scrollbar, side panels)
+  const resizeObs = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => onResize()) : null
+  resizeObs?.observe(container)
 
   return {
     setView,
@@ -293,6 +305,7 @@ export function mountSurvey3D(container, opts) {
     dispose() {
       cancelAnimationFrame(raf)
       window.removeEventListener('resize', onResize)
+      resizeObs?.disconnect()
       controls.dispose()
       renderer.dispose()
       scene.traverse((o) => {

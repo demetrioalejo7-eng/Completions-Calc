@@ -1408,7 +1408,8 @@ export function mountCtSimulator(container) {
         // pinned: the view takes a share of the visible height (of the charts
         // column on wide screens, of the window on phones) so the tables fit
         const frac = { s: 0.3, m: 0.42, l: 0.58 }[state.size3d] * (wide ? 1 : 0.85)
-        const visibleH = () => (wide ? resultsEl.clientHeight || window.innerHeight : window.innerHeight)
+        // window height, not the charts column (that one grows with the tables)
+        const visibleH = () => window.innerHeight
         view3d = mountSurvey3D(holder, { wells, measures, points, labels: state.labels3d, maxHeight: state.pin3d ? () => visibleH() * frac : null })
       } catch (err) {
         holder.textContent = `No se pudo abrir el visor 3D: ${err.message}`
