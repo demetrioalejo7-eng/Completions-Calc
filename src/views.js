@@ -2,6 +2,7 @@ import { el, clear } from './ui/dom.js'
 import { renderCalculatorForm } from './ui/form.js'
 import { SECTIONS, findSection, findCalculator, findGroup, findCalculatorGroupId } from './calculators/index.js'
 import { sectionIconMarkup } from './ui/icons.js'
+import { atdLogoSvg } from './ui/logo.js'
 
 function header({ title, backHref, subtitle, icon }) {
   return el('header', { class: 'app-header' }, [
@@ -16,14 +17,11 @@ function header({ title, backHref, subtitle, icon }) {
   ])
 }
 
-// Derrick over a wellhead — the app mark shown in the home hero.
-const APP_MARK = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5 6.5 20M12 2.5 17.5 20"/><path d="M8.6 13.2h6.8M9.8 8.6h4.4M7.6 16.8h8.8"/><path d="M4 20.5h16"/><path d="M12 2.5v2"/></svg>`
-
 export function renderHome(root) {
   clear(root)
   root.appendChild(
     el('header', { class: 'hero' }, [
-      el('div', { class: 'hero-mark', html: APP_MARK }),
+      el('div', { class: 'hero-mark', html: atdLogoSvg({ animated: !window.matchMedia('(prefers-reduced-motion: reduce)').matches }) }),
       el('h1', { class: 'hero-title' }, 'Completions Calc'),
       el('p', { class: 'hero-sub' }, 'Calculadora de ingeniería de completions y workover'),
     ])

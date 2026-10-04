@@ -171,9 +171,9 @@ a {
 }
 
 .hero-mark {
-  width: 54px;
-  height: 54px;
-  border-radius: 16px;
+  width: 84px;
+  height: 84px;
+  border-radius: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -196,8 +196,10 @@ a {
 }
 
 .hero-mark svg {
-  width: 30px;
-  height: 30px;
+  width: 68px;
+  height: 68px;
+  position: relative;
+  z-index: 1;
 }
 
 .hero-title {
