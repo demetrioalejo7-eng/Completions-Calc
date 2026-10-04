@@ -868,3 +868,31 @@ input.ctsim-text {
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* 3D view pinned above the tables */
+.ctsim-3d-pinned {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  box-shadow: 0 6px 14px -10px rgb(0 0 0 / 0.35);
+}
+.ctsim-3d-pinned .ctsim-card-body {
+  gap: 6px;
+}
+.ctsim-3d-opts > summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-dim);
+  padding: 2px 0;
+}
+.ctsim-3d-opts .ctsim-3d-toggles {
+  margin-top: 4px;
+}
+@media (max-width: 999px) {
+  .ctsim-3d-btns {
+    flex-wrap: wrap;
+  }
+  .ctsim-3d-btns .btn-secondary {
+    flex: 1 1 28%;
+  }
+}

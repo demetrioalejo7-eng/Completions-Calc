@@ -53,6 +53,8 @@ export function mountCtSimulator(container) {
     // wells drawn in the 3D view (indices; null = all) and label groups shown
     // (none by default: they appear when ticked)
     wells3d: null,
+    // 3D view pinned at the top while the tables scroll underneath
+    pin3d: true,
     labels3d: { names: false, heads: false, marks: false, tvd: false, plugs: false, north: false, curve: false, lateral: false },
     active: -1,
     pasteName: '',
@@ -1278,7 +1280,15 @@ export function mountCtSimulator(container) {
         ['plan', 'Planta'],
         ['section', 'Corte'],
         ['iso', 'Centrar'],
-      ].map(([k, lab]) => el('button', { class: 'btn-secondary', type: 'button', onClick: () => view3d?.setView(k) }, lab))
+      ]
+        .map(([k, lab]) => el('button', { class: 'btn-secondary', type: 'button', onClick: () => view3d?.setView(k) }, lab))
+        .concat(
+          el(
+            'button',
+            { class: `btn-secondary${state.pin3d ? ' active' : ''}`, type: 'button', title: 'Fijar el gráfico arriba para ver las tablas al mismo tiempo', onClick: () => ((state.pin3d = !state.pin3d), renderResults()) },
+            state.pin3d ? '📌 Fijo' : '📌 Fijar'
+          )
+        )
     )
     const wellPick = multi
       ? el('div', { class: 'ctsim-chk-row ctsim-3d-toggles' }, [
@@ -1368,15 +1378,23 @@ export function mountCtSimulator(container) {
         ])
       ),
     ])
-    const wrap = el('div', { class: 'ctsim-card' }, [el('div', { class: 'ctsim-card-body ctsim-pad-top' }, [wellPick, btns, toggles, holder, ...notes])])
+    // pinned: buttons + view stay on top (sticky) and the well / label
+    // options fold into a compact panel so the tables have room below
+    const wide = window.matchMedia('(min-width: 1000px)').matches
+    const opts3d = state.pin3d
+      ? el('details', { class: 'ctsim-3d-opts', open: state.opts3dOpen ?? wide, onToggle: (e) => (state.opts3dOpen = e.target.open) }, [el('summary', {}, multi ? 'Pozos y etiquetas' : 'Etiquetas'), wellPick, toggles])
+      : el('div', {}, [wellPick, toggles])
+    const wrap = el('div', { class: `ctsim-card${state.pin3d ? ' ctsim-3d-pinned' : ''}` }, [el('div', { class: 'ctsim-card-body ctsim-pad-top' }, [btns, opts3d, holder])])
+    const tip = el('div', { class: 'ctsim-pad' }, notes)
     const hover = hoverLinker()
-    const out = el('div', {}, [wrap, keyPointsTable(keyPts, hover), pairs.length ? separationTable(pairs, hover) : null])
+    const out = el('div', {}, [wrap, tip, keyPointsTable(keyPts, hover), pairs.length ? separationTable(pairs, hover) : null])
     holder.textContent = 'Cargando visor 3D…'
     requestAnimationFrame(async () => {
       try {
         const { mountSurvey3D } = await import('./view3d.js')
         if (state.tab !== '3d' || !holder.isConnected) return
-        view3d = mountSurvey3D(holder, { wells, measures, points, labels: state.labels3d })
+        // pinned: the view takes ~45 % of the screen height
+        view3d = mountSurvey3D(holder, { wells, measures, points, labels: state.labels3d, maxHeight: state.pin3d ? () => window.innerHeight * (wide ? 0.45 : 0.36) : null })
       } catch (err) {
         holder.textContent = `No se pudo abrir el visor 3D: ${err.message}`
       }

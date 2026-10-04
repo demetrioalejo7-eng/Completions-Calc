@@ -38,7 +38,10 @@ export function mountSurvey3D(container, opts) {
   const multi = wells.length > 1
   container.innerHTML = ''
   const width = container.clientWidth || 600
-  const height = Math.max(320, Math.min(560, Math.round(width * 0.75)))
+  // opts.maxHeight(): optional cap (px), e.g. when the view is pinned above
+  // the tables
+  const heightFor = (w) => Math.max(220, Math.min(560, Math.round(w * 0.75), opts.maxHeight ? Math.round(opts.maxHeight()) : Infinity))
+  const height = heightFor(width)
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
   renderer.setSize(width, height)
@@ -205,7 +208,7 @@ export function mountSurvey3D(container, opts) {
   scene.add(dir)
 
   const camera = new THREE.PerspectiveCamera(40, width / height, span * 0.001, span * 20)
-  camera.position.set(center.x + span * 1.45, center.y + span * 0.7, center.z + span * 1.45)
+  camera.position.set(center.x + span * 1.15, center.y + span * 0.55, center.z + span * 1.15)
   const controls = new OrbitControls(camera, labels.domElement)
   controls.target.copy(center)
   // left drag = rotate, right drag (or Shift + drag) = pan, wheel = zoom
@@ -244,7 +247,7 @@ export function mountSurvey3D(container, opts) {
   loop()
 
   const views = {
-    iso: () => camera.position.set(center.x + span * 1.45, center.y + span * 0.7, center.z + span * 1.45),
+    iso: () => camera.position.set(center.x + span * 1.15, center.y + span * 0.55, center.z + span * 1.15),
     plan: () => camera.position.set(center.x, span * 2.2, center.z + 0.001),
     section: () => {
       // look perpendicular to the average azimuth of the laterals
@@ -269,7 +272,7 @@ export function mountSurvey3D(container, opts) {
   const onResize = () => {
     const w = container.clientWidth
     if (!w) return
-    const h = Math.max(320, Math.min(560, Math.round(w * 0.75)))
+    const h = heightFor(w)
     renderer.setSize(w, h)
     labels.setSize(w, h)
     camera.aspect = w / h
