@@ -16,3 +16,12 @@ app.appendChild(
 const body = el('div', { class: 'ctsim-app-body' })
 app.appendChild(body)
 mountCtSimulator(body)
+
+// Keep the installed (offline) copy up to date: the service worker also
+// serves this page, so register it here too; with autoUpdate the page
+// reloads itself once a new version takes over.
+if (__ENABLE_PWA__ && 'serviceWorker' in navigator) {
+  import('virtual:pwa-register')
+    .then(({ registerSW }) => registerSW({ immediate: true }))
+    .catch(() => {})
+}

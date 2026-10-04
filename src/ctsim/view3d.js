@@ -53,7 +53,7 @@ export function mountSurvey3D(container, opts) {
 
   const scene = new THREE.Scene()
   const colPlug = cssVar(container, '--ctsim-pooh', '#eb6834')
-  const colGrid = cssVar(container, '--border', '#333333')
+  const colGrid = cssVar(container, '--ctsim-3d-grid', '#3a4556')
   const colText = cssVar(container, '--text-dim', '#9a9a9a')
 
   const P = (p, o) => new THREE.Vector3(p.e + o.e, -(p.tvd - o.z) * vScale, -(p.n + o.n))
@@ -79,21 +79,27 @@ export function mountSurvey3D(container, opts) {
   // surface grid at the reference elevation
   const grid = new THREE.GridHelper(span * 1.2, 12, colGrid, colGrid)
   grid.position.set(center.x, 0, center.z)
+  grid.material.transparent = true
+  grid.material.opacity = 0.55
   scene.add(grid)
 
   const tubes = [] // well meshes, for picking the rotation centre
   for (const w of wells) {
     const o = w.offset || { n: 0, e: 0, z: 0 }
-    const color = cssVar(container, w.colorVar || '--ctsim-rih', '#2a78d6')
+    const color = cssVar(container, w.colorVar || '--ctsim-w1', '#4dabf7')
     const pts = w.traj.map((p) => P(p, o))
     const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal')
-    const r = span * (multi && !w.active ? 0.003 : 0.004)
-    const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, Math.min(2000, pts.length * 2), r, 8, false), new THREE.MeshLambertMaterial({ color }))
+    const r = span * (multi && !w.active ? 0.0055 : 0.0065)
+    // bright, slightly self-lit colour so the wells stand out on the background
+    const tube = new THREE.Mesh(
+      new THREE.TubeGeometry(curve, Math.min(2000, pts.length * 2), r, 10, false),
+      new THREE.MeshLambertMaterial({ color, emissive: new THREE.Color(color).multiplyScalar(0.45) })
+    )
     scene.add(tube)
     tubes.push(tube)
     // plan projection (shadow of the well at the reference elevation)
     const shadow = new THREE.BufferGeometry().setFromPoints(w.traj.map((p) => new THREE.Vector3(p.e + o.e, 0, -(p.n + o.n))))
-    const shadowLine = new THREE.Line(shadow, new THREE.LineDashedMaterial({ color: multi ? color : colText, dashSize: span * 0.01, gapSize: span * 0.01, transparent: true, opacity: multi ? 0.5 : 1 }))
+    const shadowLine = new THREE.Line(shadow, new THREE.LineDashedMaterial({ color: multi ? color : colText, dashSize: span * 0.01, gapSize: span * 0.01, transparent: true, opacity: 0.7 }))
     shadowLine.computeLineDistances()
     scene.add(shadowLine)
     const head = w.traj[0]
