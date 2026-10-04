@@ -384,7 +384,7 @@ body.ctsim-app #app {
 }
 
 .ctsim-app-body {
-  padding: 4px 16px 24px;
+  padding: 4px 16px 72px;
 }
 
 .ctsim-layout {
@@ -405,11 +405,60 @@ body.ctsim-app #app {
     align-items: start;
   }
 
+  /* each column scrolls on its own: data on the left, charts on the right */
+  .ctsim-form,
+  .ctsim-results {
+    position: sticky;
+    top: 8px;
+    max-height: calc(100vh - 16px);
+    max-height: calc(100dvh - 16px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    padding-right: 4px;
+  }
+
   .ctsim-results {
     margin-top: 0;
-    position: sticky;
-    top: 12px;
   }
+
+}
+
+/* phone / narrow: fixed bar to jump between data and charts */
+.ctsim-jump {
+  position: fixed;
+  left: 50%;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.18);
+}
+
+.ctsim-jump button {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.ctsim-jump button.active {
+  background: var(--text);
+  color: var(--bg-card);
+}
+
+.ctsim-app-body {
+  scroll-padding-top: 8px;
 }
 
 /* result tabs */
@@ -728,7 +777,7 @@ input.ctsim-text {
 /* wellhead coordinates */
 .ctsim-head-table input {
   width: 100%;
-  min-width: 0;
+  min-width: 8.5em;
   padding: 6px 8px;
   font-size: 13px;
 }
@@ -752,4 +801,27 @@ input.ctsim-text {
   border-color: var(--accent, var(--ctsim-rih));
   color: var(--accent, var(--ctsim-rih));
   font-weight: 600;
+}
+
+.ctsim-3d-label.measure {
+  font-weight: 600;
+  background: color-mix(in srgb, var(--bg-card) 90%, transparent);
+  border-style: dashed;
+  transform: translate(-50%, -120%);
+}
+.ctsim-3d-toggles {
+  margin-top: 8px;
+}
+
+@media (min-width: 1000px) {
+  .ctsim-jump {
+    display: none;
+  }
+  .ctsim-app-body {
+    padding-bottom: 24px;
+  }
+}
+
+.ctsim-head-table td:last-child input {
+  min-width: 5.5em;
 }

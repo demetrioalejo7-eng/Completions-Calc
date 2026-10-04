@@ -51,6 +51,8 @@ export function mountCtSimulator(container) {
     // wellhead coordinates: 'gk' = Gauss-Krüger (X = Norte, Y = Este), 'xe' = X = Este
     coordConv: 'gk',
     view3dAll: true,
+    // label groups shown in the 3D view
+    labels3d: { names: true, heads: true, marks: true, tvd: true, plugs: true, north: true, curve: true, lateral: true },
     active: -1,
     pasteName: '',
     surveyText: '',
@@ -93,6 +95,19 @@ export function mountCtSimulator(container) {
   const formEl = el('div', { class: 'calc-form ctsim-form' })
   const resultsEl = el('div', { class: 'calc-results ctsim-results' })
   container.appendChild(el('div', { class: 'ctsim-layout' }, [formEl, resultsEl]))
+  // narrow screens: a floating "Datos / Gráficos" switch (wide screens scroll
+  // each column on its own and hide it)
+  const jumpBtn = (label, target) => el('button', { type: 'button', onClick: () => target.scrollIntoView({ behavior: 'smooth', block: 'start' }) }, label)
+  const jumpData = jumpBtn('Datos', formEl)
+  const jumpCharts = jumpBtn('Gráficos', resultsEl)
+  container.appendChild(el('nav', { class: 'ctsim-jump', 'aria-label': 'Ir a' }, [jumpData, jumpCharts]))
+  const markJump = () => {
+    const charts = resultsEl.getBoundingClientRect().top < window.innerHeight * 0.5
+    jumpCharts.classList.toggle('active', charts)
+    jumpData.classList.toggle('active', !charts)
+  }
+  window.addEventListener('scroll', markJump, { passive: true })
+  requestAnimationFrame(markJump)
   let view3d = null
 
   let timer = null
@@ -1296,14 +1311,43 @@ export function mountCtSimulator(container) {
         ? el('p', { class: 'note ctsim-pad' }, `⚠ Sin coordenadas de boca de pozo: ${missing.join(', ')}. ${missing.length === state.surveys.length ? 'Todos se dibujan' : 'Se dibuja'} desde el mismo punto; cargalas en "1 · Surveys → Coordenadas de boca de pozo".`)
         : null,
     ]
-    const wrap = el('div', { class: 'ctsim-card' }, [el('div', { class: 'ctsim-card-body ctsim-pad-top' }, [btns, holder, ...notes])])
-    const out = el('div', {}, [wrap, all && wells.length > 1 ? separationTable(wells) : null])
+    const pairs = all && wells.length > 1 ? wellPairs(wells) : []
+    const measures = []
+    for (const pr of pairs.filter((x) => x.adjacent)) {
+      if (pr.curve) measures.push({ kind: 'curve', a: pr.curve.a, b: pr.curve.b, text: `Curva ${pr.A.name}–${pr.B.name}: ${fmt(pr.curve.d, 0)} m` })
+      if (pr.lat) measures.push({ kind: 'lateral', a: pr.lat.a, b: pr.lat.b, text: `${pr.A.name}–${pr.B.name}: ${fmt(pr.lat.d, 0)} m en planta (ΔX ${fmt(pr.lat.dx, 0)} · ΔY ${fmt(pr.lat.dy, 0)} · ΔTVD ${fmt(pr.lat.dz, 0)})` })
+    }
+    const LBL = [
+      ['names', multi && all ? 'Nombres de pozo' : 'TD'],
+      ['heads', 'Bocas de pozo'],
+      ['marks', 'KOP / LP'],
+      ['tvd', 'Profundidad TVD'],
+      ['plugs', 'Tapones'],
+      ['north', 'Norte'],
+      ...(measures.length
+        ? [
+            ['curve', 'Distancia en la curva'],
+            ['lateral', 'Distancia entre laterales'],
+          ]
+        : []),
+    ]
+    const toggles = el('div', { class: 'ctsim-chk-row ctsim-3d-toggles' }, [
+      el('span', { class: 'field-label' }, 'Etiquetas'),
+      ...LBL.map(([k, lab]) =>
+        el('label', { class: 'ctsim-chk' }, [
+          el('input', { type: 'checkbox', checked: state.labels3d[k] !== false, onChange: (e) => ((state.labels3d[k] = e.target.checked), view3d?.setLabels(state.labels3d)) }),
+          lab,
+        ])
+      ),
+    ])
+    const wrap = el('div', { class: 'ctsim-card' }, [el('div', { class: 'ctsim-card-body ctsim-pad-top' }, [btns, toggles, holder, ...notes])])
+    const out = el('div', {}, [wrap, pairs.length ? separationTable(pairs) : null])
     holder.textContent = 'Cargando visor 3D…'
     requestAnimationFrame(async () => {
       try {
         const { mountSurvey3D } = await import('./view3d.js')
         if (state.tab !== '3d' || !holder.isConnected) return
-        view3d = mountSurvey3D(holder, { wells })
+        view3d = mountSurvey3D(holder, { wells, measures, labels: state.labels3d })
       } catch (err) {
         holder.textContent = `No se pudo abrir el visor 3D: ${err.message}`
       }
@@ -1311,47 +1355,109 @@ export function mountCtSimulator(container) {
     return out
   }
 
-  // Wellhead spacing and minimum 3-D separation between every pair of wells.
-  function separationTable(wells) {
-    const pts = wells.map((w) => w.traj.map((p) => ({ md: p.md, x: p.e + w.offset.e, y: p.n + w.offset.n, z: p.tvd - w.offset.z })))
-    const rows = []
-    for (let a = 0; a < wells.length; a++)
-      for (let b = a + 1; b < wells.length; b++) {
-        let best = { d: Infinity }
-        for (const p of pts[a])
-          for (const q of pts[b]) {
-            const d = Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z)
-            if (d < best.d) best = { d, mdA: p.md, mdB: q.md }
-          }
-        const h = Math.hypot(pts[a][0].x - pts[b][0].x, pts[a][0].y - pts[b][0].y)
-        // lateral spacing: for each point of A's lateral (inc > 80°), the
-        // closest point of B's trajectory; median over the lateral
-        const lat = pts[a].filter((p, k) => wells[a].traj[k].inc > 80)
-        const dl = lat.map((p) => Math.min(...pts[b].map((q) => Math.hypot(p.x - q.x, p.y - q.y, p.z - q.z)))).sort((x, y) => x - y)
-        rows.push([wells[a], wells[b], h, best, dl.length ? dl[Math.floor(dl.length / 2)] : null])
+  // Distances between every pair of wells (points with wellhead offsets):
+  //  curve: closest points of the two curves (KOP–LP of each), 3-D
+  //  lat:   closest points of the two laterals (inc > 80°) in plan, with
+  //         ΔX / ΔY in the coordinate convention and ΔTVD
+  //  latMed: median over A's lateral of the 3-D distance to B
+  //  min:   closest points of the whole trajectories, 3-D
+  // `adjacent` marks neighbouring laterals (ordered across the mean lateral
+  // azimuth), the pairs drawn in the 3D view.
+  function wellPairs(wells) {
+    const abs = wells.map((w) => {
+      const o = w.offset
+      const { kop, lp } = kopLp(state.surveys[w.idx].rows)
+      const pts = w.traj.map((p) => ({ md: p.md, inc: p.inc, n: p.n + o.n, e: p.e + o.e, tvd: p.tvd - o.z }))
+      return { pts, curve: kop != null && lp != null ? pts.filter((p) => p.md >= kop && p.md <= lp) : [], lat: pts.filter((p) => p.inc > 80) }
+    })
+    const d3 = (p, q) => Math.hypot(p.n - q.n, p.e - q.e, p.tvd - q.tvd)
+    const closest = (P, Q, dist) => {
+      let best = null
+      for (const p of P)
+        for (const q of Q) {
+          const d = dist(p, q)
+          if (!best || d < best.d) best = { d, a: p, b: q }
+        }
+      return best
+    }
+    // order the wells across the mean lateral direction
+    let sn = 0
+    let se = 0
+    for (const w of abs) if (w.lat.length) (sn += w.lat[w.lat.length - 1].n - w.lat[0].n), (se += w.lat[w.lat.length - 1].e - w.lat[0].e)
+    const az = Math.atan2(se, sn)
+    const across = abs.map((w, k) => {
+      const m = w.lat.length ? w.lat[Math.floor(w.lat.length / 2)] : w.pts[w.pts.length - 1]
+      return { k, s: m.e * Math.cos(az) - m.n * Math.sin(az) }
+    })
+    across.sort((x, y) => x.s - y.s)
+    const adj = new Set(across.slice(1).map((x, i) => [across[i].k, x.k].sort().join('-')))
+    const gk = state.coordConv === 'gk'
+    const out = []
+    for (let i = 0; i < wells.length; i++)
+      for (let j = i + 1; j < wells.length; j++) {
+        const A = abs[i]
+        const B = abs[j]
+        const curve = A.curve.length && B.curve.length ? closest(A.curve, B.curve, d3) : null
+        let lat = A.lat.length && B.lat.length ? closest(A.lat, B.lat, (p, q) => Math.hypot(p.n - q.n, p.e - q.e)) : null
+        if (lat) {
+          const dN = Math.abs(lat.a.n - lat.b.n)
+          const dE = Math.abs(lat.a.e - lat.b.e)
+          lat = { ...lat, dx: gk ? dN : dE, dy: gk ? dE : dN, dz: Math.abs(lat.a.tvd - lat.b.tvd) }
+        }
+        const dl = A.lat.map((p) => Math.min(...B.pts.map((q) => d3(p, q)))).sort((x, y) => x - y)
+        out.push({
+          A: wells[i],
+          B: wells[j],
+          heads: Math.hypot(A.pts[0].n - B.pts[0].n, A.pts[0].e - B.pts[0].e),
+          curve,
+          lat,
+          latMed: dl.length ? dl[Math.floor(dl.length / 2)] : null,
+          min: closest(A.pts, B.pts, d3),
+          adjacent: wells.length === 2 || adj.has([i, j].sort().join('-')),
+        })
       }
+    return out
+  }
+
+  function separationTable(pairs) {
     const sw = (w) => el('span', { class: `ctsim-swatch ctsim-${WELL_CLS[w.idx % WELL_CLS.length]}-bg` })
+    const [lx, ly] = state.coordConv === 'gk' ? ['ΔX (N)', 'ΔY (E)'] : ['ΔX (E)', 'ΔY (N)']
+    const f0 = (v) => (v === null || v === undefined ? '—' : fmt(v, 0))
     return el('details', { class: 'ctsim-card ctsim-head-table', open: true }, [
       el('summary', {}, 'Separación entre pozos'),
       el('div', { class: 'ctsim-table-wrap' }, [
         el('table', { class: 'ctsim-table' }, [
-          el('thead', {}, el('tr', {}, ['Pozos', 'Entre bocas (m)', 'Entre laterales (m)', 'Separación mínima (m)', 'MD donde ocurre (m)'].map((h) => el('th', {}, h)))),
+          el('thead', {}, [
+            el('tr', {}, [
+              el('th', { rowspan: 2 }, 'Pozos'),
+              el('th', { rowspan: 2 }, 'Bocas (m)'),
+              el('th', { rowspan: 2 }, 'Curva mín. (m)'),
+              el('th', { colspan: 4 }, 'Laterales: menor distancia en planta (m)'),
+              el('th', { rowspan: 2 }, 'Laterales mediana (m)'),
+              el('th', { rowspan: 2 }, 'Mín. 3D (m) @ MD'),
+            ]),
+            el('tr', {}, ['Dist.', lx, ly, 'ΔTVD'].map((h) => el('th', {}, h))),
+          ]),
           el(
             'tbody',
             {},
-            rows.map(([A, B, h, m, lat]) =>
+            pairs.map((r) =>
               el('tr', {}, [
-                el('td', {}, [sw(A), A.name, ' – ', sw(B), B.name]),
-                el('td', {}, fmt(h, 1)),
-                el('td', {}, lat === null ? '—' : fmt(lat, 0)),
-                el('td', {}, fmt(m.d, 1)),
-                el('td', {}, `${fmt(m.mdA, 0)} / ${fmt(m.mdB, 0)}`),
+                el('td', {}, [sw(r.A), r.A.name, ' – ', sw(r.B), r.B.name, r.adjacent && pairs.length > 1 ? ' ·' : '']),
+                el('td', {}, fmt(r.heads, 1)),
+                el('td', {}, r.curve ? `${f0(r.curve.d)} @ ${f0(r.curve.a.md)}/${f0(r.curve.b.md)}` : '—'),
+                el('td', {}, r.lat ? f0(r.lat.d) : '—'),
+                el('td', {}, r.lat ? f0(r.lat.dx) : '—'),
+                el('td', {}, r.lat ? f0(r.lat.dy) : '—'),
+                el('td', {}, r.lat ? f0(r.lat.dz) : '—'),
+                el('td', {}, f0(r.latMed)),
+                el('td', {}, `${fmt(r.min.d, 1)} @ ${f0(r.min.a.md)}/${f0(r.min.b.md)}`),
               ])
             )
           ),
         ]),
       ]),
-      el('p', { class: 'note' }, 'Distancia centro a centro entre las trayectorias (cada 10 m de MD), sin elipses de incertidumbre. "Entre laterales" es la mediana, a lo largo del lateral del primer pozo (inclinación > 80°), de la distancia al otro pozo.'),
+      el('p', { class: 'note' }, `Distancias centro a centro entre trayectorias (cada 10 m de MD), sin elipses de incertidumbre. Curva: puntos más cercanos entre los tramos KOP–LP (3D). Laterales (inclinación > 80°): menor distancia en planta, con sus componentes ΔX / ΔY ${state.coordConv === 'gk' ? '(X = Norte, Y = Este)' : '(X = Este, Y = Norte)'} y la diferencia de TVD en esos puntos; mediana: distancia típica a lo largo del lateral del primer pozo. "@" indica la MD de cada pozo.${pairs.length > 2 ? ' En el 3D se acotan los pozos vecinos (marcados con ·).' : ''}`),
     ])
   }
 

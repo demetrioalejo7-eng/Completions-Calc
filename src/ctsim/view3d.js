@@ -22,6 +22,12 @@ function label(text, cls = '', color) {
 // wells: [{ name, traj: [{md,n,e,tvd}], offset: { n, e, z }, colorVar,
 //           marks: { kop, lp }, plugs: [{ md, n, e, tvd, idx }], active }]
 // (single-well callers may pass { traj, marks, plugs } instead)
+// measures: [{ kind: 'curve' | 'lateral', a, b: {n,e,tvd} (offsets applied),
+//              text }] → dimension lines between wells
+// labels: { names, heads, marks, tvd, plugs, north, curve, lateral } → initial
+//         visibility of each label group (setLabels() changes it later)
+export const LABEL_GROUPS = ['names', 'heads', 'marks', 'tvd', 'plugs', 'north', 'curve', 'lateral']
+
 export function mountSurvey3D(container, opts) {
   const vScale = opts.vScale || 1
   const wells = opts.wells || [{ name: '', traj: opts.traj, marks: opts.marks || {}, plugs: opts.plugs || [], offset: { n: 0, e: 0, z: 0 }, active: true }]
@@ -55,10 +61,12 @@ export function mountSurvey3D(container, opts) {
     m.position.copy(pos)
     scene.add(m)
   }
-  const add = (pos, text, cls, color) => {
+  const groups = Object.fromEntries(LABEL_GROUPS.map((k) => [k, new THREE.Group()]))
+  for (const g of Object.values(groups)) scene.add(g)
+  const add = (pos, text, cls, color, cat) => {
     const l = label(text, cls, color)
     l.position.copy(pos)
-    scene.add(l)
+    groups[cat].add(l)
   }
 
   // surface grid at the reference elevation
@@ -84,21 +92,21 @@ export function mountSurvey3D(container, opts) {
     if (multi) {
       // wellheads of a pad are a few metres apart: one shared label (below),
       // each well is named at its TD
-      add(P(td, o), w.name, 'well', color)
+      add(P(td, o), w.name, 'well', color, 'names')
     } else {
-      add(P(head, o), 'Boca de pozo')
-      add(P(td, o), `TD ${Math.round(td.md)} m`)
+      add(P(head, o), 'Boca de pozo', '', null, 'heads')
+      add(P(td, o), `TD ${Math.round(td.md)} m`, '', null, 'names')
     }
     if (w.active || !multi) {
-      if (w.marks?.kop) add(P(w.marks.kop, o), `KOP ${Math.round(w.marks.kop.md)} m`)
-      if (w.marks?.lp) add(P(w.marks.lp, o), `LP ${Math.round(w.marks.lp.md)} m`)
+      if (w.marks?.kop) add(P(w.marks.kop, o), `KOP ${Math.round(w.marks.kop.md)} m`, '', null, 'marks')
+      if (w.marks?.lp) add(P(w.marks.lp, o), `LP ${Math.round(w.marks.lp.md)} m`, '', null, 'marks')
     }
     const plugs = w.plugs || []
     for (const pl of plugs) {
       sphere(P(pl, o), multi ? color : colPlug, span * (multi ? 0.006 : 0.009))
       if (!multi || w.active) {
         const every = plugs.length <= 12 ? 1 : width < 600 ? 10 : plugs.length <= 25 ? 1 : 5
-        if (pl.idx === 1 || pl.idx % every === 0) add(P(pl, o), `T${pl.idx}`, 'plug')
+        if (pl.idx === 1 || pl.idx % every === 0) add(P(pl, o), `T${pl.idx}`, 'plug', null, 'plugs')
       }
     }
   }
@@ -110,7 +118,7 @@ export function mountSurvey3D(container, opts) {
     for (const h of heads) {
       if (done.some((d) => d.distanceTo(h) < span * 0.03)) continue
       done.push(h)
-      add(h, 'Bocas de pozo')
+      add(h, 'Bocas de pozo', '', null, 'heads')
     }
   }
 
@@ -120,14 +128,29 @@ export function mountSurvey3D(container, opts) {
   const tdTvd = Math.max(...wells.map((w) => w.traj[w.traj.length - 1].tvd - (w.offset?.z || 0) + ro.z))
   const ref = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(ro.e, ro.z * vScale, -ro.n), new THREE.Vector3(ro.e, -(tdTvd - ro.z) * vScale, -ro.n)])
   scene.add(new THREE.Line(ref, new THREE.LineBasicMaterial({ color: colGrid })))
-  for (let d = 1000; d < tdTvd; d += 1000) {
-    const l = label(`${d} m TVD`, 'dim')
-    l.position.set(ro.e, -(d - ro.z) * vScale, -ro.n)
-    scene.add(l)
+  for (let d = 1000; d < tdTvd; d += 1000) add(new THREE.Vector3(ro.e, -(d - ro.z) * vScale, -ro.n), `${d} m TVD`, 'dim', null, 'tvd')
+  add(new THREE.Vector3(center.x, 0, center.z - span * 0.65), 'N', 'north', null, 'north')
+
+  // dimension lines between wells (closest points in the curve / laterals)
+  const Z = { n: 0, e: 0, z: 0 }
+  const colMeasure = { curve: cssVar(container, '--text', '#222222'), lateral: cssVar(container, '--text', '#222222') }
+  for (const m of opts.measures || []) {
+    const a = P(m.a, Z)
+    const b = P(m.b, Z)
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), new THREE.LineDashedMaterial({ color: colMeasure[m.kind], dashSize: span * 0.006, gapSize: span * 0.004 }))
+    line.computeLineDistances()
+    groups[m.kind].add(line)
+    for (const q of [a, b]) {
+      const dot = new THREE.Mesh(new THREE.SphereGeometry(span * 0.004, 12, 8), new THREE.MeshBasicMaterial({ color: colMeasure[m.kind] }))
+      dot.position.copy(q)
+      groups[m.kind].add(dot)
+    }
+    add(a.clone().add(b).multiplyScalar(0.5), m.text, `measure ${m.kind}`, null, m.kind)
   }
-  const nLabel = label('N', 'north')
-  nLabel.position.set(center.x, 0, center.z - span * 0.65)
-  scene.add(nLabel)
+  function setLabels(vis) {
+    for (const k of LABEL_GROUPS) groups[k].visible = vis?.[k] !== false
+  }
+  setLabels(opts.labels)
 
   scene.add(new THREE.AmbientLight(0xffffff, 1.4))
   const dir = new THREE.DirectionalLight(0xffffff, 1.6)
@@ -185,6 +208,7 @@ export function mountSurvey3D(container, opts) {
 
   return {
     setView,
+    setLabels,
     dispose() {
       cancelAnimationFrame(raf)
       window.removeEventListener('resize', onResize)
