@@ -55,6 +55,7 @@ export function mountCtSimulator(container) {
     wells3d: null,
     // 3D view pinned at the top while the tables scroll underneath
     pin3d: true,
+    size3d: 'm', // pinned view height: s / m / l
     labels3d: { names: false, heads: false, marks: false, tvd: false, plugs: false, north: false, curve: false, lateral: false },
     active: -1,
     pasteName: '',
@@ -324,7 +325,7 @@ export function mountCtSimulator(container) {
             {},
             state.surveys.map((w, i) =>
               el('tr', {}, [
-                el('td', {}, [el('span', { class: `ctsim-swatch ctsim-${WELL_CLS[i % WELL_CLS.length]}-bg` }), w.name]),
+                el('td', {}, [el('span', { class: `ctsim-swatch ctsim-w${(i % 6) + 1}-bg` }), w.name]),
                 cell(w, 'x', 'X'),
                 cell(w, 'y', 'Y'),
                 cell(w, 'z', 'opcional'),
@@ -982,7 +983,7 @@ export function mountCtSimulator(container) {
             {},
             r.wells.map((w, k) =>
               el('tr', {}, [
-                el('td', {}, [el('i', { class: `ctsim-key ctsim-${WELL_CLS[k % WELL_CLS.length]}-bg` }), w.name]),
+                el('td', {}, [el('i', { class: `ctsim-key ctsim-w${(k % 6) + 1}-bg` }), w.name]),
                 el('td', {}, fmt(w.td, 0)),
                 ...erts.map((e) => sensCell(w.grid.find((g) => g.mu === mu && g.ert === e), r.required)),
               ])
@@ -1266,7 +1267,7 @@ export function mountCtSimulator(container) {
     ])
   }
 
-  const WELL_VARS = ['--ctsim-rih', '--ctsim-pooh', '--ctsim-s3', '--ctsim-s4', '--ctsim-s5', '--ctsim-s6']
+  const WELL_VARS = ['--ctsim-w1', '--ctsim-w2', '--ctsim-w3', '--ctsim-w4', '--ctsim-w5', '--ctsim-w6']
 
   function survey3dPanel() {
     const multi = state.surveys.length > 1
@@ -1287,7 +1288,18 @@ export function mountCtSimulator(container) {
             'button',
             { class: `btn-secondary${state.pin3d ? ' active' : ''}`, type: 'button', title: 'Fijar el gráfico arriba para ver las tablas al mismo tiempo', onClick: () => ((state.pin3d = !state.pin3d), renderResults()) },
             state.pin3d ? '📌 Fijo' : '📌 Fijar'
-          )
+          ),
+          state.pin3d
+            ? el(
+                'select',
+                { class: 'ctsim-3d-size', 'aria-label': 'Alto del gráfico', title: 'Alto del gráfico fijo', onChange: (e) => ((state.size3d = e.target.value), renderResults()) },
+                [
+                  ['s', 'Alto: chico'],
+                  ['m', 'Alto: medio'],
+                  ['l', 'Alto: grande'],
+                ].map(([v, lab]) => el('option', { value: v, selected: state.size3d === v }, lab))
+              )
+            : null
         )
     )
     const wellPick = multi
@@ -1306,7 +1318,7 @@ export function mountCtSimulator(container) {
                   renderResults()
                 },
               }),
-              el('span', { class: `ctsim-swatch ctsim-${WELL_CLS[i % WELL_CLS.length]}-bg` }),
+              el('span', { class: `ctsim-swatch ctsim-w${(i % 6) + 1}-bg` }),
               w.name,
             ])
           ),
@@ -1331,7 +1343,7 @@ export function mountCtSimulator(container) {
         kopMd: kop,
         lpMd: lp,
         offset: offs[i],
-        colorVar: multi ? WELL_VARS[i % WELL_VARS.length] : '--ctsim-rih',
+        colorVar: WELL_VARS[i % WELL_VARS.length],
         active: i === state.active || sel.length === 1,
         marks: { kop: kop != null ? pointAtMd(traj, kop) : null, lp: lp != null ? pointAtMd(traj, lp) : null },
         plugs: plugList.map((d, k) => ({ ...pointAtMd(traj, d), idx: k + 1 })),
@@ -1382,7 +1394,7 @@ export function mountCtSimulator(container) {
     // options fold into a compact panel so the tables have room below
     const wide = window.matchMedia('(min-width: 1000px)').matches
     const opts3d = state.pin3d
-      ? el('details', { class: 'ctsim-3d-opts', open: state.opts3dOpen ?? wide, onToggle: (e) => (state.opts3dOpen = e.target.open) }, [el('summary', {}, multi ? 'Pozos y etiquetas' : 'Etiquetas'), wellPick, toggles])
+      ? el('details', { class: 'ctsim-3d-opts', open: state.opts3dOpen ?? false, onToggle: (e) => (state.opts3dOpen = e.target.open) }, [el('summary', {}, multi ? 'Pozos y etiquetas' : 'Etiquetas'), wellPick, toggles])
       : el('div', {}, [wellPick, toggles])
     const wrap = el('div', { class: `ctsim-card${state.pin3d ? ' ctsim-3d-pinned' : ''}` }, [el('div', { class: 'ctsim-card-body ctsim-pad-top' }, [btns, opts3d, holder])])
     const tip = el('div', { class: 'ctsim-pad' }, notes)
@@ -1393,8 +1405,11 @@ export function mountCtSimulator(container) {
       try {
         const { mountSurvey3D } = await import('./view3d.js')
         if (state.tab !== '3d' || !holder.isConnected) return
-        // pinned: the view takes ~45 % of the screen height
-        view3d = mountSurvey3D(holder, { wells, measures, points, labels: state.labels3d, maxHeight: state.pin3d ? () => window.innerHeight * (wide ? 0.45 : 0.36) : null })
+        // pinned: the view takes a share of the visible height (of the charts
+        // column on wide screens, of the window on phones) so the tables fit
+        const frac = { s: 0.3, m: 0.42, l: 0.58 }[state.size3d] * (wide ? 1 : 0.85)
+        const visibleH = () => (wide ? resultsEl.clientHeight || window.innerHeight : window.innerHeight)
+        view3d = mountSurvey3D(holder, { wells, measures, points, labels: state.labels3d, maxHeight: state.pin3d ? () => visibleH() * frac : null })
       } catch (err) {
         holder.textContent = `No se pudo abrir el visor 3D: ${err.message}`
       }
@@ -1443,7 +1458,7 @@ export function mountCtSimulator(container) {
 
   function keyPointsTable(pts, hover) {
     const ne = (h) => (state.coordConv === 'gk' ? { n: h.x, e: h.y } : { n: h.y, e: h.x })
-    const sw = (w) => el('span', { class: `ctsim-swatch ctsim-${WELL_CLS[w.idx % WELL_CLS.length]}-bg` })
+    const sw = (w) => el('span', { class: `ctsim-swatch ctsim-w${(w.idx % 6) + 1}-bg` })
     const gk = state.coordConv === 'gk'
     const anyAbs = pts.some((k) => Number.isFinite(state.surveys[k.well.idx].head?.x))
     const xy = (k) => {
@@ -1553,7 +1568,7 @@ export function mountCtSimulator(container) {
   }
 
   function separationTable(pairs, hover) {
-    const sw = (w) => el('span', { class: `ctsim-swatch ctsim-${WELL_CLS[w.idx % WELL_CLS.length]}-bg` })
+    const sw = (w) => el('span', { class: `ctsim-swatch ctsim-w${(w.idx % 6) + 1}-bg` })
     const [lx, ly] = state.coordConv === 'gk' ? ['ΔX (N)', 'ΔY (E)'] : ['ΔX (E)', 'ΔY (N)']
     const f0 = (v) => (v === null || v === undefined ? '—' : fmt(v, 0))
     return el('details', { class: 'ctsim-card ctsim-head-table ctsim-hover-table' }, [

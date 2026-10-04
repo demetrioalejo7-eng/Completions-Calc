@@ -896,3 +896,53 @@ input.ctsim-text {
     flex: 1 1 28%;
   }
 }
+
+/* 3D survey: own background and high-contrast well colours (also used by the
+   swatches of the well lists so both match) */
+:root {
+  --ctsim-3d-bg: #f4f6f9;
+  --ctsim-3d-grid: #c3cad5;
+  --ctsim-w1: #1971c2;
+  --ctsim-w2: #e8590c;
+  --ctsim-w3: #2f9e44;
+  --ctsim-w4: #9c36b5;
+  --ctsim-w5: #c2255c;
+  --ctsim-w6: #0c8599;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --ctsim-3d-bg: #070b14;
+    --ctsim-3d-grid: #2b3647;
+    --ctsim-w1: #4dabf7;
+    --ctsim-w2: #ff8c42;
+    --ctsim-w3: #3ddc84;
+    --ctsim-w4: #ffd43b;
+    --ctsim-w5: #ff6b9a;
+    --ctsim-w6: #b197fc;
+  }
+}
+:root[data-theme='dark'] {
+  --ctsim-3d-bg: #070b14;
+  --ctsim-3d-grid: #2b3647;
+  --ctsim-w1: #4dabf7;
+  --ctsim-w2: #ff8c42;
+  --ctsim-w3: #3ddc84;
+  --ctsim-w4: #ffd43b;
+  --ctsim-w5: #ff6b9a;
+  --ctsim-w6: #b197fc;
+}
+.ctsim-3d {
+  background: var(--ctsim-3d-bg);
+}
+.ctsim-w1-bg { background: var(--ctsim-w1); }
+.ctsim-w2-bg { background: var(--ctsim-w2); }
+.ctsim-w3-bg { background: var(--ctsim-w3); }
+.ctsim-w4-bg { background: var(--ctsim-w4); }
+.ctsim-w5-bg { background: var(--ctsim-w5); }
+.ctsim-w6-bg { background: var(--ctsim-w6); }
+.ctsim-3d-size {
+  width: auto;
+  padding: 6px 8px;
+  font-size: 13px;
+  border-radius: 8px;
+}
