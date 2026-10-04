@@ -50,9 +50,10 @@ export function mountCtSimulator(container) {
     surveys: [], // [{ name, rows, plugs, plugsText, head: { x, y, z } }] up to MAX_SURVEYS
     // wellhead coordinates: 'gk' = Gauss-Krüger (X = Norte, Y = Este), 'xe' = X = Este
     coordConv: 'gk',
-    view3dAll: true,
-    // label groups shown in the 3D view
-    labels3d: { names: true, heads: true, marks: true, tvd: true, plugs: true, north: true, curve: true, lateral: true },
+    // wells drawn in the 3D view (indices; null = all) and label groups shown
+    // (none by default: they appear when ticked)
+    wells3d: null,
+    labels3d: { names: false, heads: false, marks: false, tvd: false, plugs: false, north: false, curve: false, lateral: false },
     active: -1,
     pasteName: '',
     surveyText: '',
@@ -1267,64 +1268,91 @@ export function mountCtSimulator(container) {
 
   function survey3dPanel() {
     const multi = state.surveys.length > 1
-    const all = multi && state.view3dAll
+    const sel = (state.wells3d || state.surveys.map((w, i) => i)).filter((i) => i < state.surveys.length)
     const holder = el('div', { class: 'ctsim-3d' })
-    const btns = el('div', { class: 'ctsim-3d-btns' }, [
-      ...(multi
-        ? [
-            el('button', { class: `btn-secondary${all ? ' active' : ''}`, type: 'button', onClick: () => ((state.view3dAll = true), renderResults()) }, 'Todos los pozos'),
-            el('button', { class: `btn-secondary${all ? '' : ' active'}`, type: 'button', onClick: () => ((state.view3dAll = false), renderResults()) }, `Solo ${state.surveyName}`),
-          ]
-        : []),
-      ...[
+    const btns = el(
+      'div',
+      { class: 'ctsim-3d-btns' },
+      [
         ['iso', 'Perspectiva'],
         ['plan', 'Planta'],
         ['section', 'Corte'],
-      ].map(([k, lab]) => el('button', { class: 'btn-secondary', type: 'button', onClick: () => view3d?.setView(k) }, lab)),
-    ])
+        ['iso', 'Centrar'],
+      ].map(([k, lab]) => el('button', { class: 'btn-secondary', type: 'button', onClick: () => view3d?.setView(k) }, lab))
+    )
+    const wellPick = multi
+      ? el('div', { class: 'ctsim-chk-row ctsim-3d-toggles' }, [
+          el('span', { class: 'field-label' }, 'Pozos'),
+          ...state.surveys.map((w, i) =>
+            el('label', { class: 'ctsim-chk' }, [
+              el('input', {
+                type: 'checkbox',
+                checked: sel.includes(i),
+                onChange: (e) => {
+                  const cur = new Set(sel)
+                  if (e.target.checked) cur.add(i)
+                  else cur.delete(i)
+                  state.wells3d = [...cur].sort((x, y) => x - y)
+                  renderResults()
+                },
+              }),
+              el('span', { class: `ctsim-swatch ctsim-${WELL_CLS[i % WELL_CLS.length]}-bg` }),
+              w.name,
+            ])
+          ),
+          el('button', { class: 'btn-link', type: 'button', onClick: () => ((state.wells3d = null), renderResults()) }, 'Todos'),
+        ])
+      : null
+    if (!sel.length) {
+      return el('div', { class: 'ctsim-card' }, [el('div', { class: 'ctsim-card-body ctsim-pad-top' }, [wellPick, el('p', { class: 'note' }, 'Elegí al menos un pozo para ver.')])])
+    }
     const offs = headOffsets()
-    const wells = state.surveys
-      .map((w, i) => ({ w, i }))
-      .filter(({ i }) => all || i === state.active)
-      .map(({ w, i }) => {
-        const traj = wellTrajectory(w.rows, 10)
-        const { kop, lp } = kopLp(w.rows)
-        const last = traj[traj.length - 1]
-        const plugList = (i === state.active ? state.plugs : w.plugs || []).filter((d) => d <= last.md)
-        return {
-          idx: i,
-          name: w.name,
-          traj,
-          offset: all ? offs[i] : { n: 0, e: 0, z: 0 },
-          colorVar: all ? WELL_VARS[i % WELL_VARS.length] : '--ctsim-rih',
-          active: i === state.active,
-          marks: { kop: kop != null ? pointAtMd(traj, kop) : null, lp: lp != null ? pointAtMd(traj, lp) : null },
-          plugs: plugList.map((d, k) => ({ ...pointAtMd(traj, d), idx: k + 1 })),
-        }
-      })
-    const act = wells.find((w) => w.active) || wells[0]
-    const last = act.traj[act.traj.length - 1]
-    const missing = all ? state.surveys.filter((w, i) => !offs[i].known).map((w) => w.name) : []
+    const several = sel.length > 1
+    const wells = sel.map((i) => {
+      const w = state.surveys[i]
+      const traj = wellTrajectory(w.rows, 10)
+      const { kop, lp } = kopLp(w.rows)
+      const last = traj[traj.length - 1]
+      const plugList = (i === state.active ? state.plugs : w.plugs || []).filter((d) => d <= last.md)
+      return {
+        idx: i,
+        name: w.name,
+        traj,
+        kopMd: kop,
+        lpMd: lp,
+        offset: offs[i],
+        colorVar: multi ? WELL_VARS[i % WELL_VARS.length] : '--ctsim-rih',
+        active: i === state.active || sel.length === 1,
+        marks: { kop: kop != null ? pointAtMd(traj, kop) : null, lp: lp != null ? pointAtMd(traj, lp) : null },
+        plugs: plugList.map((d, k) => ({ ...pointAtMd(traj, d), idx: k + 1 })),
+      }
+    })
+    const missing = several ? wells.filter((w) => !offs[w.idx].known).map((w) => w.name) : []
     const notes = [
-      el('p', { class: 'note ctsim-pad' }, `${act.name}: TVD ${fmt(last.tvd, 1)} m · desplazamiento ${fmt(Math.hypot(last.n, last.e), 0)} m · DLS máx. ${fmt(Math.max(...act.traj.map((t) => t.dls)), 1)}°/30 m. Arrastrá para rotar, rueda o pellizco para zoom.`),
+      el('p', { class: 'note ctsim-pad' }, 'Arrastrá para girar · clic derecho o Shift + arrastrar para desplazar · rueda o pellizco para zoom (hacia el cursor) · doble clic sobre un pozo para girar alrededor de ese punto · "Centrar" vuelve a la vista inicial. Pasá el cursor (o tocá) una fila o una distancia de las tablas para verla en el gráfico.'),
       missing.length
-        ? el('p', { class: 'note ctsim-pad' }, `⚠ Sin coordenadas de boca de pozo: ${missing.join(', ')}. ${missing.length === state.surveys.length ? 'Todos se dibujan' : 'Se dibuja'} desde el mismo punto; cargalas en "1 · Surveys → Coordenadas de boca de pozo".`)
+        ? el('p', { class: 'note ctsim-pad' }, `⚠ Sin coordenadas de boca de pozo: ${missing.join(', ')}. ${missing.length === wells.length ? 'Todos se dibujan' : 'Se dibuja'} desde el mismo punto; cargalas en "1 · Surveys → Coordenadas de boca de pozo".`)
         : null,
     ]
-    const pairs = all && wells.length > 1 ? wellPairs(wells) : []
+    const pairs = several ? wellPairs(wells) : []
+    const pairName = (pr) => `${pr.A.name}–${pr.B.name}`
     const measures = []
-    for (const pr of pairs.filter((x) => x.adjacent)) {
-      if (pr.curve) measures.push({ kind: 'curve', a: pr.curve.a, b: pr.curve.b, text: `Curva ${pr.A.name}–${pr.B.name}: ${fmt(pr.curve.d, 0)} m` })
-      if (pr.lat) measures.push({ kind: 'lateral', a: pr.lat.a, b: pr.lat.b, text: `${pr.A.name}–${pr.B.name}: ${fmt(pr.lat.d, 0)} m en planta (ΔX ${fmt(pr.lat.dx, 0)} · ΔY ${fmt(pr.lat.dy, 0)} · ΔTVD ${fmt(pr.lat.dz, 0)})` })
+    for (const pr of pairs) {
+      const id = `${pr.A.idx}-${pr.B.idx}`
+      if (pr.curve) measures.push({ id: `c-${id}`, kind: 'curve', shown: pr.adjacent, a: pr.curve.a, b: pr.curve.b, text: `Curva ${pairName(pr)}: ${fmt(pr.curve.d, 0)} m` })
+      if (pr.lat) measures.push({ id: `l-${id}`, kind: 'lateral', shown: pr.adjacent, a: pr.lat.a, b: pr.lat.b, text: `${pairName(pr)}: ${fmt(pr.lat.d, 0)} m en planta (ΔX ${fmt(pr.lat.dx, 0)} · ΔY ${fmt(pr.lat.dy, 0)} · ΔTVD ${fmt(pr.lat.dz, 0)})` })
+      measures.push({ id: `m-${id}`, kind: 'min', shown: false, a: pr.min.a, b: pr.min.b, text: `Mín. 3D ${pairName(pr)}: ${fmt(pr.min.d, 1)} m` })
     }
+    const keyPts = keyPoints(wells)
+    const points = keyPts.map((k) => ({ id: k.id, p: k.abs, text: `${k.well.name} ${k.label}: MD ${fmt(k.p.md, 0)} · TVD ${fmt(k.p.tvd, 0)} m` }))
     const LBL = [
-      ['names', multi && all ? 'Nombres de pozo' : 'TD'],
+      ['names', several ? 'Nombres de pozo' : 'TD'],
       ['heads', 'Bocas de pozo'],
       ['marks', 'KOP / LP'],
       ['tvd', 'Profundidad TVD'],
       ['plugs', 'Tapones'],
       ['north', 'Norte'],
-      ...(measures.length
+      ...(pairs.length
         ? [
             ['curve', 'Distancia en la curva'],
             ['lateral', 'Distancia entre laterales'],
@@ -1335,24 +1363,111 @@ export function mountCtSimulator(container) {
       el('span', { class: 'field-label' }, 'Etiquetas'),
       ...LBL.map(([k, lab]) =>
         el('label', { class: 'ctsim-chk' }, [
-          el('input', { type: 'checkbox', checked: state.labels3d[k] !== false, onChange: (e) => ((state.labels3d[k] = e.target.checked), view3d?.setLabels(state.labels3d)) }),
+          el('input', { type: 'checkbox', checked: state.labels3d[k] === true, onChange: (e) => ((state.labels3d[k] = e.target.checked), view3d?.setLabels(state.labels3d)) }),
           lab,
         ])
       ),
     ])
-    const wrap = el('div', { class: 'ctsim-card' }, [el('div', { class: 'ctsim-card-body ctsim-pad-top' }, [btns, toggles, holder, ...notes])])
-    const out = el('div', {}, [wrap, pairs.length ? separationTable(pairs) : null])
+    const wrap = el('div', { class: 'ctsim-card' }, [el('div', { class: 'ctsim-card-body ctsim-pad-top' }, [wellPick, btns, toggles, holder, ...notes])])
+    const hover = hoverLinker()
+    const out = el('div', {}, [wrap, keyPointsTable(keyPts, hover), pairs.length ? separationTable(pairs, hover) : null])
     holder.textContent = 'Cargando visor 3D…'
     requestAnimationFrame(async () => {
       try {
         const { mountSurvey3D } = await import('./view3d.js')
         if (state.tab !== '3d' || !holder.isConnected) return
-        view3d = mountSurvey3D(holder, { wells, measures, labels: state.labels3d })
+        view3d = mountSurvey3D(holder, { wells, measures, points, labels: state.labels3d })
       } catch (err) {
         holder.textContent = `No se pudo abrir el visor 3D: ${err.message}`
       }
     })
     return out
+  }
+
+  // Table cell / row ↔ 3D highlight: hover shows it, a click (or tap) pins it.
+  function hoverLinker() {
+    let pinned = null
+    const cells = []
+    const mark = () => cells.forEach((c) => c.classList.toggle('hl-on', c.dataset.hl === pinned))
+    return (node, id) => {
+      node.dataset.hl = id
+      cells.push(node)
+      node.addEventListener('mouseenter', () => view3d?.highlight(id))
+      node.addEventListener('mouseleave', () => view3d?.highlight(pinned))
+      node.addEventListener('click', () => {
+        pinned = pinned === id ? null : id
+        view3d?.highlight(pinned)
+        mark()
+      })
+      return node
+    }
+  }
+
+  // Wellhead, KOP, LP and TD of each well: MD, TVD, inclination, position.
+  function keyPoints(wells) {
+    const out = []
+    for (const w of wells) {
+      const o = w.offset
+      const last = w.traj[w.traj.length - 1]
+      const list = [
+        ['Boca de pozo', w.traj[0]],
+        ['KOP', w.kopMd != null ? pointAtMd(w.traj, w.kopMd) : null],
+        ['LP (talón)', w.lpMd != null ? pointAtMd(w.traj, w.lpMd) : null],
+        ['TD (punta)', last],
+      ]
+      for (const [lab, p] of list) {
+        if (!p) continue
+        out.push({ id: `p-${w.idx}-${lab}`, well: w, label: lab, p, abs: { n: p.n + o.n, e: p.e + o.e, tvd: p.tvd - o.z } })
+      }
+    }
+    return out
+  }
+
+  function keyPointsTable(pts, hover) {
+    const ne = (h) => (state.coordConv === 'gk' ? { n: h.x, e: h.y } : { n: h.y, e: h.x })
+    const sw = (w) => el('span', { class: `ctsim-swatch ctsim-${WELL_CLS[w.idx % WELL_CLS.length]}-bg` })
+    const gk = state.coordConv === 'gk'
+    const anyAbs = pts.some((k) => Number.isFinite(state.surveys[k.well.idx].head?.x))
+    const xy = (k) => {
+      const h = state.surveys[k.well.idx].head
+      if (h && Number.isFinite(h.x) && Number.isFinite(h.y)) {
+        const b = ne(h)
+        const N = b.n + k.p.n
+        const E = b.e + k.p.e
+        return gk ? [N, E] : [E, N]
+      }
+      return gk ? [k.p.n, k.p.e] : [k.p.e, k.p.n]
+    }
+    return el('details', { class: 'ctsim-card ctsim-head-table ctsim-hover-table' }, [
+      el('summary', {}, 'Puntos importantes por pozo'),
+      el('div', { class: 'ctsim-table-wrap' }, [
+        el('table', { class: 'ctsim-table' }, [
+          el('thead', {}, el('tr', {}, ['Pozo', 'Punto', 'MD (m)', 'TVD (m)', 'Inc (°)', 'Az (°)', `X ${gk ? '(N)' : '(E)'} (m)`, `Y ${gk ? '(E)' : '(N)'} (m)`, 'Despl. (m)'].map((h) => el('th', {}, h)))),
+          el(
+            'tbody',
+            {},
+            pts.map((k) => {
+              const [x, y] = xy(k)
+              return hover(
+                el('tr', {}, [
+                  el('td', {}, [sw(k.well), k.well.name]),
+                  el('td', {}, k.label),
+                  el('td', {}, fmt(k.p.md, 1)),
+                  el('td', {}, fmt(k.p.tvd, 1)),
+                  el('td', {}, fmt(k.p.inc, 1)),
+                  el('td', {}, fmt(k.p.azi, 1)),
+                  el('td', {}, fmt(x, 1)),
+                  el('td', {}, fmt(y, 1)),
+                  el('td', {}, fmt(Math.hypot(k.p.n, k.p.e), 0)),
+                ]),
+                k.id
+              )
+            })
+          ),
+        ]),
+      ]),
+      el('p', { class: 'note' }, `${anyAbs ? 'X / Y absolutas a partir de las coordenadas de boca de pozo' : 'Sin coordenadas de boca de pozo: X / Y son desplazamientos desde la boca'} (${gk ? 'X = Norte, Y = Este' : 'X = Este, Y = Norte'}). KOP y LP según el criterio del simulador (inicio de la construcción y llegada a ~horizontal). Despl.: desplazamiento horizontal desde la boca.`),
+    ])
   }
 
   // Distances between every pair of wells (points with wellhead offsets):
@@ -1419,12 +1534,12 @@ export function mountCtSimulator(container) {
     return out
   }
 
-  function separationTable(pairs) {
+  function separationTable(pairs, hover) {
     const sw = (w) => el('span', { class: `ctsim-swatch ctsim-${WELL_CLS[w.idx % WELL_CLS.length]}-bg` })
     const [lx, ly] = state.coordConv === 'gk' ? ['ΔX (N)', 'ΔY (E)'] : ['ΔX (E)', 'ΔY (N)']
     const f0 = (v) => (v === null || v === undefined ? '—' : fmt(v, 0))
-    return el('details', { class: 'ctsim-card ctsim-head-table', open: true }, [
-      el('summary', {}, 'Separación entre pozos'),
+    return el('details', { class: 'ctsim-card ctsim-head-table ctsim-hover-table' }, [
+      el('summary', {}, 'Distancias entre pozos'),
       el('div', { class: 'ctsim-table-wrap' }, [
         el('table', { class: 'ctsim-table' }, [
           el('thead', {}, [
@@ -1441,23 +1556,25 @@ export function mountCtSimulator(container) {
           el(
             'tbody',
             {},
-            pairs.map((r) =>
-              el('tr', {}, [
+            pairs.map((r) => {
+              const id = `${r.A.idx}-${r.B.idx}`
+              const lat = (v) => (r.lat ? hover(el('td', {}, f0(v)), `l-${id}`) : el('td', {}, '—'))
+              return el('tr', {}, [
                 el('td', {}, [sw(r.A), r.A.name, ' – ', sw(r.B), r.B.name, r.adjacent && pairs.length > 1 ? ' ·' : '']),
                 el('td', {}, fmt(r.heads, 1)),
-                el('td', {}, r.curve ? `${f0(r.curve.d)} @ ${f0(r.curve.a.md)}/${f0(r.curve.b.md)}` : '—'),
-                el('td', {}, r.lat ? f0(r.lat.d) : '—'),
-                el('td', {}, r.lat ? f0(r.lat.dx) : '—'),
-                el('td', {}, r.lat ? f0(r.lat.dy) : '—'),
-                el('td', {}, r.lat ? f0(r.lat.dz) : '—'),
+                r.curve ? hover(el('td', {}, `${f0(r.curve.d)} @ ${f0(r.curve.a.md)}/${f0(r.curve.b.md)}`), `c-${id}`) : el('td', {}, '—'),
+                lat(r.lat?.d),
+                lat(r.lat?.dx),
+                lat(r.lat?.dy),
+                lat(r.lat?.dz),
                 el('td', {}, f0(r.latMed)),
-                el('td', {}, `${fmt(r.min.d, 1)} @ ${f0(r.min.a.md)}/${f0(r.min.b.md)}`),
+                hover(el('td', {}, `${fmt(r.min.d, 1)} @ ${f0(r.min.a.md)}/${f0(r.min.b.md)}`), `m-${id}`),
               ])
-            )
+            })
           ),
         ]),
       ]),
-      el('p', { class: 'note' }, `Distancias centro a centro entre trayectorias (cada 10 m de MD), sin elipses de incertidumbre. Curva: puntos más cercanos entre los tramos KOP–LP (3D). Laterales (inclinación > 80°): menor distancia en planta, con sus componentes ΔX / ΔY ${state.coordConv === 'gk' ? '(X = Norte, Y = Este)' : '(X = Este, Y = Norte)'} y la diferencia de TVD en esos puntos; mediana: distancia típica a lo largo del lateral del primer pozo. "@" indica la MD de cada pozo.${pairs.length > 2 ? ' En el 3D se acotan los pozos vecinos (marcados con ·).' : ''}`),
+      el('p', { class: 'note' }, `Distancias centro a centro entre trayectorias (cada 10 m de MD), sin elipses de incertidumbre. Curva: puntos más cercanos entre los tramos KOP–LP (3D). Laterales (inclinación > 80°): menor distancia en planta, con sus componentes ΔX / ΔY ${state.coordConv === 'gk' ? '(X = Norte, Y = Este)' : '(X = Este, Y = Norte)'} y la diferencia de TVD en esos puntos; mediana: distancia típica a lo largo del lateral del primer pozo. "@" indica la MD de cada pozo.${pairs.length > 2 ? ' Las etiquetas de distancia del 3D acotan los pozos vecinos (marcados con ·); cualquier distancia de la tabla se ve en el gráfico al pasar el cursor.' : ''}`),
     ])
   }
 

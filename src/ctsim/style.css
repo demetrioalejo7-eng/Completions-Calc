@@ -825,3 +825,46 @@ input.ctsim-text {
 .ctsim-head-table td:last-child input {
   min-width: 5.5em;
 }
+
+.ctsim-3d-label.measure.hl {
+  border-color: var(--ctsim-hl);
+  color: var(--ctsim-hl);
+  border-style: solid;
+  z-index: 2;
+}
+.ctsim-3d-label.measure.point {
+  transform: translate(10px, -50%);
+}
+.ctsim-hover-table tbody tr[data-hl],
+.ctsim-hover-table td[data-hl] {
+  cursor: pointer;
+}
+.ctsim-hover-table tbody tr[data-hl]:hover td,
+.ctsim-hover-table td[data-hl]:hover,
+.ctsim-hover-table .hl-on {
+  background: color-mix(in srgb, var(--ctsim-hl) 14%, transparent);
+}
+
+/* highlight colour (table hover ↔ 3D) */
+:root {
+  --ctsim-hl: #d6336c;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --ctsim-hl: #f06595;
+  }
+}
+:root[data-theme='dark'] {
+  --ctsim-hl: #f06595;
+}
+
+.btn-link {
+  border: none;
+  background: none;
+  padding: 2px 4px;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  text-decoration: underline;
+  cursor: pointer;
+}
