@@ -106,6 +106,11 @@ export async function readSurveyFile(file) {
 const SURFACE_M = 50
 const RUN_GAP_S = 1800
 
+// "No data" codes of the acquisition systems (-999.25 LAS style, -999,
+// -9999). Only these exact values: a weight of -30 000 lb near surface
+// (well pressure pushing the CT out) is a real reading.
+const isNullCode = (n) => Math.abs(n + 999.25) < 1e-6 || n === -999 || n === -9999
+
 function parseTime(s) {
   if (!s) return null
   const t = String(s).trim().replace(/^"|"$/g, '')
@@ -152,7 +157,8 @@ export function createRunReader({ binM = 25 } = {}) {
     const dt = b.t - a.t
     if (!(dt > 0) || dt > 180) return
     const dv = ((b.md - a.md) / dt) * 60 // m/min, + = RIH
-    if (Math.abs(dv) < 1.5) return
+    // stopped, or a depth-counter jump / reset (no CT runs at 120 m/min)
+    if (Math.abs(dv) < 1.5 || Math.abs(dv) > 120) return
     const dir = dv > 0 ? 'RIH' : 'POOH'
     const key = `${c.run}|${dir}|${Math.floor(c.md / binM)}`
     let g = bins.get(key)
@@ -173,7 +179,7 @@ export function createRunReader({ binM = 25 } = {}) {
     const val = (i) => {
       if (i < 0) return null
       const n = toNumber(c[i])
-      return n === null || n <= -999 || n > 1e6 ? null : n
+      return n === null || isNullCode(n) || Math.abs(n) > 1e6 ? null : n
     }
     rowNo++
     const t = cols.t >= 0 ? (parseTime(c[cols.t]) ?? rowNo) : rowNo
