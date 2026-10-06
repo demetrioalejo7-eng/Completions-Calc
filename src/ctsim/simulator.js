@@ -952,13 +952,12 @@ export function mountCtSimulator(container) {
     }
     clear(resultsEl)
     resultsEl.appendChild(
-      el(
-        'div',
-        { class: 'ctsim-tabs', role: 'tablist' },
-        TABS.map(([k, label]) =>
+      el('div', { class: 'ctsim-tabs', role: 'tablist' }, [
+        ...TABS.map(([k, label]) =>
           el('button', { type: 'button', role: 'tab', class: `ctsim-tab${state.tab === k ? ' active' : ''}`, 'aria-selected': state.tab === k ? 'true' : 'false', onClick: () => ((state.tab = k), renderResults()) }, label)
-        )
-      )
+        ),
+        state.survey ? el('button', { type: 'button', class: 'ctsim-tab ctsim-report-btn', title: 'Informe imprimible (Guardar como PDF)', onClick: () => printReport() }, '🖨 Informe PDF') : null,
+      ])
     )
     if (state.error) resultsEl.appendChild(el('p', { class: 'note note-error' }, state.error))
     if (!state.survey) {
@@ -1826,6 +1825,113 @@ export function mountCtSimulator(container) {
       ]),
       el('p', { class: 'note' }, `Distancias centro a centro entre trayectorias (cada 10 m de MD), sin elipses de incertidumbre. Curva: puntos más cercanos entre los tramos KOP–LP (3D). Laterales (inclinación > 80°): menor distancia en planta, con sus componentes ΔX / ΔY ${state.coordConv === 'gk' ? '(X = Norte, Y = Este)' : '(X = Este, Y = Norte)'} y la diferencia de TVD en esos puntos; mediana: distancia típica a lo largo del lateral del primer pozo. "@" indica la MD de cada pozo.${pairs.length > 2 ? ' Las etiquetas de distancia del 3D acotan los pozos vecinos (marcados con ·); cualquier distancia de la tabla se ve en el gráfico al pasar el cursor.' : ''}`),
     ])
+  }
+
+  // ---- printable report -----------------------------------------------------
+  const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()))
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+  let reporting = false
+
+  // Copy of the results of the current tab, without controls: inputs and
+  // selects become their value, buttons go, collapsed panels open.
+  function capture() {
+    const out = []
+    for (const n of resultsEl.children) {
+      if (n.classList.contains('ctsim-tabs')) continue
+      const c = n.cloneNode(true)
+      if (c.tagName === 'DETAILS') c.open = true
+      c.querySelectorAll('details').forEach((d) => (d.open = true))
+      c.querySelectorAll('button, .ctsim-3d-btns, .ctsim-3d-opts, .ctsim-3d-toggles, .ctsim-row-btns, .ctsim-tip').forEach((b) => b.remove())
+      c.querySelectorAll('input, select').forEach((i) => {
+        const orig = i.type === 'checkbox' ? null : i.tagName === 'SELECT' ? i.selectedOptions?.[0]?.textContent : i.value
+        if (i.type === 'checkbox' || i.type === 'file') return i.closest('label')?.remove() ?? i.remove()
+        i.replaceWith(el('span', { class: 'ctsim-report-val' }, orig ?? ''))
+      })
+      out.push(c)
+    }
+    return out
+  }
+
+  function inputsSummary() {
+    const w = state.surveys[state.active]
+    const td = w.rows[w.rows.length - 1][0]
+    const { kop, lp } = kopLp(w.rows)
+    const preset = STRING_PRESETS.find((p) => p.id === state.stringPreset)
+    const grade = findGrade(state.grade)
+    const rows = [
+      ['Pozo', w.name],
+      ['TD del survey / profundidad objetivo', `${fmt(td, 0)} m / ${fmt(tdOf(), 0)} m`],
+      ['KOP / LP', `${kop != null ? fmt(kop, 0) : '—'} m / ${lp != null ? fmt(lp, 0) : '—'} m`],
+      ['Casing (ID)', `${fmt(state.casingId, 3)} in`],
+      ['Sarta / grado', `${preset ? preset.label : 'Personalizada'} · ${grade.id}`],
+      ['Fluido', `${fmt(state.fluidPpg, 2)} ppg`],
+      ['WHP / presión de circulación', `${fmt(state.whp, 0)} / ${fmt(state.ctp, 0)} psi`],
+      ['Caudal bombeo / retorno', `${fmt(state.rate, 2)} / ${fmt(state.returnRate, 2)} bpm`],
+      ['µ RIH / µ POOH', `${fmt(state.muRIH, 3)} / ${fmt(state.muPOOH, 3)}`],
+      ['ERT', `${state.ert ? `${fmt(state.ert, 0)} lbf/bpm` : 'Sin ERT'} · en POOH: ${state.ertInPooh ? 'activo' : 'baypaseado (válvula multiciclo)'}`],
+      ['Stripper / reel', `${fmt(state.stripper, 0)} lbf / ${fmt(state.rbtRIH, 0)} lbf${state.reelTared ? ' (indicador tarado con el reel)' : ''}`],
+      ['Corrección del cero del indicador', `${fmt(state.indicatorOffset || 0, 0)} lbf`],
+      ['Velocidad de tubería RIH (vert / curva / lateral)', `${state.speeds.vert.RIH} / ${state.speeds.curve.RIH} / ${state.speeds.lat.RIH} m/min`],
+      ['Velocidad de tubería POOH (vert / curva / lateral)', `${state.speeds.vert.POOH} / ${state.speeds.curve.POOH} / ${state.speeds.lat.POOH} m/min`],
+      ['BHA', `${fmt(state.bha.length, 2)} m · ${fmt(state.bha.weight, 0)} lb · OD ${fmt(state.bha.od, 3)} in`],
+      ['Tapones', state.plugs.length ? `${state.plugs.length} (${fmt(state.plugs[0], 0)}–${fmt(state.plugs[state.plugs.length - 1], 0)} m)` : '—'],
+      ['Carrera real comparada', state.run ? `${state.runName} · ${fmtStamp(state.run.start)} → ${fmtStamp(state.run.end)}` : '—'],
+    ]
+    return el('table', { class: 'ctsim-table ctsim-report-inputs' }, el('tbody', {}, rows.map(([k, v]) => el('tr', {}, [el('th', {}, k), el('td', {}, v)]))))
+  }
+
+  async function printReport() {
+    if (reporting || !state.survey) return
+    reporting = true
+    const keep = { tab: state.tab, pin: state.pin3d }
+    const sections = []
+    const add = (title, nodes) => sections.push(el('section', { class: 'ctsim-report-sec' }, [el('h2', {}, title), ...nodes]))
+    try {
+      for (const [tab, title] of [
+        ['pesos', 'Pesos RIH / POOH'],
+        ['tiempos', 'Tiempos de operación'],
+        ['sens', 'Sensibilidad de la capacidad de asentamiento'],
+        ['tri', 'Límites triaxiales'],
+      ]) {
+        if (tab === 'sens' && !state.sens.result) continue
+        state.tab = tab
+        renderResults()
+        await nextFrame()
+        add(title, capture())
+      }
+      // 3D: unpinned, wait for the viewer and keep a picture of it
+      state.tab = '3d'
+      state.pin3d = false
+      renderResults()
+      for (let i = 0; i < 40 && !view3d; i++) await sleep(100)
+      await nextFrame()
+      const img = view3d?.snapshot()
+      const nodes = capture()
+      const holder = nodes.map((n) => n.querySelector('.ctsim-3d')).find(Boolean)
+      if (holder) holder.replaceWith(img ? el('img', { src: img, class: 'ctsim-report-3d', alt: 'Vista 3D de los surveys' }) : el('p', { class: 'note' }, 'Vista 3D no disponible.'))
+      add(state.surveys.length > 1 ? 'Surveys en 3D y distancias entre pozos' : 'Survey 3D', nodes)
+    } finally {
+      state.tab = keep.tab
+      state.pin3d = keep.pin
+      renderResults()
+      reporting = false
+    }
+    const now = new Date()
+    const report = el('div', { id: 'ctsim-report' }, [
+      el('header', { class: 'ctsim-report-head' }, [
+        el('h1', {}, `Simulación CT — ${state.projectName || state.surveyName}`),
+        el('p', {}, `${state.surveyName} · ${now.toLocaleDateString('es-AR')} ${now.toTimeString().slice(0, 5)} · Simulador CT (pesos RIH/POOH, modelo soft-string calibrado)`),
+      ]),
+      el('section', { class: 'ctsim-report-sec' }, [el('h2', {}, 'Datos de la simulación'), inputsSummary()]),
+      ...sections,
+      el('p', { class: 'formula-note' }, cal.note),
+    ])
+    document.getElementById('ctsim-report')?.remove()
+    document.body.appendChild(report)
+    const done = () => report.remove()
+    window.addEventListener('afterprint', done, { once: true })
+    await nextFrame()
+    window.print()
   }
 
   // ---- operation times -----------------------------------------------------
