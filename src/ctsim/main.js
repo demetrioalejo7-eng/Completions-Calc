@@ -17,11 +17,18 @@ const body = el('div', { class: 'ctsim-app-body' })
 app.appendChild(body)
 mountCtSimulator(body)
 
-// Keep the installed (offline) copy up to date: the service worker also
-// serves this page, so register it here too; with autoUpdate the page
-// reloads itself once a new version takes over.
+// Keep the installed (offline) copy up to date: the app's service worker
+// (sw.js at the site root, one level up) also serves this page. Register it
+// from here too so opening only the simulator picks up new versions; the
+// worker activates at once (autoUpdate) and the page reloads when it takes
+// over.
 if (__ENABLE_PWA__ && 'serviceWorker' in navigator) {
-  import('virtual:pwa-register')
-    .then(({ registerSW }) => registerSW({ immediate: true }))
-    .catch(() => {})
+  const hadController = !!navigator.serviceWorker.controller
+  let reloaded = false
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloaded) return
+    reloaded = true
+    location.reload()
+  })
+  navigator.serviceWorker.register(new URL('../sw.js', location.href), { scope: new URL('../', location.href).pathname }).then((reg) => reg.update()).catch(() => {})
 }

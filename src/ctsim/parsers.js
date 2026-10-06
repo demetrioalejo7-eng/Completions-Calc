@@ -97,71 +97,161 @@ export async function readSurveyFile(file) {
 // Acquisition CSV (Orion-style export: "DateTime","CT - Peso (lb) [Last]",
 // "CT - Profundidad (m) [Last]", "CT - Velocidad (m/min) [Last]", ...).
 // Returns 1-per-bin medians of steady motion, split by direction.
-export function parseRunCsv(text, { binM = 25 } = {}) {
-  const lines = text.replace(/^﻿/, '').replace(/\r/g, '').split('\n')
-  const hdr = splitLine(lines[0], ',').map((h) => h.replace(/"/g, '').trim())
-  const pick = (re) => {
-    const cands = hdr.map((h, i) => [h, i]).filter(([h]) => re.test(h))
-    const last = cands.find(([h]) => /\[last\]/i.test(h))
-    return (last || cands[0] || [null, -1])[1]
+// Acquisition-system export (one row per second or so): DateTime, Peso,
+// Profundidad, Velocidad, Presión en cabeza, Caudal… The reader works line
+// by line (big pad files can be streamed) and returns, for every run found
+// in the file (in-hole periods separated by ≥ 30 min at surface):
+//   points: medians every `binM` m of the steady-motion samples, per direction
+//   series: [t (s), md] every ~10 s, for operation times
+const SURFACE_M = 50
+const RUN_GAP_S = 1800
+
+function parseTime(s) {
+  if (!s) return null
+  const t = String(s).trim().replace(/^"|"$/g, '')
+  let m = t.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}(?:\.\d+)?))?/)
+  if (m) return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)) / 1000
+  m = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})[ T](\d{1,2}):(\d{2})(?::(\d{2}(?:\.\d+)?))?/)
+  if (m) return Date.UTC(+m[3], +m[2] - 1, +m[1], +m[4], +m[5], +(m[6] || 0)) / 1000
+  return null
+}
+
+export function createRunReader({ binM = 25 } = {}) {
+  let cols = null
+  let rowNo = 0
+  const ring = [] // last 31 samples for the ±15-sample direction / speed
+  const bins = new Map() // `${run}|${dir}|${bin}` → { w: [], v: [], whp, nwhp, q, nq }
+  const runs = []
+  let run = null
+  let lastInHole = -Infinity
+  let atSurface = true // CT seen at surface since the last in-hole sample
+
+  function header(line) {
+    const hdr = splitLine(line.replace(/^\uFEFF/, ''), ',').map((h) => h.replace(/"/g, '').trim())
+    const pick = (re) => {
+      const cands = hdr.map((h, i) => [h, i]).filter(([h]) => re.test(h))
+      const last = cands.find(([h]) => /\[last\]/i.test(h))
+      return (last || cands[0] || [null, -1])[1]
+    }
+    cols = {
+      t: pick(/date|fecha|time|hora/i),
+      w: pick(/peso|weight/i),
+      md: pick(/profundidad|depth/i),
+      v: pick(/velocidad|speed/i),
+      whp: pick(/presi[oó]n en cabeza|whp/i),
+      q: pick(/caudal linea|caudal de bombeo|pump rate/i),
+    }
+    if (cols.w < 0 || cols.md < 0) throw new Error('El CSV no tiene columnas de peso y profundidad reconocibles.')
   }
-  const iW = pick(/peso|weight/i)
-  const iMD = pick(/profundidad|depth/i)
-  const iV = pick(/velocidad|speed/i)
-  const iWHP = pick(/presi[oó]n en cabeza|whp/i)
-  const iQ = pick(/caudal linea|caudal de bombeo|pump rate/i)
-  if (iW < 0 || iMD < 0) throw new Error('El CSV no tiene columnas de peso y profundidad reconocibles.')
-  const md = []
-  const w = []
-  const v = []
-  const whp = []
-  const q = []
-  for (let k = 1; k < lines.length; k++) {
-    if (!lines[k]) continue
-    const c = splitLine(lines[k], ',')
+
+  function process(c) {
+    // c = centre sample of the ring (15 before / 15 after)
+    const a = ring[0]
+    const b = ring[ring.length - 1]
+    if (c.md === null || c.w === null || a.md === null || b.md === null || c.run === null) return
+    const dt = b.t - a.t
+    if (!(dt > 0) || dt > 180) return
+    const dv = ((b.md - a.md) / dt) * 60 // m/min, + = RIH
+    if (Math.abs(dv) < 1.5) return
+    const dir = dv > 0 ? 'RIH' : 'POOH'
+    const key = `${c.run}|${dir}|${Math.floor(c.md / binM)}`
+    let g = bins.get(key)
+    if (!g) bins.set(key, (g = { w: [], v: [], whp: 0, nwhp: 0, q: 0, nq: 0 }))
+    g.w.push(c.w)
+    g.v.push(c.v !== null ? Math.abs(c.v) : Math.abs(dv))
+    if (c.whp !== null) (g.whp += c.whp), g.nwhp++
+    if (c.q !== null) (g.q += c.q), g.nq++
+  }
+
+  function row(line) {
+    if (!line) return
+    if (!cols) return header(line)
+    const c = splitLine(line, ',')
     const val = (i) => {
       if (i < 0) return null
       const n = toNumber(c[i])
-      return n === null || n === -999.25 ? null : n
+      return n === null || n <= -999 || n > 1e6 ? null : n
     }
-    md.push(val(iMD))
-    w.push(val(iW))
-    v.push(iV >= 0 ? val(iV) : null)
-    whp.push(val(iWHP))
-    q.push(val(iQ))
-  }
-  // direction from the depth trend over ±15 s, speed from the channel (or depth)
-  const pts = []
-  for (let i = 15; i < md.length - 15; i++) {
-    const a = md[i - 15]
-    const b = md[i + 15]
-    if (a === null || b === null || md[i] === null || w[i] === null) continue
-    const dv = ((b - a) / 30) * 60 // m/min
-    if (Math.abs(dv) < 1.5) continue
-    pts.push({ md: md[i], w: w[i], v: v[i] !== null ? Math.abs(v[i]) : Math.abs(dv), dir: dv > 0 ? 'RIH' : 'POOH', whp: whp[i], q: q[i] })
-  }
-  // bin medians
-  const bins = new Map()
-  for (const p of pts) {
-    const key = `${p.dir}|${Math.floor(p.md / binM)}`
-    if (!bins.has(key)) bins.set(key, [])
-    bins.get(key).push(p)
-  }
-  const med = (arr) => {
-    const s = [...arr].sort((x, y) => x - y)
-    return s[Math.floor(s.length / 2)]
-  }
-  const out = []
-  for (const [key, arr] of bins) {
-    if (arr.length < 8) continue
-    const [dir, b] = key.split('|')
-    const opt = (k) => {
-      const vals = arr.map((p) => p[k]).filter((x) => x !== null && x !== undefined)
-      return vals.length ? med(vals) : null
+    rowNo++
+    const t = cols.t >= 0 ? (parseTime(c[cols.t]) ?? rowNo) : rowNo
+    const md = val(cols.md)
+    // runs: in-hole periods separated by ≥ 30 min at surface (a data gap
+    // with the CT still in the hole does not split a run)
+    let runId = null
+    if (md !== null && md <= SURFACE_M) atSurface = true
+    if (md !== null && md > SURFACE_M) {
+      if (!run || (atSurface && t - lastInHole > RUN_GAP_S)) {
+        run = { id: runs.length, start: t, end: t, maxMd: md, tMax: t, series: [] }
+        runs.push(run)
+      }
+      lastInHole = t
+      atSurface = false
+      runId = run.id
     }
-    out.push({ dir, md: (Number(b) + 0.5) * binM, w: med(arr.map((p) => p.w)), v: med(arr.map((p) => p.v)), whp: opt('whp'), q: opt('q'), n: arr.length })
+    if (run && md !== null && (!atSurface || t - lastInHole <= RUN_GAP_S)) {
+      run.end = t
+      if (md > run.maxMd) (run.maxMd = md), (run.tMax = t)
+      const last = run.series[run.series.length - 1]
+      if (!last || t - last[0] >= 10) run.series.push([t, md])
+    }
+    ring.push({ t, md, w: val(cols.w), v: cols.v >= 0 ? val(cols.v) : null, whp: val(cols.whp), q: val(cols.q), run: runId })
+    if (ring.length > 31) ring.shift()
+    if (ring.length === 31) process(ring[15])
   }
-  return { points: out.sort((a, b) => a.md - b.md), rawCount: pts.length, hasWHP: iWHP >= 0, hasQ: iQ >= 0 }
+
+  function finish() {
+    if (!cols) throw new Error('El CSV está vacío.')
+    const med = (arr) => {
+      const s = [...arr].sort((x, y) => x - y)
+      return s[Math.floor(s.length / 2)]
+    }
+    const pointsOf = new Map(runs.map((r) => [r.id, []]))
+    for (const [key, g] of bins) {
+      if (g.w.length < 8) continue
+      const [id, dir, b] = key.split('|')
+      pointsOf.get(Number(id))?.push({ dir, md: (Number(b) + 0.5) * binM, w: med(g.w), v: med(g.v), whp: g.nwhp ? g.whp / g.nwhp : null, q: g.nq ? g.q / g.nq : null, n: g.w.length })
+    }
+    const out = runs
+      .map((r) => ({ ...r, points: pointsOf.get(r.id).sort((a, b) => a.md - b.md) }))
+      .filter((r) => r.maxMd > 300 && r.series.length > 5 && r.points.length > 0)
+    return { runs: out, hasTime: cols.t >= 0, hasWHP: cols.whp >= 0, hasQ: cols.q >= 0 }
+  }
+
+  return { row, finish }
+}
+
+// Whole text at once (small files, tests). Keeps the old shape too:
+// `points` of the deepest run.
+export function parseRunCsv(text, opts) {
+  const rd = createRunReader(opts)
+  for (const line of text.replace(/\r/g, '').split('\n')) rd.row(line)
+  return withDeepest(rd.finish())
+}
+
+function withDeepest(res) {
+  if (!res.runs.length) throw new Error('No se encontró ninguna carrera en el CSV (profundidad > 300 m).')
+  const deepest = res.runs.reduce((a, r) => (r.maxMd > a.maxMd ? r : a), res.runs[0])
+  return { ...res, points: deepest.points, rawCount: deepest.points.length }
+}
+
+// Streams a File (pad exports can be hundreds of MB) line by line.
+export async function readRunFile(file, opts, onProgress) {
+  const rd = createRunReader(opts)
+  if (!file.stream) return parseRunCsv(await file.text(), opts)
+  const reader = file.stream().pipeThrough(new TextDecoderStream()).getReader()
+  let rest = ''
+  let done = 0
+  for (;;) {
+    const { value, done: end } = await reader.read()
+    if (end) break
+    done += value.length
+    const parts = (rest + value).replace(/\r/g, '').split('\n')
+    rest = parts.pop()
+    for (const line of parts) rd.row(line)
+    onProgress?.(Math.min(1, done / (file.size || 1)))
+  }
+  if (rest) rd.row(rest)
+  return withDeepest(rd.finish())
 }
 
 // List of depths (plugs) pasted as a column, one per line, or separated by
