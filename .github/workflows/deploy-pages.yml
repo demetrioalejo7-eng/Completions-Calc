@@ -25,6 +25,9 @@ jobs:
         with:
           node-version: 20
       - run: npm ci
+      # simulator tests (engine vs CTES Tech Note, parsers, times, units,
+      # projects, run fit): a failure stops the deploy
+      - run: npm test
       - run: npm run build
       - uses: actions/configure-pages@v5
         with:
