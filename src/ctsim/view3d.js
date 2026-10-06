@@ -298,10 +298,17 @@ export function mountSurvey3D(container, opts) {
   const resizeObs = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => onResize()) : null
   resizeObs?.observe(container)
 
+  // PNG of the current view (for the printed report)
+  function snapshot() {
+    renderer.render(scene, camera)
+    return renderer.domElement.toDataURL('image/png')
+  }
+
   return {
     setView,
     setLabels,
     highlight,
+    snapshot,
     dispose() {
       cancelAnimationFrame(raf)
       window.removeEventListener('resize', onResize)

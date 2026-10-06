@@ -978,3 +978,87 @@ input.ctsim-text {
   stroke-dasharray: 3 4;
   opacity: 0.8;
 }
+
+/* printable report */
+.ctsim-report-btn {
+  margin-left: auto;
+}
+#ctsim-report {
+  display: none;
+}
+@media print {
+  body.ctsim-app > *:not(#ctsim-report) {
+    display: none !important;
+  }
+  #ctsim-report {
+    display: block;
+    --bg: #ffffff;
+    --bg-elev: #ffffff;
+    --bg-card: #ffffff;
+    --border: #c9ced6;
+    --text: #111111;
+    --text-dim: #555555;
+    --ctsim-rih: #1f6fd1;
+    --ctsim-pooh: #e2591f;
+    --ctsim-3d-bg: #f4f6f9;
+    color: #111;
+    background: #fff;
+    font-size: 11px;
+  }
+  #ctsim-report .ctsim-chart-wrap,
+  #ctsim-report .ctsim-results,
+  #ctsim-report .ctsim-head-table {
+    --ctsim-rih: #1f6fd1;
+    --ctsim-pooh: #e2591f;
+    --ctsim-s3: #1baf7a;
+    --ctsim-s4: #eda100;
+  }
+  #ctsim-report h1 {
+    font-size: 18px;
+    margin: 0 0 2px;
+  }
+  #ctsim-report h2 {
+    font-size: 14px;
+    margin: 14px 0 6px;
+    border-bottom: 1px solid #c9ced6;
+    padding-bottom: 2px;
+  }
+  .ctsim-report-sec {
+    break-inside: auto;
+  }
+  .ctsim-report-sec + .ctsim-report-sec {
+    break-before: page;
+  }
+  #ctsim-report .ctsim-card,
+  #ctsim-report .ctsim-3d-pinned {
+    position: static;
+    box-shadow: none;
+    border: none;
+    background: #fff;
+  }
+  #ctsim-report svg.ctsim-chart {
+    max-height: 640px;
+  }
+  #ctsim-report table {
+    break-inside: auto;
+  }
+  #ctsim-report tr {
+    break-inside: avoid;
+  }
+  .ctsim-report-3d {
+    width: 100%;
+    max-height: 520px;
+    object-fit: contain;
+    border: 1px solid #c9ced6;
+    border-radius: 6px;
+  }
+  .ctsim-report-inputs th {
+    text-align: left;
+    font-weight: 600;
+    width: 45%;
+  }
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+}
