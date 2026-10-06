@@ -158,7 +158,10 @@ export function createRunReader({ binM = 25 } = {}) {
     let g = bins.get(key)
     if (!g) bins.set(key, (g = { w: [], v: [], whp: 0, nwhp: 0, q: 0, nq: 0 }))
     g.w.push(c.w)
-    g.v.push(c.v !== null ? Math.abs(c.v) : Math.abs(dv))
+    // speed channel when it agrees with the depth trend (some exports log it
+    // scaled, e.g. ×0.1, or as 0), otherwise the speed from depth
+    const vc = c.v !== null ? Math.abs(c.v) : null
+    g.v.push(vc !== null && vc > Math.abs(dv) / 2 && vc < Math.abs(dv) * 2 ? vc : Math.abs(dv))
     if (c.whp !== null) (g.whp += c.whp), g.nwhp++
     if (c.q !== null) (g.q += c.q), g.nq++
   }

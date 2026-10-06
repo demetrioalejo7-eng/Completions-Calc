@@ -36,6 +36,9 @@ export function mountSurvey3D(container, opts) {
   const vScale = opts.vScale || 1
   const wells = opts.wells || [{ name: '', traj: opts.traj, marks: opts.marks || {}, plugs: opts.plugs || [], offset: { n: 0, e: 0, z: 0 }, active: true }]
   const multi = wells.length > 1
+  // labels in the display length unit (opts.lenUnit: { f, label })
+  const LU = opts.lenUnit || { f: 1, label: 'm' }
+  const fL = (m) => `${Math.round(m * LU.f).toLocaleString('es-AR')} ${LU.label}`
   container.innerHTML = ''
   const width = container.clientWidth || 600
   // opts.maxHeight(): optional cap (px), e.g. when the view is pinned above
@@ -111,12 +114,12 @@ export function mountSurvey3D(container, opts) {
       add(P(td, o), w.name, 'well', color, 'names')
     } else {
       add(P(head, o), 'Boca de pozo', '', null, 'heads')
-      add(P(td, o), `TD ${Math.round(td.md)} m`, '', null, 'names')
+      add(P(td, o), `TD ${fL(td.md)}`, '', null, 'names')
     }
     // KOP / LP of every well (in its colour when there are several)
     const mc = multi ? color : null
-    if (w.marks?.kop) add(P(w.marks.kop, o), `KOP ${Math.round(w.marks.kop.md)} m`, '', mc, 'marks')
-    if (w.marks?.lp) add(P(w.marks.lp, o), `LP ${Math.round(w.marks.lp.md)} m`, '', mc, 'marks')
+    if (w.marks?.kop) add(P(w.marks.kop, o), `KOP ${fL(w.marks.kop.md)}`, '', mc, 'marks')
+    if (w.marks?.lp) add(P(w.marks.lp, o), `LP ${fL(w.marks.lp.md)}`, '', mc, 'marks')
     const plugs = w.plugs || []
     for (const pl of plugs) {
       sphere(P(pl, o), multi ? color : colPlug, span * (multi ? 0.006 : 0.009))
@@ -144,7 +147,11 @@ export function mountSurvey3D(container, opts) {
   const tdTvd = Math.max(...wells.map((w) => w.traj[w.traj.length - 1].tvd - (w.offset?.z || 0) + ro.z))
   const ref = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(ro.e, ro.z * vScale, -ro.n), new THREE.Vector3(ro.e, -(tdTvd - ro.z) * vScale, -ro.n)])
   scene.add(new THREE.Line(ref, new THREE.LineBasicMaterial({ color: colGrid })))
-  for (let d = 1000; d < tdTvd; d += 1000) add(new THREE.Vector3(ro.e, -(d - ro.z) * vScale, -ro.n), `${d} m TVD`, 'dim', null, 'tvd')
+  const tvdStep = LU.f === 1 ? 1000 : 2500
+  for (let dd = tvdStep; dd < tdTvd * LU.f; dd += tvdStep) {
+    const d = dd / LU.f
+    add(new THREE.Vector3(ro.e, -(d - ro.z) * vScale, -ro.n), `${dd.toLocaleString('es-AR')} ${LU.label} TVD`, 'dim', null, 'tvd')
+  }
   add(new THREE.Vector3(center.x, 0, center.z - span * 0.65), 'N', 'north', null, 'north')
 
   // dimension lines between wells (closest points in the curve / laterals)

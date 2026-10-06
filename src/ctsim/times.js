@@ -10,12 +10,13 @@
 // tiempo en fondo aparte y POOH desde que se deja el fondo.
 export const HIST_SPEEDS = {
   rih: { vert: 20, curve: 9, lat: [3.7, 3.4, 3.1, 2.6, 2.3, 1.9, 1.4] },
-  pooh: { lat: 11, curve: 12, vert: 22 },
-  bottomH: 2.8,
+  pooh: { lat: 9.3, curve: 12, vert: 22 },
+  bottomH: 1.3,
   blockM: 500,
 }
 
 export const SURFACE_M = 50
+const BOTTOM_TOL = 30 // m: still "at bottom" while within this of it
 
 // Planned segments. kop / lp may be null (vertical well): everything is
 // then "vertical". Speeds in m/min, times in minutes.
@@ -71,7 +72,7 @@ function firstUp(series, d, i0) {
 // Actual times from a run series [[t (s), md], …] for the planned segments.
 // RIH: first passage through each boundary. Bottom: from reaching the job
 // bottom (target, or the deepest point if it fell short) to the last time
-// near it (100 m). POOH: first passage upwards after leaving the bottom.
+// near it (within 30 m: reciprocating / milling at bottom). POOH: first passage upwards after leaving the bottom.
 export function actualTimes(series, plan) {
   if (!series?.length) return null
   const i0 = series.findIndex(([, m]) => m > SURFACE_M)
@@ -83,21 +84,24 @@ export function actualTimes(series, plan) {
   const tBottom = firstDown(series, bottom - 0.5, i0)
   let iLeave = -1
   for (let i = series.length - 1; i >= 0; i--)
-    if (series[i][1] >= bottom - 100) {
+    if (series[i][1] >= bottom - BOTTOM_TOL) {
       iLeave = i
       break
     }
   const tLeave = iLeave >= 0 ? series[iLeave][0] : null
   const down = (d) => (d <= SURFACE_M ? tStart : firstDown(series, d, i0))
-  const up = (d) => (iLeave < 0 ? null : d >= bottom - 100 ? tLeave : firstUp(series, Math.max(d, SURFACE_M), iLeave))
+  const up = (d) => (iLeave < 0 ? null : firstUp(series, Math.max(d, SURFACE_M), iLeave))
   const seg = (s, tA, tB, len) => {
     if (tA === null || tB === null || !(tB > tA)) return { ...s, realMin: null, realV: null }
     const min = (tB - tA) / 60
     return { ...s, realMin: min, realV: len / min }
   }
   const rih = plan.rih.map((s) => (s.to > maxMd + 1 ? { ...s, realMin: null, realV: null, short: true } : seg(s, down(s.from), down(s.to), s.to - Math.max(s.from, SURFACE_M))))
+  // POOH timing starts when the CT leaves the bottom zone (BOTTOM_TOL above
+  // the bottom), so the deepest section is measured from there
   const pooh = plan.pooh.map((s) => {
-    const from = Math.min(s.to, bottom)
+    const from = Math.min(s.to, bottom - BOTTOM_TOL)
+    if (from <= s.from) return { ...s, realMin: null, realV: null }
     return seg(s, up(from), up(s.from), from - Math.max(s.from, SURFACE_M))
   })
   const tSurf = up(SURFACE_M)
