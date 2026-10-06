@@ -2,11 +2,14 @@
 // UI over src/ctsim/forces.js with the field-calibrated terms of
 // src/ctsim/calibration.js.
 import { el, fmt, clear } from '../ui/dom.js'
+import { toNumber as toNum } from './parsers.js'
 import { simulateTrip, maxSetDown, buildString, tubeProps, kopLp, wellTrajectory, pointAtMd, buildContext, forcesAtDepth } from './forces.js'
 import { readSurveyFile, parseSurveyTable, splitTable, readRunFile, parseDepthList, parseCoordinate, parseWellHead } from './parsers.js'
 import { HIST_SPEEDS, planSegments, actualTimes, plannedCurve, fmtDuration } from './times.js'
 import { makeUnits, DEFAULT_UNITS, UNIT_CHOICES, niceStep, scaledStep } from './units.js'
-import { toProject, applyProject, validateProject, saveLocal, loadLocal, clearLocal, listTemplates, saveTemplate, applyTemplate, deleteTemplate, projectFileName } from './project.js'
+import { toProject, applyProject, validateProject, loadLocal, clearLocal, listTemplates, saveTemplate, applyTemplate, deleteTemplate, projectFileName } from './project.js'
+import { mergeRuns, autoAssign, runsOf, pickRun } from './runs.js'
+import { putPad, getPad, deletePad, listPads, newPadId, currentPadId, setCurrentPadId } from './padstore.js'
 import { STANDARD_STRING_2375, DEFAULT_BHA, STRING_PRESETS } from './defaults.js'
 import { CT_CALIBRATION, MU_LEVELS, ERT_LEVELS } from './calibration.js'
 import { CT_MANUFACTURERS, findGrade, minWall } from './grades.js'
@@ -64,9 +67,12 @@ export function mountCtSimulator(container) {
     pin3d: true,
     // operation times: expected average speeds (m/min) and time at bottom
     timePlan: JSON.parse(JSON.stringify(HIST_SPEEDS)),
-    runFile: null, // { runs: [...] } of the loaded CSV
-    runIdx: 0,
+    // runs of the pad CSV(s), each assigned to a well; runSel: well → run uid
+    runs: [],
+    runSel: {},
     runProgress: null,
+    padId: null, // saved pad (IndexedDB) this session writes to
+    pads: [], // saved pads list (summary)
     size3d: 'm', // pinned view height: s / m / l
     labels3d: { names: false, heads: false, marks: false, tvd: false, plugs: false, north: false, curve: false, lateral: false },
     active: -1,
@@ -100,7 +106,7 @@ export function mountCtSimulator(container) {
     readingsMsg: '',
     bha: { ...DEFAULT_BHA },
     run: null,
-    runName: '',
+    runMsg: '',
     match: null,
     error: '',
     tab: 'pesos',
@@ -182,6 +188,14 @@ export function mountCtSimulator(container) {
     state.surveyName = sv ? sv.name : ''
     state.plugs = sv?.plugs || []
     state.plugsText = sv?.plugsText || ''
+    syncRun()
+  }
+
+  // run shown for the active well (its own, or the one picked if several)
+  function syncRun() {
+    const r = state.surveyName ? pickRun(state.runs, state.runSel, state.surveyName) : null
+    if (r !== state.run) state.match = null
+    state.run = r
   }
 
   // Target depth of a well (the job's objective, usually short of TD),
@@ -319,7 +333,7 @@ export function mountCtSimulator(container) {
       list,
       state.surveys.length > 1 ? el('p', { class: 'note' }, 'El pozo marcado es el que se usa en Pesos, Límites triaxiales y 3D. En Sensibilidad podés comparar todos.') : null,
       preview,
-      state.survey ? targetField() : null,
+      state.surveys.length ? targetsTable() : null,
       state.surveys.length ? headCoords() : null,
       full ? el('p', { class: 'note' }, `Máximo ${MAX_SURVEYS} surveys: quitá alguno para agregar otro.`) : el('span', { class: 'field-label' }, 'Agregar desde archivo'),
       full ? null : fileInput,
@@ -335,14 +349,58 @@ export function mountCtSimulator(container) {
     ])
   }
 
-  // ---- target depth of the active well -----------------------------------------
-  function targetField() {
-    const w = state.surveys[state.active]
-    const td = w.rows[w.rows.length - 1][0]
-    return qField(`Profundidad objetivo — ${w.name}`, w.target ?? null, (v) => {
-      w.target = v > 0 ? Math.min(v, td) : null
-      schedule()
-    }, 'len', { step: 10, hint: `Hasta dónde se baja en este trabajo (nunca es la TD). Vacío = TD del survey (${nL(td)} ${uL()}). Se usa en pesos, sensibilidad, tiempos y triaxial.` })
+  // ---- target depth of every well (one table for the whole pad) -----------
+  function targetsTable() {
+    const u = U()
+    const set = (w, v) => {
+      const td = w.rows[w.rows.length - 1][0]
+      w.target = v > 0 ? Math.min(u.inv.len(v), td) : null
+    }
+    const cell = (w, i) =>
+      el('input', {
+        type: 'text',
+        inputmode: 'decimal',
+        class: 'ctsim-cell-input',
+        placeholder: 'TD',
+        value: w.target > 0 ? String(+u.cv.len(w.target).toFixed(1)) : '',
+        'aria-label': `Profundidad objetivo de ${w.name} (${uL()})`,
+        onChange: (e) => {
+          set(w, toNum(e.target.value))
+          renderForm()
+          schedule()
+        },
+        // a column pasted from Excel fills this well and the ones below
+        onPaste: (e) => {
+          // keep the pasted order (one value per well), unlike the plug list
+          const vals = (e.clipboardData?.getData('text') || '').split(/[\r\n\t;]+/).map((x) => toNum(x.trim())).filter((v) => v !== null && v > 0)
+          if (vals.length < 2) return
+          e.preventDefault()
+          vals.forEach((v, k) => state.surveys[i + k] && set(state.surveys[i + k], v))
+          renderForm()
+          schedule()
+        },
+      })
+    const open = state.surveys.some((w) => w.target > 0) || state.targetsOpen
+    return el('details', { class: 'ctsim-preview-det', open, onToggle: (e) => (state.targetsOpen = e.target.open) }, [
+      el('summary', {}, 'Profundidad objetivo de cada pozo'),
+      el('div', { class: 'ctsim-table-wrap ctsim-head-table' }, [
+        el('table', { class: 'ctsim-table' }, [
+          el('thead', {}, el('tr', {}, ['Pozo', `TD survey (${uL()})`, `Objetivo (${uL()})`].map((h) => el('th', {}, h)))),
+          el(
+            'tbody',
+            {},
+            state.surveys.map((w, i) =>
+              el('tr', {}, [
+                el('td', {}, [el('span', { class: `ctsim-swatch ctsim-w${(i % 6) + 1}-bg` }), w.name]),
+                el('td', {}, nL(w.rows[w.rows.length - 1][0])),
+                el('td', {}, cell(w, i)),
+              ])
+            )
+          ),
+        ]),
+      ]),
+      el('p', { class: 'note' }, 'Hasta dónde se baja en cada pozo (nunca es la TD). Vacío = TD del survey. Podés pegar una columna de Excel en la primera fila y se completan todos en orden. Se usa en pesos, sensibilidad, tiempos y triaxial.'),
+    ])
   }
 
   // ---- wellhead coordinates ---------------------------------------------------
@@ -705,12 +763,6 @@ export function mountCtSimulator(container) {
     return `${p2(d.getUTCDate())}/${p2(d.getUTCMonth() + 1)} ${p2(d.getUTCHours())}:${p2(d.getUTCMinutes())}`
   }
 
-  function selectRun(i) {
-    state.runIdx = i
-    state.run = state.runFile?.runs[i] || null
-    state.match = null
-  }
-
   function runCard() {
     const fileInput = el('input', {
       type: 'file',
@@ -726,14 +778,19 @@ export function mountCtSimulator(container) {
           const res = await readRunFile(f, {}, (p) => {
             if (p - last < 0.05) return
             last = p
-            state.runProgress = p
             const n = formEl.querySelector('.ctsim-run-progress')
             if (n) n.textContent = `Leyendo ${f.name}… ${Math.round(p * 100)} %`
           })
-          state.runFile = res
-          state.runName = f.name
-          // default: the deepest run
-          selectRun(res.runs.reduce((bi, r, i, a) => (r.maxMd > a[bi].maxMd ? i : bi), 0))
+          const before = state.runs.length
+          state.runs = mergeRuns(state.runs, res.runs, { file: f.name, hasTime: res.hasTime, hasWHP: res.hasWHP, hasQ: res.hasQ })
+          // new runs go to the wells in list order (a short first attempt
+          // and its retry stay on the same well); fix it in the table
+          autoAssign(
+            state.runs,
+            state.surveys.map((w) => ({ name: w.name, td: w.rows[w.rows.length - 1][0] }))
+          )
+          state.runMsg = `${f.name}: ${state.runs.length - before} carrera(s) nueva(s)${res.runs.length > state.runs.length - before ? ` (${res.runs.length - (state.runs.length - before)} ya estaban)` : ''}.`
+          syncRun()
           state.error = ''
         } catch (err) {
           state.error = err.message
@@ -743,27 +800,82 @@ export function mountCtSimulator(container) {
         renderResults()
       },
     })
-    const runs = state.runFile?.runs || []
     const runLabel = (r) => `${fmtStamp(r.start)} → ${fmtStamp(r.end)} · máx. ${nL(r.maxMd)} ${uL()}`
+    const wellOpts = [{ value: '', label: '(sin asignar)' }, ...state.surveys.map((w) => ({ value: w.name, label: w.name }))]
+    const runsTable = state.runs.length
+      ? el('div', { class: 'ctsim-table-wrap ctsim-head-table' }, [
+          el('table', { class: 'ctsim-table' }, [
+            el('thead', {}, el('tr', {}, ['#', 'Carrera', 'Pozo', ''].map((h) => el('th', {}, h)))),
+            el(
+              'tbody',
+              {},
+              state.runs.map((r, i) =>
+                el('tr', { class: r === state.run ? 'ctsim-run-active' : '' }, [
+                  el('td', {}, String(i + 1)),
+                  el('td', {}, [runLabel(r), el('div', { class: 'ctsim-hint' }, `${r.file} · ${r.points.length} puntos de peso`)]),
+                  el('td', {}, [
+                    el(
+                      'select',
+                      {
+                        class: 'ctsim-inline-select',
+                        'aria-label': `Pozo de la carrera ${i + 1}`,
+                        onChange: (e) => {
+                          r.well = e.target.value || null
+                          syncRun()
+                          renderForm()
+                          renderResults()
+                        },
+                      },
+                      wellOpts.map((o) => el('option', { value: o.value, selected: (r.well || '') === o.value }, o.label))
+                    ),
+                  ]),
+                  el('td', {}, [
+                    el(
+                      'button',
+                      {
+                        class: 'btn-icon',
+                        type: 'button',
+                        'aria-label': `Quitar la carrera ${i + 1}`,
+                        onClick: () => {
+                          state.runs = state.runs.filter((x) => x !== r)
+                          syncRun()
+                          renderForm()
+                          renderResults()
+                        },
+                      },
+                      '×'
+                    ),
+                  ]),
+                ])
+              )
+            ),
+          ]),
+        ])
+      : null
+    const mine = state.surveyName ? runsOf(state.runs, state.surveyName) : []
     return card(
-      '8 · Comparar con una carrera real (opcional)',
+      state.runs.length ? `8 · Carreras reales (${state.runs.length})` : '8 · Comparar con una carrera real (opcional)',
       [
         fileInput,
         state.runProgress !== null ? el('p', { class: 'note ctsim-run-progress' }, 'Leyendo…') : null,
-        runs.length > 1
+        state.runMsg ? el('p', { class: 'note' }, state.runMsg) : null,
+        runsTable,
+        mine.length > 1
           ? selectField(
-              `Carrera (${runs.length} en el archivo)`,
-              runs.map((r, i) => ({ value: i, label: runLabel(r) })),
-              state.runIdx,
-              (v) => (selectRun(Number(v)), renderForm(), renderResults())
+              `Carrera usada para ${state.surveyName} (tiene ${mine.length})`,
+              mine.map((r) => ({ value: r.uid, label: runLabel(r) })),
+              state.run?.uid,
+              (v) => ((state.runSel = { ...state.runSel, [state.surveyName]: v }), syncRun(), renderForm(), renderResults())
             )
           : null,
         el(
           'p',
           { class: 'note' },
-          state.run
-            ? `✓ ${state.runName}${runs.length === 1 ? ` (${runLabel(state.run)})` : ''}: ${state.run.points.length} puntos de peso (medianas cada 25 m en movimiento estable)${state.runFile.hasTime ? ' y la serie profundidad–tiempo para los tiempos de operación' : '; sin columna de fecha/hora: los tiempos suponen 1 dato por segundo'}.`
-            : 'CSV del sistema de adquisición (fecha/hora, peso y profundidad; velocidad, WHP y caudal opcionales). Puede ser el archivo de todo el pad: se detectan las carreras y elegís cuál. Se grafica sobre la simulación y en Tiempos se compara con lo estimado.'
+          state.runs.length
+            ? state.run
+              ? `${state.surveyName}: se compara con la carrera del ${runLabel(state.run)}${state.run.hasTime ? '' : ' (sin fecha/hora: los tiempos suponen 1 dato por segundo)'}. Las carreras quedan guardadas con el pad; al elegir otro pozo se usa la suya.`
+              : `${state.surveyName || 'El pozo elegido'} no tiene carrera asignada: elegí el pozo de cada carrera en la tabla.`
+            : 'CSV del sistema de adquisición (fecha/hora, peso y profundidad; velocidad, WHP y caudal opcionales). Cargá el archivo de todo el pad: se detectan las carreras y se asignan a los pozos en orden (corregilo en la tabla si hace falta). Quedan guardadas con el pad.'
         ),
         state.run && state.survey
           ? el('button', { class: 'btn-secondary', type: 'button', onClick: fitRun }, state.reelTared ? 'Ajustar µ, stripper y cero del indicador a esta carrera' : 'Ajustar µ, stripper y reel a esta carrera')
@@ -771,9 +883,11 @@ export function mountCtSimulator(container) {
         state.match
           ? el('p', { class: 'note' }, `Ajuste: µ RIH ${state.match.muRIH.toFixed(3)} · µ POOH ${state.match.muPOOH.toFixed(3)} (relación POOH/RIH calibrada) · stripper ${nF(state.match.stripperLbf)} ${uF()} · ${state.reelTared ? 'corrección del cero' : 'reel'} ${nF(state.match.reelTension)} ${uF()}. Error mediano ${nF(state.match.maeRIH)} ${uF()} RIH / ${nF(state.match.maePOOH)} ${uF()} POOH (${state.match.nRIH + state.match.nPOOH} puntos). Valores cargados en el formulario.`)
           : null,
-        state.run ? el('button', { class: 'btn-secondary', type: 'button', onClick: () => ((state.run = null), (state.runFile = null), (state.match = null), renderForm(), renderResults()) }, 'Quitar carrera') : null,
+        state.runs.length
+          ? el('button', { class: 'btn-secondary', type: 'button', onClick: () => window.confirm('¿Quitar todas las carreras de este pad?') && ((state.runs = []), (state.runSel = {}), (state.runMsg = ''), syncRun(), renderForm(), renderResults()) }, 'Quitar todas las carreras')
+          : null,
       ],
-      { open: !!state.run || state.runProgress !== null }
+      { open: !!state.runs.length || state.runProgress !== null }
     )
   }
 
@@ -809,16 +923,38 @@ export function mountCtSimulator(container) {
 
   // ---- project: autosave, export / open, templates -------------------------
   let saveTimer = null
+  let loading = true // no autosave until the saved pad has been loaded
+  const padName = () => state.projectName || state.surveys.map((w) => w.name).join(', ') || 'Pad sin nombre'
   function autosave() {
     clearTimeout(saveTimer)
-    saveTimer = setTimeout(() => {
-      if (!state.surveys.length && !state.projectName) return
-      const r = saveLocal(state)
+    if (loading) return
+    saveTimer = setTimeout(async () => {
+      if (!state.surveys.length && !state.projectName && !state.runs.length) return
+      if (!state.padId) {
+        state.padId = newPadId()
+        setCurrentPadId(state.padId)
+      }
       const hhmm = new Date().toTimeString().slice(0, 5)
-      state.saveStatus = r === 'full' ? `Guardado en este navegador · ${hhmm}` : r === 'no-run' ? `Guardado en este navegador · ${hhmm} (sin la carrera: no entra en el almacenamiento)` : 'No se pudo guardar en este navegador (modo privado o sin espacio).'
+      try {
+        await putPad({ id: state.padId, name: padName(), savedAt: new Date().toISOString(), wells: state.surveys.length, runs: state.runs.length, project: toProject(state) })
+        state.saveStatus = `«${padName()}» guardado en este navegador · ${hhmm} (${state.surveys.length} pozos${state.runs.length ? `, ${state.runs.length} carreras` : ''})`
+        state.pads = await listPads()
+      } catch (err) {
+        state.saveStatus = `No se pudo guardar en este navegador: ${err.message || 'sin espacio o modo privado'}. Exportá el proyecto para no perderlo.`
+      }
       const n = formEl.querySelector('.ctsim-save-status')
       if (n) n.textContent = state.saveStatus
     }, 800)
+  }
+
+  async function openPad(id) {
+    const rec = await getPad(id)
+    if (!rec) throw new Error('No se encontró el pad guardado.')
+    state.padId = rec.id
+    setCurrentPadId(rec.id)
+    loadProjectObject(rec.project)
+    state.saveStatus = `Pad abierto: «${rec.name}» (guardado ${new Date(rec.savedAt).toLocaleString('es-AR')}).`
+    renderForm()
   }
 
   function download(name, text, type = 'application/json') {
@@ -833,10 +969,59 @@ export function mountCtSimulator(container) {
   function loadProjectObject(p) {
     const a = applyProject(state, p)
     state.active = -1
+    state.surveyName = ''
     setActive(a)
     state.error = ''
     renderForm()
     renderResults()
+  }
+
+  // saved pads in this browser: open another one or delete it
+  function padsPicker() {
+    const others = state.pads.filter((p) => p.id !== state.padId)
+    if (!others.length) return null
+    let pick = others[0].id
+    return el('div', { class: 'field' }, [
+      el('span', { class: 'field-label' }, `Pads guardados en este navegador (${state.pads.length})`),
+      el('div', { class: 'row ctsim-row-btns' }, [
+        el(
+          'select',
+          { class: 'ctsim-inline-select', 'aria-label': 'Pad guardado', onChange: (e) => (pick = e.target.value) },
+          others.map((p) => el('option', { value: p.id }, `${p.name} · ${p.wells} pozos${p.runs ? ` · ${p.runs} carreras` : ''} · ${new Date(p.savedAt).toLocaleDateString('es-AR')}`))
+        ),
+        el(
+          'button',
+          {
+            class: 'btn-secondary',
+            type: 'button',
+            onClick: async () => {
+              try {
+                await openPad(pick)
+              } catch (err) {
+                state.error = err.message
+                renderResults()
+              }
+            },
+          },
+          'Abrir'
+        ),
+        el(
+          'button',
+          {
+            class: 'btn-secondary',
+            type: 'button',
+            onClick: async () => {
+              const p = state.pads.find((x) => x.id === pick)
+              if (!window.confirm(`¿Borrar el pad «${p?.name}» de este navegador? No se puede deshacer (exportalo antes si lo querés conservar).`)) return
+              await deletePad(pick)
+              state.pads = await listPads()
+              renderForm()
+            },
+          },
+          'Borrar'
+        ),
+      ]),
+    ])
   }
 
   function projectCard() {
@@ -848,8 +1033,12 @@ export function mountCtSimulator(container) {
         const f = e.target.files[0]
         if (!f) return
         try {
-          loadProjectObject(validateProject(JSON.parse(await f.text())))
-          state.saveStatus = `Proyecto abierto: ${f.name}`
+          const proj = validateProject(JSON.parse(await f.text()))
+          // an opened file becomes a new saved pad (the current one is kept)
+          state.padId = newPadId()
+          setCurrentPadId(state.padId)
+          loadProjectObject(proj)
+          state.saveStatus = `Proyecto abierto: ${f.name} (guardado como pad nuevo en este navegador)`
         } catch (err) {
           state.error = err instanceof SyntaxError ? 'El archivo no es un JSON válido.' : err.message
           renderResults()
@@ -895,23 +1084,25 @@ export function mountCtSimulator(container) {
             )
           )
         ),
-        el('p', { class: 'note ctsim-save-status' }, state.saveStatus || 'Todo lo que cargás se guarda solo en este navegador (surveys, tapones, coordenadas, objetivo, parámetros y la carrera elegida).'),
+        el('p', { class: 'note ctsim-save-status' }, state.saveStatus || 'Cada pad se guarda solo en este navegador con todo lo cargado: surveys, tapones, coordenadas, objetivos, parámetros y las carreras del CSV.'),
+        padsPicker(),
         el('div', { class: 'row ctsim-row-btns' }, [
-          el('button', { class: 'btn-secondary', type: 'button', onClick: () => download(projectFileName(state), JSON.stringify(toProject(state))) }, 'Exportar proyecto'),
-          el('button', { class: 'btn-secondary', type: 'button', onClick: () => opener.click() }, 'Abrir proyecto…'),
           el(
             'button',
             {
               class: 'btn-secondary',
               type: 'button',
               onClick: () => {
-                if (!window.confirm('¿Empezar un proyecto nuevo? Se borran los surveys y la carrera cargados en este navegador (las plantillas se conservan). Exportá antes si querés guardarlo.')) return
+                if (!window.confirm('¿Empezar un pad nuevo? El actual queda guardado y lo podés volver a abrir desde «Pads guardados».')) return
+                setCurrentPadId(null)
                 clearLocal()
                 location.reload()
               },
             },
-            'Nuevo'
+            'Nuevo pad'
           ),
+          el('button', { class: 'btn-secondary', type: 'button', onClick: () => download(projectFileName(state), JSON.stringify(toProject(state))) }, 'Exportar'),
+          el('button', { class: 'btn-secondary', type: 'button', onClick: () => opener.click() }, 'Abrir archivo…'),
         ]),
         el('div', { hidden: true }, opener),
         el('span', { class: 'field-label' }, 'Plantillas de equipo'),
@@ -1941,7 +2132,7 @@ export function mountCtSimulator(container) {
       ['Velocidad de tubería POOH (vert / curva / lateral)', `${nS(state.speeds.vert.POOH)} / ${nS(state.speeds.curve.POOH)} / ${nS(state.speeds.lat.POOH)} ${uS()}`],
       ['BHA', `${nL(state.bha.length, 2)} ${uL()} · ${nF(state.bha.weight)} ${uF()} · OD ${fmt(state.bha.od, 3)} in`],
       ['Tapones', state.plugs.length ? `${state.plugs.length} (${nL(state.plugs[0])}–${nL(state.plugs[state.plugs.length - 1])} ${uL()})` : '—'],
-      ['Carrera real comparada', state.run ? `${state.runName} · ${fmtStamp(state.run.start)} → ${fmtStamp(state.run.end)}` : '—'],
+      ['Carrera real comparada', state.run ? `${state.run.file} · ${fmtStamp(state.run.start)} → ${fmtStamp(state.run.end)}` : '—'],
     ]
     return el('table', { class: 'ctsim-table ctsim-report-inputs' }, el('tbody', {}, rows.map(([k, v]) => el('tr', {}, [el('th', {}, k), el('td', {}, v)]))))
   }
@@ -2336,17 +2527,35 @@ export function mountCtSimulator(container) {
     return wrap
   }
 
-  // recover the last project saved in this browser
-  const saved = loadLocal()
-  if (saved) {
-    try {
-      const a = applyProject(state, saved)
-      setActive(a)
-      state.saveStatus = `Proyecto recuperado${saved.name ? ` «${saved.name}»` : ''} (guardado ${new Date(saved.savedAt).toLocaleString('es-AR')}).`
-    } catch {
-      state.saveStatus = ''
-    }
-  }
+  // open the pad used last in this browser (or migrate the project saved by
+  // the previous version, which lived in localStorage)
   renderForm()
   renderResults()
+  ;(async () => {
+    try {
+      const id = currentPadId()
+      const rec = id ? await getPad(id) : null
+      if (rec) {
+        state.padId = rec.id
+        loadProjectObject(rec.project)
+        state.saveStatus = `Pad «${rec.name}» recuperado (guardado ${new Date(rec.savedAt).toLocaleString('es-AR')}).`
+      } else {
+        const old = loadLocal()
+        if (old) {
+          state.padId = newPadId()
+          setCurrentPadId(state.padId)
+          loadProjectObject(old)
+          state.saveStatus = 'Proyecto anterior recuperado y guardado como pad.'
+          loading = false
+          autosave()
+        }
+      }
+      state.pads = await listPads()
+    } catch (err) {
+      state.saveStatus = `No se pudo leer lo guardado en este navegador: ${err.message}`
+    }
+    loading = false
+    renderForm()
+    renderResults()
+  })()
 }

@@ -1,13 +1,13 @@
 // Proyecto del simulador (un pad): surveys con tapones, coordenadas y
-// profundidad objetivo, todos los parámetros del formulario y, si se cargó,
-// la carrera elegida del CSV. Se guarda solo en el navegador (localStorage)
+// profundidad objetivo, todos los parámetros del formulario y las carreras
+// del CSV del pad, cada una asignada a su pozo. Se guarda solo en el navegador (localStorage)
 // y se puede exportar / abrir como archivo .json.
 //
 // Plantillas: el "equipo" (sarta, casing, fluido, presiones, fricción, ERT,
 // stripper, reel, velocidades, tiempos) guardado con un nombre para
 // reutilizarlo en otros pads.
 
-export const PROJECT_VERSION = 1
+export const PROJECT_VERSION = 2
 export const LOCAL_KEY = 'ctsim-project-v1'
 export const TEMPLATES_KEY = 'ctsim-templates-v1'
 
@@ -55,15 +55,9 @@ export function toProject(state, { includeRun = true } = {}) {
     settings: pick(state, PROJECT_KEYS),
     sens: { mus: state.sens.mus, erts: state.sens.erts, required: state.sens.required, wells: state.sens.wells },
   }
-  if (includeRun && state.run) {
-    const r = state.run
-    proj.run = {
-      name: state.runName || '',
-      hasTime: !!state.runFile?.hasTime,
-      hasWHP: !!state.runFile?.hasWHP,
-      hasQ: !!state.runFile?.hasQ,
-      run: { id: r.id, start: r.start, end: r.end, maxMd: r.maxMd, tMax: r.tMax, points: r.points, series: r.series },
-    }
+  if (includeRun) {
+    proj.runs = state.runs || []
+    proj.runSel = state.runSel || {}
   }
   return proj
 }
@@ -92,18 +86,21 @@ export function applyProject(state, p) {
   }))
   for (const [k, v] of Object.entries(p.settings || {})) if (PROJECT_KEYS.includes(k)) state[k] = clone(v)
   if (p.sens) Object.assign(state.sens, clone(p.sens), { result: null, key: '' })
-  if (p.run?.run) {
-    state.runFile = { runs: [p.run.run], hasTime: p.run.hasTime, hasWHP: p.run.hasWHP, hasQ: p.run.hasQ }
-    state.runIdx = 0
-    state.run = p.run.run
-    state.runName = p.run.name
-  } else {
-    state.runFile = null
-    state.run = null
-    state.runName = ''
-  }
-  state.match = null
   const a = Number.isInteger(p.active) && p.active >= 0 && p.active < state.surveys.length ? p.active : state.surveys.length ? 0 : -1
+  if (Array.isArray(p.runs)) {
+    state.runs = clone(p.runs)
+    state.runSel = clone(p.runSel || {})
+  } else if (p.run?.run) {
+    // version 1: a single run, of the active well
+    const r = p.run.run
+    state.runs = [{ uid: `r-v1-${r.start}`, file: p.run.name || '', hasTime: p.run.hasTime, hasWHP: p.run.hasWHP, hasQ: p.run.hasQ, well: state.surveys[a]?.name ?? null, start: r.start, end: r.end, maxMd: r.maxMd, tMax: r.tMax, points: r.points, series: r.series }]
+    state.runSel = {}
+  } else {
+    state.runs = []
+    state.runSel = {}
+  }
+  state.run = null
+  state.match = null
   return a // the caller activates it (setActive) to load its plugs
 }
 
