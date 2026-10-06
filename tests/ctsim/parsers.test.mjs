@@ -66,3 +66,17 @@ test('run CSV: runs split only after time at surface; deepest run picked', () =>
   assert.ok(rihBin && Math.abs(rihBin.w - (10000 - rihBin.md)) < 20, 'RIH weight median')
   assert.ok(Math.abs(rihBin.v - 18) < 0.5, 'RIH speed')
 })
+
+test('run CSV: negative weights near surface are real readings; -999.25 is no data', () => {
+  const out = ['"DateTime","CT - Peso (lb) [Last]","CT - Profundidad (m) [Last]"']
+  let t = Date.UTC(2026, 7, 1, 0, 0, 0) / 1000
+  const iso = (x) => new Date(x * 1000).toISOString().replace('T', ' ').slice(0, 19)
+  for (let md = 0, i = 0; md < 1000; md += 0.3, i++, t++) {
+    const w = i % 10 === 0 ? -999.25 : -30000 + 20 * md
+    out.push(`"${iso(t)}","${w}","${md.toFixed(2)}"`)
+  }
+  const r = parseRunCsv(out.join('\n'))
+  const first = r.points.find((p) => p.dir === 'RIH')
+  assert.ok(first.md < 100, `first RIH bin at ${first.md} m`)
+  assert.ok(Math.abs(first.w - (-30000 + 20 * first.md)) < 300, 'weight median, no-data codes skipped')
+})
