@@ -5,6 +5,7 @@ import { el, fmt, clear } from '../ui/dom.js'
 import { simulateTrip, maxSetDown, buildString, tubeProps, kopLp, wellTrajectory, pointAtMd, buildContext, forcesAtDepth } from './forces.js'
 import { readSurveyFile, parseSurveyTable, splitTable, readRunFile, parseDepthList, parseCoordinate, parseWellHead } from './parsers.js'
 import { HIST_SPEEDS, planSegments, actualTimes, plannedCurve, fmtDuration } from './times.js'
+import { toProject, applyProject, validateProject, saveLocal, loadLocal, clearLocal, listTemplates, saveTemplate, applyTemplate, deleteTemplate, projectFileName } from './project.js'
 import { STANDARD_STRING_2375, DEFAULT_BHA, STRING_PRESETS } from './defaults.js'
 import { CT_CALIBRATION, MU_LEVELS, ERT_LEVELS } from './calibration.js'
 import { CT_MANUFACTURERS, findGrade, minWall } from './grades.js'
@@ -46,6 +47,9 @@ export function mountCtSimulator(container) {
   clear(container)
   const cal = CT_CALIBRATION
   const state = {
+    projectName: '',
+    saveStatus: '', // last autosave result shown in the project card
+    tplName: '',
     survey: null,
     surveyName: '',
     surveys: [], // [{ name, rows, plugs, plugsText, head: { x, y, z } }] up to MAX_SURVEYS
@@ -760,11 +764,148 @@ export function mountCtSimulator(container) {
     // keep the panels the user opened / closed across re-renders
     const prev = new Map([...formEl.querySelectorAll(':scope > details')].map((d) => [d.querySelector('summary')?.textContent, d.open]))
     clear(formEl)
-    formEl.append(surveyCard(), plugsCard(), wellCard(), stringCard(), operationCard(), frictionCard(), readingsCard(), runCard())
+    formEl.append(projectCard(), surveyCard(), plugsCard(), wellCard(), stringCard(), operationCard(), frictionCard(), readingsCard(), runCard())
     for (const d of formEl.querySelectorAll(':scope > details')) {
       const was = prev.get(d.querySelector('summary')?.textContent)
       if (was === true) d.open = true
     }
+    autosave()
+  }
+
+  // ---- project: autosave, export / open, templates -------------------------
+  let saveTimer = null
+  function autosave() {
+    clearTimeout(saveTimer)
+    saveTimer = setTimeout(() => {
+      if (!state.surveys.length && !state.projectName) return
+      const r = saveLocal(state)
+      const hhmm = new Date().toTimeString().slice(0, 5)
+      state.saveStatus = r === 'full' ? `Guardado en este navegador · ${hhmm}` : r === 'no-run' ? `Guardado en este navegador · ${hhmm} (sin la carrera: no entra en el almacenamiento)` : 'No se pudo guardar en este navegador (modo privado o sin espacio).'
+      const n = formEl.querySelector('.ctsim-save-status')
+      if (n) n.textContent = state.saveStatus
+    }, 800)
+  }
+
+  function download(name, text, type = 'application/json') {
+    const url = URL.createObjectURL(new Blob([text], { type }))
+    const a = el('a', { href: url, download: name })
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 2000)
+  }
+
+  function loadProjectObject(p) {
+    const a = applyProject(state, p)
+    state.active = -1
+    setActive(a)
+    state.error = ''
+    renderForm()
+    renderResults()
+  }
+
+  function projectCard() {
+    const opener = el('input', {
+      type: 'file',
+      accept: '.json,application/json',
+      class: 'ctsim-file',
+      onChange: async (e) => {
+        const f = e.target.files[0]
+        if (!f) return
+        try {
+          loadProjectObject(validateProject(JSON.parse(await f.text())))
+          state.saveStatus = `Proyecto abierto: ${f.name}`
+        } catch (err) {
+          state.error = err instanceof SyntaxError ? 'El archivo no es un JSON válido.' : err.message
+          renderResults()
+        }
+        renderForm()
+      },
+    })
+    const tpls = listTemplates()
+    const names = Object.keys(tpls).sort((a, b) => a.localeCompare(b))
+    let tplSel = names[0] || ''
+    const tplSelect = names.length
+      ? el(
+          'select',
+          { class: 'ctsim-inline-select', 'aria-label': 'Plantilla', onChange: (e) => (tplSel = e.target.value) },
+          names.map((n) => el('option', { value: n }, `${n} (${new Date(tpls[n].savedAt).toLocaleDateString('es-AR')})`))
+        )
+      : null
+    return card(
+      state.projectName ? `0 · Proyecto — ${state.projectName}` : '0 · Proyecto y plantillas',
+      [
+        el('label', { class: 'field' }, [
+          el('span', { class: 'field-label' }, 'Nombre del proyecto (pad)'),
+          el('input', { type: 'text', class: 'ctsim-text', placeholder: 'p. ej. Pad B1B — lavado post-frac', value: state.projectName, onChange: (e) => ((state.projectName = e.target.value.trim()), renderForm()) }),
+        ]),
+        el('p', { class: 'note ctsim-save-status' }, state.saveStatus || 'Todo lo que cargás se guarda solo en este navegador (surveys, tapones, coordenadas, objetivo, parámetros y la carrera elegida).'),
+        el('div', { class: 'row ctsim-row-btns' }, [
+          el('button', { class: 'btn-secondary', type: 'button', onClick: () => download(projectFileName(state), JSON.stringify(toProject(state))) }, 'Exportar proyecto'),
+          el('button', { class: 'btn-secondary', type: 'button', onClick: () => opener.click() }, 'Abrir proyecto…'),
+          el(
+            'button',
+            {
+              class: 'btn-secondary',
+              type: 'button',
+              onClick: () => {
+                if (!window.confirm('¿Empezar un proyecto nuevo? Se borran los surveys y la carrera cargados en este navegador (las plantillas se conservan). Exportá antes si querés guardarlo.')) return
+                clearLocal()
+                location.reload()
+              },
+            },
+            'Nuevo'
+          ),
+        ]),
+        el('div', { hidden: true }, opener),
+        el('span', { class: 'field-label' }, 'Plantillas de equipo'),
+        el('p', { class: 'note' }, 'Guardan sarta, casing, fluido, presiones y caudales, fricción, ERT, stripper, reel, velocidades y tiempos para reusarlos en otros pads (no incluyen surveys ni carreras).'),
+        names.length
+          ? el('div', { class: 'row ctsim-row-btns' }, [
+              tplSelect,
+              el(
+                'button',
+                {
+                  class: 'btn-secondary',
+                  type: 'button',
+                  onClick: () => {
+                    try {
+                      applyTemplate(state, tplSel)
+                      state.saveStatus = `Plantilla aplicada: ${tplSel}`
+                    } catch (err) {
+                      state.error = err.message
+                    }
+                    renderForm()
+                    renderResults()
+                  },
+                },
+                'Aplicar'
+              ),
+              el('button', { class: 'btn-secondary', type: 'button', onClick: () => window.confirm(`¿Borrar la plantilla "${tplSel}"?`) && (deleteTemplate(tplSel), renderForm()) }, 'Borrar'),
+            ])
+          : null,
+        el('div', { class: 'row ctsim-row-btns' }, [
+          el('input', { type: 'text', class: 'ctsim-text', placeholder: 'Nombre (p. ej. Unidad PCN1 — 2 3/8" HT-125)', value: state.tplName, onInput: (e) => (state.tplName = e.target.value) }),
+          el(
+            'button',
+            {
+              class: 'btn-secondary',
+              type: 'button',
+              onClick: () => {
+                const n = state.tplName.trim()
+                if (!n) return
+                if (listTemplates()[n] && !window.confirm(`Ya existe "${n}". ¿Reemplazarla?`)) return
+                state.saveStatus = saveTemplate(state, n) ? `Plantilla guardada: ${n}` : 'No se pudo guardar la plantilla (almacenamiento del navegador no disponible).'
+                state.tplName = ''
+                renderForm()
+              },
+            },
+            'Guardar plantilla'
+          ),
+        ]),
+      ],
+      { open: !state.surveys.length }
+    )
   }
 
   // ---- results -------------------------------------------------------------
@@ -804,6 +945,7 @@ export function mountCtSimulator(container) {
   ]
 
   function renderResults() {
+    autosave()
     if (view3d) {
       view3d.dispose()
       view3d = null
@@ -2012,6 +2154,17 @@ export function mountCtSimulator(container) {
     return wrap
   }
 
+  // recover the last project saved in this browser
+  const saved = loadLocal()
+  if (saved) {
+    try {
+      const a = applyProject(state, saved)
+      setActive(a)
+      state.saveStatus = `Proyecto recuperado${saved.name ? ` «${saved.name}»` : ''} (guardado ${new Date(saved.savedAt).toLocaleString('es-AR')}).`
+    } catch {
+      state.saveStatus = ''
+    }
+  }
   renderForm()
   renderResults()
 }
