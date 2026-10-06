@@ -946,3 +946,35 @@ input.ctsim-text {
   font-size: 13px;
   border-radius: 8px;
 }
+
+/* operation times */
+.ctsim-cell-input {
+  width: 5.2em;
+  padding: 4px 6px;
+  font-size: 13px;
+}
+.ctsim-times td:first-child {
+  white-space: nowrap;
+}
+.ctsim-times .ctsim-total td {
+  font-weight: 700;
+  border-top: 1px solid var(--border);
+}
+.ctsim-delta {
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.ctsim-dashed {
+  stroke-dasharray: 6 4;
+}
+.ctsim-row-btns {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0;
+}
+.ctsim-ref {
+  stroke: var(--text-dim);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+  opacity: 0.8;
+}

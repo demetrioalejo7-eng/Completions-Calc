@@ -353,7 +353,8 @@ export function buildContext(p, model = DEFAULT_MODEL, path = null) {
 // Weight at the surface for RIH and POOH at each depth of `depthsM`.
 export function simulateTrip(p, model = DEFAULT_MODEL, depthsM = null) {
   const ctx = buildContext(p, model)
-  const td = Math.min(ctx.path.tdM, ctx.string.totalLength)
+  // p.targetM: target depth of the job (the tool usually stops short of TD)
+  const td = Math.min(ctx.path.tdM, ctx.string.totalLength, p.targetM > 0 ? p.targetM : Infinity)
   const depths = depthsM || Array.from({ length: Math.floor(td / (p.outStepM || 50)) + 1 }, (_, i) => i * (p.outStepM || 50))
   if (depths[depths.length - 1] < td - 1 && !depthsM) depths.push(td)
   const rows = depths.map((d) => {

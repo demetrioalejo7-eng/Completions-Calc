@@ -3,7 +3,8 @@
 // src/ctsim/calibration.js.
 import { el, fmt, clear } from '../ui/dom.js'
 import { simulateTrip, maxSetDown, buildString, tubeProps, kopLp, wellTrajectory, pointAtMd, buildContext, forcesAtDepth } from './forces.js'
-import { readSurveyFile, parseSurveyTable, splitTable, parseRunCsv, parseDepthList, parseCoordinate, parseWellHead } from './parsers.js'
+import { readSurveyFile, parseSurveyTable, splitTable, readRunFile, parseDepthList, parseCoordinate, parseWellHead } from './parsers.js'
+import { HIST_SPEEDS, planSegments, actualTimes, plannedCurve, fmtDuration } from './times.js'
 import { STANDARD_STRING_2375, DEFAULT_BHA, STRING_PRESETS } from './defaults.js'
 import { CT_CALIBRATION, MU_LEVELS, ERT_LEVELS } from './calibration.js'
 import { CT_MANUFACTURERS, findGrade, minWall } from './grades.js'
@@ -55,6 +56,11 @@ export function mountCtSimulator(container) {
     wells3d: null,
     // 3D view pinned at the top while the tables scroll underneath
     pin3d: true,
+    // operation times: expected average speeds (m/min) and time at bottom
+    timePlan: JSON.parse(JSON.stringify(HIST_SPEEDS)),
+    runFile: null, // { runs: [...] } of the loaded CSV
+    runIdx: 0,
+    runProgress: null,
     size3d: 'm', // pinned view height: s / m / l
     labels3d: { names: false, heads: false, marks: false, tvd: false, plugs: false, north: false, curve: false, lateral: false },
     active: -1,
@@ -137,6 +143,17 @@ export function mountCtSimulator(container) {
     state.surveyName = sv ? sv.name : ''
     state.plugs = sv?.plugs || []
     state.plugsText = sv?.plugsText || ''
+  }
+
+  // Target depth of a well (the job's objective, usually short of TD),
+  // limited by TD and the string length.
+  function surveyOf(rows) {
+    return state.surveys.find((w) => w.rows === rows)
+  }
+  function tdOf(rows = state.survey) {
+    const td = rows[rows.length - 1][0]
+    const t = surveyOf(rows)?.target
+    return Math.min(td, t > 0 ? t : td, buildString(state.string).totalLength)
   }
 
   // "Survey_Final_Pozo_BdC-1034h.xlsx" → "BdC-1034h"
@@ -235,7 +252,7 @@ export function mountCtSimulator(container) {
                   renderResults()
                 },
               }),
-              el('span', { class: 'ctsim-well-info' }, `TD ${fmt(w.rows[w.rows.length - 1][0], 0)} m · ${w.rows.length} est.${(i === state.active ? state.plugs : w.plugs).length ? ` · ${(i === state.active ? state.plugs : w.plugs).length} tap.` : ''}`),
+              el('span', { class: 'ctsim-well-info' }, `TD ${fmt(w.rows[w.rows.length - 1][0], 0)} m${w.target > 0 && w.target < w.rows[w.rows.length - 1][0] ? ` · obj. ${fmt(w.target, 0)} m` : ''} · ${w.rows.length} est.${(i === state.active ? state.plugs : w.plugs).length ? ` · ${(i === state.active ? state.plugs : w.plugs).length} tap.` : ''}`),
               el('button', { class: 'btn-icon', type: 'button', 'aria-label': `Quitar ${w.name}`, onClick: () => (removeSurvey(i), renderForm(), renderResults()) }, '×'),
             ])
           )
@@ -263,6 +280,7 @@ export function mountCtSimulator(container) {
       list,
       state.surveys.length > 1 ? el('p', { class: 'note' }, 'El pozo marcado es el que se usa en Pesos, Límites triaxiales y 3D. En Sensibilidad podés comparar todos.') : null,
       preview,
+      state.survey ? targetField() : null,
       state.surveys.length ? headCoords() : null,
       full ? el('p', { class: 'note' }, `Máximo ${MAX_SURVEYS} surveys: quitá alguno para agregar otro.`) : el('span', { class: 'field-label' }, 'Agregar desde archivo'),
       full ? null : fileInput,
@@ -276,6 +294,16 @@ export function mountCtSimulator(container) {
             el('button', { class: 'btn-secondary', type: 'button', onClick: () => ((state.surveyText = ''), renderForm()) }, 'Limpiar'),
           ]),
     ])
+  }
+
+  // ---- target depth of the active well -----------------------------------------
+  function targetField() {
+    const w = state.surveys[state.active]
+    const td = w.rows[w.rows.length - 1][0]
+    return numField(`Profundidad objetivo — ${w.name}`, w.target ?? null, (v) => {
+      w.target = v > 0 ? Math.min(v, td) : null
+      schedule()
+    }, { unit: 'm', step: 10, hint: `Hasta dónde se baja en este trabajo (nunca es la TD). Vacío = TD del survey (${fmt(td, 0)} m). Se usa en pesos, sensibilidad, tiempos y triaxial.` })
   }
 
   // ---- wellhead coordinates ---------------------------------------------------
@@ -631,6 +659,19 @@ export function mountCtSimulator(container) {
     renderResults()
   }
 
+  // "21/08 13:24" from a CSV timestamp (s, wall clock stored as UTC)
+  function fmtStamp(t) {
+    const d = new Date(t * 1000)
+    const p2 = (n) => String(n).padStart(2, '0')
+    return `${p2(d.getUTCDate())}/${p2(d.getUTCMonth() + 1)} ${p2(d.getUTCHours())}:${p2(d.getUTCMinutes())}`
+  }
+
+  function selectRun(i) {
+    state.runIdx = i
+    state.run = state.runFile?.runs[i] || null
+    state.match = null
+  }
+
   function runCard() {
     const fileInput = el('input', {
       type: 'file',
@@ -639,31 +680,61 @@ export function mountCtSimulator(container) {
       onChange: async (e) => {
         const f = e.target.files[0]
         if (!f) return
+        state.runProgress = 0
+        renderForm()
         try {
-          state.run = parseRunCsv(await f.text())
+          let last = 0
+          const res = await readRunFile(f, {}, (p) => {
+            if (p - last < 0.05) return
+            last = p
+            state.runProgress = p
+            const n = formEl.querySelector('.ctsim-run-progress')
+            if (n) n.textContent = `Leyendo ${f.name}… ${Math.round(p * 100)} %`
+          })
+          state.runFile = res
           state.runName = f.name
+          // default: the deepest run
+          selectRun(res.runs.reduce((bi, r, i, a) => (r.maxMd > a[bi].maxMd ? i : bi), 0))
           state.error = ''
         } catch (err) {
           state.error = err.message
         }
+        state.runProgress = null
         renderForm()
         renderResults()
       },
     })
+    const runs = state.runFile?.runs || []
+    const runLabel = (r) => `${fmtStamp(r.start)} → ${fmtStamp(r.end)} · máx. ${fmt(r.maxMd, 0)} m`
     return card(
       '8 · Comparar con una carrera real (opcional)',
       [
         fileInput,
-        el('p', { class: 'note' }, state.run ? `✓ ${state.runName}: ${state.run.points.length} puntos (medianas cada 25 m en movimiento estable).` : 'CSV del sistema de adquisición (columnas de Peso y Profundidad; Velocidad opcional). Se grafica sobre la simulación.'),
+        state.runProgress !== null ? el('p', { class: 'note ctsim-run-progress' }, 'Leyendo…') : null,
+        runs.length > 1
+          ? selectField(
+              `Carrera (${runs.length} en el archivo)`,
+              runs.map((r, i) => ({ value: i, label: runLabel(r) })),
+              state.runIdx,
+              (v) => (selectRun(Number(v)), renderForm(), renderResults())
+            )
+          : null,
+        el(
+          'p',
+          { class: 'note' },
+          state.run
+            ? `✓ ${state.runName}${runs.length === 1 ? ` (${runLabel(state.run)})` : ''}: ${state.run.points.length} puntos de peso (medianas cada 25 m en movimiento estable)${state.runFile.hasTime ? ' y la serie profundidad–tiempo para los tiempos de operación' : '; sin columna de fecha/hora: los tiempos suponen 1 dato por segundo'}.`
+            : 'CSV del sistema de adquisición (fecha/hora, peso y profundidad; velocidad, WHP y caudal opcionales). Puede ser el archivo de todo el pad: se detectan las carreras y elegís cuál. Se grafica sobre la simulación y en Tiempos se compara con lo estimado.'
+        ),
         state.run && state.survey
           ? el('button', { class: 'btn-secondary', type: 'button', onClick: fitRun }, state.reelTared ? 'Ajustar µ, stripper y cero del indicador a esta carrera' : 'Ajustar µ, stripper y reel a esta carrera')
           : null,
         state.match
-          ? el('p', { class: 'note' }, `Ajuste: µ RIH ${state.match.muRIH.toFixed(2)} · µ POOH ${state.match.muPOOH.toFixed(2)} · stripper ${fmt(state.match.stripperLbf, 0)} lbf · ${state.reelTared ? 'corrección del cero' : 'reel'} ${fmt(state.match.reelTension, 0)} lbf. Error mediano ${fmt(state.match.maeRIH, 0)} lb RIH / ${fmt(state.match.maePOOH, 0)} lb POOH (${state.match.nRIH + state.match.nPOOH} puntos). Valores cargados en el formulario.`)
+          ? el('p', { class: 'note' }, `Ajuste: µ RIH ${state.match.muRIH.toFixed(3)} · µ POOH ${state.match.muPOOH.toFixed(3)} (relación POOH/RIH calibrada) · stripper ${fmt(state.match.stripperLbf, 0)} lbf · ${state.reelTared ? 'corrección del cero' : 'reel'} ${fmt(state.match.reelTension, 0)} lbf. Error mediano ${fmt(state.match.maeRIH, 0)} lb RIH / ${fmt(state.match.maePOOH, 0)} lb POOH (${state.match.nRIH + state.match.nPOOH} puntos). Valores cargados en el formulario.`)
           : null,
-        state.run ? el('button', { class: 'btn-secondary', type: 'button', onClick: () => ((state.run = null), (state.match = null), renderForm(), renderResults()) }, 'Quitar carrera') : null,
+        state.run ? el('button', { class: 'btn-secondary', type: 'button', onClick: () => ((state.run = null), (state.runFile = null), (state.match = null), renderForm(), renderResults()) }, 'Quitar carrera') : null,
       ],
-      { open: !!state.run }
+      { open: !!state.run || state.runProgress !== null }
     )
   }
 
@@ -711,6 +782,7 @@ export function mountCtSimulator(container) {
       speedRIH: state.speeds.lat.RIH || 0.1,
       speedPOOH: state.speeds.lat.POOH || 0.1,
       speedAt: speedAtFn(survey),
+      targetM: survey ? tdOf(survey) : undefined,
       ertLbfPerBpm: state.ert || 0,
       stripperLbf: state.stripper || 0,
       reelTensionRIH: state.rbtRIH || 0,
@@ -728,6 +800,7 @@ export function mountCtSimulator(container) {
     ['sens', 'Sensibilidad'],
     ['tri', 'Límites triaxiales'],
     ['3d', 'Survey 3D'],
+    ['tiempos', 'Tiempos'],
   ]
 
   function renderResults() {
@@ -754,6 +827,7 @@ export function mountCtSimulator(container) {
       if (state.tab === 'pesos') weightsPanel()
       else if (state.tab === 'sens') sensPanel()
       else if (state.tab === 'tri') triPanel()
+      else if (state.tab === 'tiempos') timesPanel()
       else resultsEl.appendChild(survey3dPanel())
     } catch (err) {
       resultsEl.appendChild(el('p', { class: 'note note-error' }, err.message))
@@ -902,7 +976,7 @@ export function mountCtSimulator(container) {
         try {
           const w = state.surveys[wells[k]]
           const plugs = w.plugs || []
-          const td = Math.min(w.rows[w.rows.length - 1][0], strLen)
+          const td = Math.min(tdOf(w.rows), strLen)
           const { lp } = kopLp(w.rows)
           const depths = sensitivityDepths(td, lp, 250, plugs)
           const grid = sensitivityGrid(params(state.muRIH, state.muPOOH, w.rows), cal.model, { mus: sn.mus, erts: sn.erts, depths, requiredLbf: sn.required || 0 })
@@ -1044,7 +1118,7 @@ export function mountCtSimulator(container) {
     const tr = state.tri
     const str = buildString(state.string)
     const grade = findGrade(state.grade)
-    const td = Math.min(state.survey[state.survey.length - 1][0], str.totalLength)
+    const td = tdOf()
     const surfWall = str.wallAt(Math.max(0, td - (state.bha.length || 0)))
     const walls = [...new Set(state.string.sections.flatMap((x) => [Number(x.wallStart), Number(x.wallEnd)]))].sort((a, b) => a - b)
     const wallNom = tr.wall === 'surface' ? surfWall : Number(tr.wall)
@@ -1236,7 +1310,7 @@ export function mountCtSimulator(container) {
   }
 
   function plugTable() {
-    const td = Math.min(state.survey[state.survey.length - 1][0], buildString(state.string).totalLength)
+    const td = tdOf()
     const plugs = state.plugs.filter((d) => d > 0 && d <= td)
     const p = params(state.muRIH, state.muPOOH)
     const sim = simulateTrip(p, cal.model, plugs)
@@ -1612,6 +1686,167 @@ export function mountCtSimulator(container) {
     ])
   }
 
+  // ---- operation times -----------------------------------------------------
+  function timesPanel() {
+    const rows = state.survey
+    const { kop, lp } = kopLp(rows)
+    const target = tdOf()
+    const tp = state.timePlan
+    const plan = planSegments({ kop, lp, target, plan: tp })
+    const act = state.run?.series ? actualTimes(state.run.series, plan) : null
+    const real = (list, key) => act?.[list].find((x) => x.key === key)
+    const f1 = (v) => (v === null || v === undefined ? '—' : fmt(v, 1))
+    const rerender = () => renderResults()
+    const speedInput = (value, onSet) =>
+      el('input', {
+        type: 'number',
+        step: 0.1,
+        min: 0.1,
+        class: 'ctsim-cell-input',
+        value: value ?? '',
+        'aria-label': 'Velocidad promedio esperada (m/min)',
+        onChange: (e) => {
+          const v = Number(e.target.value)
+          if (v > 0) onSet(v)
+          rerender()
+        },
+      })
+    const setRih = (key) => (v) => {
+      if (key === 'vert' || key === 'curve') tp.rih[key] = v
+      else {
+        const i = Number(key.slice(3))
+        while (tp.rih.lat.length <= i) tp.rih.lat.push(tp.rih.lat[tp.rih.lat.length - 1])
+        tp.rih.lat[i] = v
+      }
+    }
+    const setPooh = (key) => (v) => (tp.pooh[{ plat: 'lat', pcurve: 'curve', pvert: 'vert' }[key]] = v)
+    const dDelta = (exp, re) => (re === null || re === undefined || exp === null ? '' : `${re > exp ? '+' : '−'}${fmtDuration(Math.abs(re - exp)).replace(' h', '')}`)
+    const head = (first) =>
+      el('thead', {}, el('tr', {}, [first, 'Prof. (m)', 'Long. (m)', 'Vel. esperada (m/min)', 'Tiempo esperado', ...(act ? ['Vel. real (m/min)', 'Tiempo real', 'Δ tiempo'] : [])].map((h) => el('th', {}, h))))
+    const segRow = (s, r, onSet) =>
+      el('tr', {}, [
+        el('td', {}, s.label),
+        el('td', {}, `${fmt(s.from, 0)}–${fmt(s.to, 0)}`),
+        el('td', {}, fmt(s.len, 0)),
+        el('td', {}, speedInput(s.v, onSet)),
+        el('td', {}, fmtDuration(s.min)),
+        ...(act ? [el('td', {}, r?.short ? 'no llegó' : f1(r?.realV)), el('td', {}, fmtDuration(r?.realMin)), el('td', { class: 'ctsim-delta' }, dDelta(s.min, r?.realMin))] : []),
+      ])
+    const totRow = (label, exp, re, extra) =>
+      el('tr', { class: 'ctsim-total' }, [el('td', {}, label), el('td', {}, extra ?? ''), el('td', {}), el('td', {}), el('td', {}, fmtDuration(exp)), ...(act ? [el('td', {}), el('td', {}, fmtDuration(re)), el('td', { class: 'ctsim-delta' }, dDelta(exp, re))] : [])])
+    const rihLen = plan.rih.reduce((a, x) => a + x.len, 0)
+    const rihTable = el('div', { class: 'ctsim-table-wrap' }, [
+      el('div', { class: 'section-label ctsim-subtitle' }, `Bajada (RIH) hasta la profundidad objetivo — ${fmt(target, 0)} m`),
+      el('table', { class: 'ctsim-table ctsim-times' }, [
+        head('Tramo'),
+        el('tbody', {}, [
+          ...plan.rih.map((x) => segRow(x, real('rih', x.key), setRih(x.key))),
+          totRow('Total RIH', plan.rihMin, act?.rihMin, `vel. media ${f1(rihLen / (plan.rihMin || 1))} m/min${act?.rihMin ? ` · real ${f1((act.bottom - SURF0) / act.rihMin)}` : ''}`),
+        ]),
+      ]),
+    ])
+    const poohTable = el('div', { class: 'ctsim-table-wrap' }, [
+      el('div', { class: 'section-label ctsim-subtitle' }, 'Sacada (POOH)'),
+      el('table', { class: 'ctsim-table ctsim-times' }, [
+        head('Tramo'),
+        el('tbody', {}, [...plan.pooh.map((x) => segRow(x, real('pooh', x.key), setPooh(x.key))), totRow('Total POOH', plan.poohMin, act?.poohMin)]),
+      ]),
+    ])
+    const bottomInput = el('input', {
+      type: 'number',
+      step: 0.5,
+      min: 0,
+      class: 'ctsim-cell-input',
+      value: tp.bottomH,
+      'aria-label': 'Tiempo en fondo (h)',
+      onChange: (e) => ((tp.bottomH = Math.max(0, Number(e.target.value) || 0)), rerender()),
+    })
+    const sumTable = el('div', { class: 'ctsim-table-wrap' }, [
+      el('div', { class: 'section-label ctsim-subtitle' }, 'Resumen de la operación'),
+      el('table', { class: 'ctsim-table ctsim-times' }, [
+        el('thead', {}, el('tr', {}, ['', 'Esperado', ...(act ? ['Real', 'Δ'] : [])].map((h) => el('th', {}, h)))),
+        el('tbody', {}, [
+          el('tr', {}, [el('td', {}, 'Bajada (RIH)'), el('td', {}, fmtDuration(plan.rihMin)), ...(act ? [el('td', {}, fmtDuration(act.rihMin)), el('td', { class: 'ctsim-delta' }, dDelta(plan.rihMin, act.rihMin))] : [])]),
+          el('tr', {}, [el('td', {}, ['Tiempo en fondo (h) ', bottomInput]), el('td', {}, fmtDuration(plan.bottomMin)), ...(act ? [el('td', {}, fmtDuration(act.bottomMin)), el('td', { class: 'ctsim-delta' }, dDelta(plan.bottomMin, act.bottomMin))] : [])]),
+          el('tr', {}, [el('td', {}, 'Sacada (POOH)'), el('td', {}, fmtDuration(plan.poohMin)), ...(act ? [el('td', {}, fmtDuration(act.poohMin)), el('td', { class: 'ctsim-delta' }, dDelta(plan.poohMin, act.poohMin))] : [])]),
+          el('tr', { class: 'ctsim-total' }, [el('td', {}, 'Total en pozo'), el('td', {}, fmtDuration(plan.totalMin)), ...(act ? [el('td', {}, fmtDuration(act.totalMin)), el('td', { class: 'ctsim-delta' }, dDelta(plan.totalMin, act.totalMin))] : [])]),
+        ]),
+      ]),
+    ])
+    const notes = [
+      act && !act.reachedTarget ? el('p', { class: 'note note-error' }, `La carrera cargada llegó a ${fmt(act.maxMd, 0)} m, antes de la profundidad objetivo (${fmt(target, 0)} m): los tramos más profundos quedan sin dato real.`) : null,
+      act && act.maxMd > rows[rows.length - 1][0] + 30 ? el('p', { class: 'note note-error' }, `La carrera llega a ${fmt(act.maxMd, 0)} m, más que la TD de este survey: ¿es del mismo pozo?`) : null,
+      el(
+        'p',
+        { class: 'formula-note' },
+        `Velocidades promedio efectivas (distancia / tiempo transcurrido): incluyen paradas, fresado de tapones y viajes cortos. Las de referencia son la mediana de 10 carreras (pads B3A2, C1A y B1B) y se pueden editar en cada tramo. RIH: tiempo entre el primer paso por cada profundidad; el lateral se divide cada 500 m desde el LP (${lp != null ? fmt(lp, 0) : '—'} m; KOP ${kop != null ? fmt(kop, 0) : '—'} m). Tiempo en fondo: desde que llega a la profundidad objetivo hasta que la deja definitivamente. POOH: desde que deja el fondo, primer paso hacia arriba por cada profundidad (la vertical termina a ${SURF0} m).${state.run ? '' : ' Cargá el CSV de la operación en "8 · Comparar con una carrera real" para ver los tiempos reales.'}`
+      ),
+    ]
+    resultsEl.appendChild(timeChart(plannedCurve(plan), act?.curve || [], { kop, lp, target }))
+    resultsEl.appendChild(
+      el('div', { class: 'ctsim-row-btns' }, [
+        el('button', { class: 'btn-secondary', type: 'button', onClick: () => ((state.timePlan = JSON.parse(JSON.stringify(HIST_SPEEDS))), rerender()) }, 'Restablecer velocidades de referencia'),
+      ])
+    )
+    resultsEl.append(rihTable, poohTable, sumTable, ...notes.filter(Boolean))
+  }
+  const SURF0 = 50
+
+  // Depth (down) vs elapsed time (h): expected and, when a run is loaded, real.
+  function timeChart(planned, real, { kop, lp, target }) {
+    const W = Math.round(Math.min(760, Math.max(360, (resultsEl.clientWidth || 360) - 18)))
+    const H = W > 500 ? 420 : 360
+    const m = { l: 50, r: 12, t: 12, b: 34 }
+    const h1 = Math.max(1, ...planned.map((p) => p.h), ...real.map((p) => p.h))
+    const hStep = h1 > 48 ? 12 : h1 > 24 ? 6 : h1 > 8 ? 2 : 1
+    const x1 = Math.ceil(h1 / hStep) * hStep
+    const d1 = Math.ceil(Math.max(target, ...real.map((p) => p.md)) / 1000) * 1000
+    const sx = (h) => m.l + (h / x1) * (W - m.l - m.r)
+    const sy = (d) => m.t + (d / d1) * (H - m.t - m.b)
+    const ns = 'http://www.w3.org/2000/svg'
+    const svg = document.createElementNS(ns, 'svg')
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`)
+    svg.setAttribute('class', 'ctsim-chart')
+    svg.setAttribute('role', 'img')
+    svg.setAttribute('aria-label', 'Profundidad vs tiempo de operación, esperado y real')
+    const add = (tag, attrs) => {
+      const n = document.createElementNS(ns, tag)
+      for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v)
+      svg.appendChild(n)
+      return n
+    }
+    for (let h = 0; h <= x1; h += hStep) {
+      add('line', { x1: sx(h), x2: sx(h), y1: m.t, y2: H - m.b, class: 'ctsim-grid' })
+      add('text', { x: sx(h), y: H - m.b + 14, class: 'ctsim-tick', 'text-anchor': 'middle' }).textContent = String(h)
+    }
+    for (let d = 0; d <= d1; d += 1000) {
+      add('line', { x1: m.l, x2: W - m.r, y1: sy(d), y2: sy(d), class: 'ctsim-grid' })
+      add('text', { x: m.l - 6, y: sy(d) + 4, class: 'ctsim-tick', 'text-anchor': 'end' }).textContent = String(d)
+    }
+    for (const [d, lab] of [
+      [kop, 'KOP'],
+      [lp, 'LP'],
+      [target, 'Objetivo'],
+    ]) {
+      if (d == null) continue
+      add('line', { x1: m.l, x2: W - m.r, y1: sy(d), y2: sy(d), class: 'ctsim-ref' })
+      add('text', { x: W - m.r - 4, y: sy(d) - 4, class: 'ctsim-tick', 'text-anchor': 'end' }).textContent = `${lab} ${fmt(d, 0)} m`
+    }
+    add('text', { x: (m.l + W - m.r) / 2, y: H - 4, class: 'ctsim-axis', 'text-anchor': 'middle' }).textContent = 'Tiempo desde el inicio de la bajada (h)'
+    const yl = add('text', { x: 12, y: (m.t + H - m.b) / 2, class: 'ctsim-axis', 'text-anchor': 'middle' })
+    yl.setAttribute('transform', `rotate(-90 12 ${(m.t + H - m.b) / 2})`)
+    yl.textContent = 'MD (m)'
+    add('polyline', { points: planned.map((p) => `${sx(p.h)},${sy(p.md)}`).join(' '), class: 'ctsim-line ctsim-rih-stroke ctsim-dashed' })
+    if (real.length) add('polyline', { points: real.map((p) => `${sx(p.h)},${sy(p.md)}`).join(' '), class: 'ctsim-line ctsim-pooh-stroke' })
+    return el('div', { class: 'ctsim-chart-wrap' }, [
+      el('div', { class: 'ctsim-legend' }, [
+        el('span', {}, [el('i', { class: 'ctsim-key ctsim-rih-bg' }), 'Esperado']),
+        real.length ? el('span', {}, [el('i', { class: 'ctsim-key ctsim-pooh-bg' }), 'Real (CSV)']) : null,
+      ]),
+      svg,
+    ])
+  }
+
   function speedTable() {
     const speeds = [2, 4, 6, 8, 12, 16]
     const rows = speeds.map((v) => {
@@ -1619,7 +1854,7 @@ export function mountCtSimulator(container) {
       p.speedAt = () => v
       p.speedRIH = v
       p.speedPOOH = v
-      const r = simulateTrip(p, cal.model, [Math.min(state.survey[state.survey.length - 1][0], buildString(state.string).totalLength)]).rows[0]
+      const r = simulateTrip(p, cal.model, [tdOf()]).rows[0]
       return [v, r.rih, r.pooh]
     })
     return el('div', { class: 'ctsim-table-wrap' }, [

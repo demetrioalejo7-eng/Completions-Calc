@@ -1,11 +1,12 @@
-// "Friction matching" against a measured run: finds the µ (RIH / POOH) and
-// the surface-equipment offsets (stripper friction, reel back tension) that
-// best reproduce the measured weight-vs-depth medians of a loaded run.
+// "Friction matching" against a measured run: finds the µ (one value, POOH
+// at the calibrated ratio) and the surface-equipment offsets (stripper
+// friction, reel back tension / indicator zero) that best reproduce the
+// measured weight-vs-depth medians of a loaded run.
 //
 // Surface offsets enter linearly (Tech Note Eq 17):
 //   RIH:  W = F_E − WHP·A_o − F_s − RBT       POOH: W = F_E − WHP·A_o + F_s − RBT
-// so for any µ the per-direction offset is the median residual; µ of each
-// direction is then chosen by a 1-D scan minimizing the median absolute error.
+// so for any µ the per-direction offset is the median residual; µ is then
+// chosen by a 1-D scan minimizing the median absolute error of both.
 import { buildContext, forcesAtDepth, surfaceWeight } from './forces.js'
 
 const median = (a) => {
@@ -31,14 +32,29 @@ function residuals(ctx, pts, dir, mu) {
   return out
 }
 
-function scan(ctx, pts, dir, lo, hi) {
+// One µ for the run (µPOOH keeps the calibrated POOH / RIH ratio): with a
+// free offset per direction µRIH and µPOOH cannot be told apart from the
+// weights alone, and fitting them separately drifts to unphysical values.
+// For each µ the stripper / reel offsets are the median residuals.
+function scanJoint(ctx, rih, pooh, ratio, lo, hi) {
   let best = null
-  for (let mu = lo; mu <= hi + 1e-9; mu += 0.01) {
-    const res = residuals(ctx, pts, dir, mu)
-    if (res.length < pts.length * 0.8) continue
-    const off = median(res)
-    const mae = median(res.map((e) => Math.abs(e - off)))
-    if (!best || mae < best.mae) best = { mu: +mu.toFixed(2), off, mae }
+  for (let mu = lo; mu <= hi + 1e-9; mu += 0.005) {
+    const rR = residuals(ctx, rih, 'RIH', mu)
+    const rP = residuals(ctx, pooh, 'POOH', mu * ratio)
+    if (rR.length < rih.length * 0.8 || rP.length < pooh.length * 0.8) continue
+    let oR = median(rR)
+    let oP = median(rP)
+    // stripper friction can't be negative (POOH reads at least as high as
+    // RIH): if it would, both directions share one offset
+    if (oP < oR) {
+      const all = median([...rR, ...rP])
+      oR = all
+      oP = all
+    }
+    const maeR = median(rR.map((e) => Math.abs(e - oR)))
+    const maeP = median(rP.map((e) => Math.abs(e - oP)))
+    const score = (maeR * rR.length + maeP * rP.length) / (rR.length + rP.length)
+    if (!best || score < best.score) best = { mu: +mu.toFixed(3), oR, oP, maeR, maeP, score }
   }
   return best
 }
@@ -52,19 +68,19 @@ export function matchRun(params, model, points, { minDepthM = 150 } = {}) {
   const rih = use.filter((p) => p.dir === 'RIH')
   const pooh = use.filter((p) => p.dir === 'POOH')
   if (rih.length < 10 || pooh.length < 10) throw new Error('La carrera necesita tramos RIH y POOH en movimiento estable para el ajuste.')
-  const bR = scan(ctx, rih, 'RIH', 0.1, 0.6)
-  const bP = scan(ctx, pooh, 'POOH', 0.05, 0.5)
-  if (!bR || !bP) throw new Error('No se pudo ajustar la carrera (lock-up en todo el rango de µ).')
+  const ratio = params.muRIH > 0 ? params.muPOOH / params.muRIH : 0.9
+  const b = scanJoint(ctx, rih, pooh, ratio, 0.1, 0.55)
+  if (!b) throw new Error('No se pudo ajustar la carrera (lock-up en todo el rango de µ).')
   // aR = −Fs − RBT, aP = +Fs − RBT
-  const stripper = (bP.off - bR.off) / 2
-  const rbt = -(bP.off + bR.off) / 2
+  const stripper = (b.oP - b.oR) / 2
+  const rbt = -(b.oP + b.oR) / 2
   return {
-    muRIH: bR.mu,
-    muPOOH: bP.mu,
+    muRIH: b.mu,
+    muPOOH: +(b.mu * ratio).toFixed(3),
     stripperLbf: Math.round(stripper),
     reelTension: Math.round(rbt),
-    maeRIH: Math.round(bR.mae),
-    maePOOH: Math.round(bP.mae),
+    maeRIH: Math.round(b.maeR),
+    maePOOH: Math.round(b.maeP),
     nRIH: rih.length,
     nPOOH: pooh.length,
   }
