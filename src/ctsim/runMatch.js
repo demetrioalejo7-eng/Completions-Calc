@@ -25,6 +25,7 @@ function residuals(ctx, pts, dir, mu) {
     // per-point wellhead pressure and pump rate when the run carries them
     p.whp = pt.whp ?? ctx.p.whp
     p.rateBpm = pt.q ?? ctx.p.rateBpm
+    p.noPumpAboveKop = pt.q != null ? null : ctx.p.noPumpAboveKop
     const r = forcesAtDepth({ ...ctx, p }, pt.md, dir)
     if (r.lockup) continue
     out.push(pt.w - surfaceWeight(r.surfaceForce, dir, p, ctx.string, ctx.model))

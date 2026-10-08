@@ -130,6 +130,7 @@ export function createRunReader({ binM = 25 } = {}) {
   let run = null
   let lastInHole = -Infinity
   let atSurface = true // CT seen at surface since the last in-hole sample
+  const dts = [] // sample intervals (s), to size the bins' minimum count
 
   function header(line) {
     const hdr = splitLine(line.replace(/^\uFEFF/, ''), ',').map((h) => h.replace(/"/g, '').trim())
@@ -144,16 +145,21 @@ export function createRunReader({ binM = 25 } = {}) {
       md: pick(/profundidad|depth/i),
       v: pick(/velocidad|speed/i),
       whp: pick(/presi[oó]n en cabeza|whp/i),
-      q: pick(/caudal linea|caudal de bombeo|pump rate/i),
+      q: pick(/caudal linea|caudal de bombeo|caudal total|pump rate/i),
     }
     if (cols.w < 0 || cols.md < 0) throw new Error('El CSV no tiene columnas de peso y profundidad reconocibles.')
   }
 
   function process(c) {
-    // c = centre sample of the ring (15 before / 15 after)
-    const a = ring[0]
-    const b = ring[ring.length - 1]
-    if (c.md === null || c.w === null || a.md === null || b.md === null || c.run === null) return
+    // c = centre sample of the ring: direction and speed from up to 15
+    // samples each side, within 3 min (1 s logs use ±15 s, 1 min logs the
+    // neighbouring samples)
+    if (c.md === null || c.w === null || c.run === null) return
+    let k = 15
+    while (k > 1 && ring[15 + k].t - ring[15 - k].t > 180) k--
+    const a = ring[15 - k]
+    const b = ring[15 + k]
+    if (a.md === null || b.md === null) return
     const dt = b.t - a.t
     if (!(dt > 0) || dt > 180) return
     const dv = ((b.md - a.md) / dt) * 60 // m/min, + = RIH
@@ -163,6 +169,7 @@ export function createRunReader({ binM = 25 } = {}) {
     const key = `${c.run}|${dir}|${Math.floor(c.md / binM)}`
     let g = bins.get(key)
     if (!g) bins.set(key, (g = { w: [], v: [], whp: 0, nwhp: 0, q: 0, nq: 0 }))
+    if (dts.length < 200) dts.push(ring[16].t - ring[15].t)
     g.w.push(c.w)
     // speed channel when it agrees with the depth trend (some exports log it
     // scaled, e.g. ×0.1, or as 0), otherwise the speed from depth
@@ -215,8 +222,12 @@ export function createRunReader({ binM = 25 } = {}) {
       return s[Math.floor(s.length / 2)]
     }
     const pointsOf = new Map(runs.map((r) => [r.id, []]))
+    // at least ~8 s of steady motion per bin: 8 samples in a 1 s log, one
+    // sample in a 1 min log
+    const dtTyp = dts.length ? med(dts.filter((d) => d > 0)) || 1 : 1
+    const minN = Math.max(1, Math.min(8, Math.round(8 / dtTyp)))
     for (const [key, g] of bins) {
-      if (g.w.length < 8) continue
+      if (g.w.length < minN) continue
       const [id, dir, b] = key.split('|')
       pointsOf.get(Number(id))?.push({ dir, md: (Number(b) + 0.5) * binM, w: med(g.w), v: med(g.v), whp: g.nwhp ? g.whp / g.nwhp : null, q: g.nq ? g.q / g.nq : null, n: g.w.length })
     }

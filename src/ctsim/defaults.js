@@ -44,7 +44,27 @@ export const TENARIS_WELDLOG_2375 = {
   ],
 }
 
+// SPI CT string 41571 (2 3/8", 125 kpsi, 7208.5 m, 23 sections / 22 welds),
+// from the Cerberus string sheet in the PAD C1B clean-out program (Rev02).
+// Positions there are measured from the core end; consecutive sections of
+// the same wall are merged. Weight empty 121,408 lb.
+export const SPI_41571_2375 = {
+  od: 2.375,
+  sections: [
+    { length: 1253.0, wallStart: 0.224, wallEnd: 0.224 },
+    { length: 228.6, wallStart: 0.224, wallEnd: 0.25 },
+    { length: 308.8, wallStart: 0.25, wallEnd: 0.276 },
+    { length: 1975.4, wallStart: 0.276, wallEnd: 0.276 },
+    { length: 315.8, wallStart: 0.276, wallEnd: 0.25 },
+    { length: 231.3, wallStart: 0.25, wallEnd: 0.224 },
+    { length: 230.1, wallStart: 0.224, wallEnd: 0.204 },
+    { length: 270.4, wallStart: 0.204, wallEnd: 0.175 },
+    { length: 2395.1, wallStart: 0.175, wallEnd: 0.175 },
+  ],
+}
+
 export const STRING_PRESETS = [
   { id: 'standard', label: 'Sarta estándar 2 3/8" (7.660 m)', string: STANDARD_STRING_2375, grade: 'global-duracoil|DC-120' },
   { id: 'tenaris-weldlog', label: 'Tenaris weld log 2 3/8" HT-125 (8.338 m)', string: TENARIS_WELDLOG_2375, grade: 'tenaris-bluecoil|HT-125' },
+  { id: 'spi-41571', label: 'SPI 41571 2 3/8" 125 kpsi (7.208 m)', string: SPI_41571_2375, grade: 'tenaris-bluecoil|HT-125' },
 ]
