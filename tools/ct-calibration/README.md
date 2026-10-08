@@ -90,6 +90,24 @@ suben al repositorio**. Solo se versionan los coeficientes resultantes en
   5355 m la mediana RIH cae de +9 a −9 klb con la velocidad bajando de 3 a
   0,9 m/min; luego tensiones de 59–76 klb (POOH normal ~45–49 klb).
 
+## Seguimiento en vivo, bandas de campo y alarmas (15 carreras)
+
+- Offset de superficie re-estimado durante la carrera con la mediana de las
+  40 lecturas anteriores (≈1000 m), sin las últimas 8: el error mediano baja
+  de 3,9 klb (valores por defecto) a 1,9 klb (con el offset de toda la
+  carrera, a posteriori, 2,1 klb).
+- Bandas (p5–p95 de medido − modelo, por dirección y tramo) en
+  `FIELD_BANDS`: `plan` antes del trabajo (±10–12 klb, domina el offset de
+  superficie) y `live` con el offset móvil (−4..+4 klb en la vertical RIH,
+  −7..+5 klb en el lateral RIH).
+- Alarma (curva y lateral): RIH 15 klb o más por debajo, POOH 15 klb o más
+  por encima de lo esperado. Detecta BdC-1037h r1 a 5337 m (04:27, 18 min
+  antes de la sobretensión de 70 klb) y BdC-1030h r1 a 5462 m (lock-up
+  incipiente). Con reglas de "N lecturas seguidas fuera de ±3–8 klb" las
+  falsas alarmas eran de 11 a 15 de 15 carreras (el fresado de tapones
+  produce asentamientos persistentes). Falsas alarmas con la regla
+  elegida: 2 de 8 carreras normales de B1B y C1B, un solo bin cada una.
+
 ## Hallazgos (pads B3A2, C1A y B1B, 11 carreras)
 
 - El modelo soft-string de CTES (Orpheus) reproduce la forma de las curvas.

@@ -1062,3 +1062,49 @@ input.ctsim-text {
     margin: 12mm;
   }
 }
+
+/* live tracking */
+.ctsim-dot-caution {
+  fill: none;
+  stroke: #d98a00;
+  stroke-width: 1.6;
+}
+.ctsim-dot-alarm {
+  fill: #e34948;
+  stroke: var(--bg-card);
+  stroke-width: 1.5;
+}
+.ctsim-ring {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 4px;
+}
+.ctsim-ring-caution {
+  border: 1.6px solid #d98a00;
+}
+.ctsim-ring-alarm {
+  background: #e34948;
+}
+.ctsim-live-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ctsim-alert {
+  border-left: 4px solid #008300;
+  background: color-mix(in srgb, #008300 9%, transparent);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+.ctsim-alert.warn {
+  border-left-color: #d98a00;
+  background: color-mix(in srgb, #d98a00 11%, transparent);
+}
+.ctsim-alert.bad {
+  border-left-color: #e34948;
+  background: color-mix(in srgb, #e34948 12%, transparent);
+}

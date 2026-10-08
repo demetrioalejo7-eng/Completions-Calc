@@ -68,6 +68,36 @@ export const CT_CALIBRATION = {
   note: 'Calibrado con 15 carreras de 4 pads (B3A2, C1A, B1B y C1B; incluye BdC-1030h con el ERT fallado y el C1B con sarta SPI y ERT de media intensidad). El offset de superficie (stripper + reel) varía ±5 klb entre trabajos: usá "Ajuste con lecturas de campo" o una carrera previa para corregirlo.',
 }
 
+// Field error bands (lbf, measured − model, p5 / p95 = 90 % of the points)
+// per direction and section, from the 15 runs with the calibrated model and
+// the default surface terms:
+//  plan: before the job (the per-job surface offset is unknown, ±5 klb)
+//  live: with the offset re-estimated during the run from the readings of
+//        the previous ~1000 m (LIVE below): what a reading should do next
+export const FIELD_BANDS = {
+  plan: {
+    RIH: { vert: [-10700, 6000], curve: [-12400, 7500], lat: [-12100, 8500] },
+    POOH: { vert: [-10200, 11800], curve: [-11300, 11800], lat: [-11000, 8000] },
+  },
+  live: {
+    RIH: { vert: [-4300, 4000], curve: [-5700, 3700], lat: [-7100, 4900] },
+    POOH: { vert: [-5300, 8600], curve: [-5700, 10300], lat: [-7500, 5900] },
+  },
+}
+
+// Live tracking of a run: the surface offset is the median deviation of the
+// previous `windowBins` readings of the same direction (25 m bins), leaving
+// out the last `gapBins` so a developing problem is not absorbed. Alarms
+// (tuned on the 15 runs plus BdC-1037h r1, stuck with overpull, and
+// BdC-1030h r1, pulled for incipient lock-up), below the KOP only: RIH
+// 15 klb or more lighter than expected (set-down / excess friction: 1037h r1
+// at 5337 m, 18 min before the 70 klb overpull; 1030h r1 at 5462 m), POOH
+// 15 klb or more heavier (overpull). In the vertical a large deviation is a
+// caution (tag / restriction / surface effects). False alarms on the pads
+// B1B and C1B with the app's CSV reader: 2 in 8 normal runs, a single bin
+// each (milling near TD in 1039h; 1028h, whose log has transmission errors).
+export const LIVE = { windowBins: 40, gapBins: 8, minBins: 16, alarmSetDownLbf: 15000, alarmOverpullLbf: 15000 }
+
 // Friction presets: the RIH value is the user's CT–casing coefficient; the
 // POOH value keeps the calibrated POOH/RIH ratio (0.286 / 0.278).
 const POOH_RATIO = 1.03
