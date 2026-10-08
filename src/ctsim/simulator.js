@@ -11,8 +11,7 @@ import { toProject, applyProject, validateProject, loadLocal, clearLocal, listTe
 import { mergeRuns, autoAssign, runsOf, pickRun } from './runs.js'
 import { putPad, getPad, deletePad, listPads, newPadId, currentPadId, setCurrentPadId } from './padstore.js'
 import { STANDARD_STRING_2375, DEFAULT_BHA, STRING_PRESETS } from './defaults.js'
-import { CT_CALIBRATION, MU_LEVELS, ERT_LEVELS, FIELD_BANDS, LIVE } from './calibration.js'
-import { predictPoints, liveTrack, zoneOf } from './live.js'
+import { CT_CALIBRATION, MU_LEVELS, ERT_LEVELS } from './calibration.js'
 import { CT_MANUFACTURERS, findGrade, minWall } from './grades.js'
 import { matchRun, matchSurfaceReadings } from './runMatch.js'
 import { sensitivityGrid, sensitivityDepths } from './sensitivity.js'
@@ -100,8 +99,6 @@ export function mountCtSimulator(container) {
     ertInPooh: false,
     // no pumping (no ERT, no annular drag) while the tool is above the KOP
     noPumpAboveKop: { RIH: true, POOH: true },
-    // chart band: 'field' (90 % of the field readings) or 'mu' (µ ± 0.05)
-    bandMode: 'field',
     indicatorOffset: 0,
     // speed plan per section (m/min): vertical to KOP, curve KOP–LP, lateral
     speeds: { vert: { RIH: 23, POOH: 23 }, curve: { RIH: 10, POOH: 10 }, lat: { RIH: 3.5, POOH: 10 } },
@@ -1253,9 +1250,7 @@ export function mountCtSimulator(container) {
     const { base, lo, hi } = baseTrips()
     const td = base.rows[base.rows.length - 1].depth
     const setDown = maxSetDown(params(state.muRIH, state.muPOOH), td, cal.model)
-    const live = liveAnalysis()
-    resultsEl.appendChild(chart(base, lo, hi, live))
-    if (live) resultsEl.appendChild(livePanel(live, base))
+    resultsEl.appendChild(chart(base, lo, hi))
     resultsEl.appendChild(summary(base, setDown))
     if (state.plugs.length) resultsEl.appendChild(plugTable())
     resultsEl.appendChild(speedTable())
@@ -2421,114 +2416,14 @@ export function mountCtSimulator(container) {
   }
 
   // ---- chart ---------------------------------------------------------------
-  // ---- live tracking of the loaded run ---------------------------------------
-  function liveAnalysis() {
-    if (!state.run?.points?.length || !state.survey) return null
-    const { kop, lp } = kopLp(state.survey)
-    const pred = predictPoints(params(state.muRIH, state.muPOOH), cal.model, state.run.points)
-    return { ...liveTrack(state.run.points, pred, { kop, lp }), kop, lp }
-  }
-
-  // offset for each model curve: its own direction, else the other one
-  const liveOffsets = (live) => ({
-    rih: live?.offset.RIH ?? live?.offset.POOH ?? 0,
-    pooh: live?.offset.POOH ?? live?.offset.RIH ?? 0,
-  })
-
-  function livePanel(live, base) {
-    const hasTime = state.run?.hasTime !== false
-    const when = (x) => (hasTime && x.t != null ? new Date(x.t * 1000).toISOString().slice(5, 16).replace('T', ' ') : '')
-    const klb = (v) => {
-      const r = Math.round(v) || 0
-      return `${r > 0 ? '+' : ''}${nF(r)} ${uF()}`
-    }
-    const zl = { vert: 'vertical', curve: 'curva', lat: 'lateral' }
-    const off = liveOffsets(live)
-    const what = (x) =>
-      x.dir === 'RIH'
-        ? x.d < 0
-          ? 'más liviano que lo esperado (asentamiento / más fricción)'
-          : 'más pesado que lo esperado (menos fricción)'
-        : x.d > 0
-          ? 'más pesado que lo esperado (sobretensión / más fricción)'
-          : 'más liviano que lo esperado'
-    const last = live.last
-    const lastAlarm = live.alarms[live.alarms.length - 1]
-    const status = lastAlarm
-      ? el('div', { class: 'ctsim-alert bad' }, [
-          el('strong', {}, `ALARMA${when(lastAlarm) ? ` ${when(lastAlarm)}` : ''} a ${nL(lastAlarm.md)} ${uL()} (${lastAlarm.dir}): `),
-          `${klb(lastAlarm.d)} respecto del esperado, ${what(lastAlarm)}. `,
-          lastAlarm.dir === 'RIH' ? 'Firma de aprisionamiento por exceso de fricción (BdC-1037h r1, BdC-1030h r1): reducir el avance, circular / viaje corto.' : 'Sobretensión: revisar arrastre por arena o aprisionamiento.',
-          live.alarms.length > 1 ? ` Primera alarma${when(live.alarms[0]) ? ` ${when(live.alarms[0])}` : ''} a ${nL(live.alarms[0].md)} ${uL()} (${live.alarms[0].dir}, ${klb(live.alarms[0].d)}); ${live.alarms.length} alarmas en la carrera.` : '',
-        ])
-      : el('div', { class: `ctsim-alert ${last?.level === 'caution' ? 'warn' : 'ok'}` }, [
-          el('strong', {}, last?.level === 'caution' ? 'Precaución: ' : 'Normal: '),
-          last
-            ? `última lectura${when(last) ? ` ${when(last)}` : ''} a ${nL(last.md)} ${uL()} (${last.dir}, ${zl[zoneOf(last.md, live.kop, live.lp)]}) ${klb(last.d)} respecto del esperado${last.level === 'caution' ? `, fuera de la banda de campo: ${what(last)}` : ', dentro de la banda de campo'}.`
-            : `faltan lecturas: el seguimiento arranca después de ${LIVE.minBins} lecturas (${nL(LIVE.minBins * 25)} ${uL()}).`,
-        ])
-    const end = base.rows[base.rows.length - 1]
-    const applyOffsets = () => {
-      const oR = live.offset.RIH
-      const oP = live.offset.POOH
-      if (oR == null && oP == null) return
-      if (oR != null && oP != null) {
-        state.stripper = Math.max(0, Math.round(state.stripper + (oP - oR) / 2))
-        state.indicatorOffset = Math.round((state.indicatorOffset || 0) - (oR + oP) / 2)
-      } else state.indicatorOffset = Math.round((state.indicatorOffset || 0) - (oR ?? oP))
-      renderForm()
-      renderResults()
-    }
-    const events = live.events.slice(-30).reverse()
-    return el('div', { class: 'ctsim-card ctsim-live' }, [
-      el('div', { class: 'section-label ctsim-subtitle ctsim-pad-top ctsim-pad' }, 'Seguimiento en vivo'),
-      el('div', { class: 'ctsim-pad ctsim-live-body' }, [
-        status,
-        el('p', { class: 'note' }, [
-          `Offset de superficie estimado con las lecturas de los últimos ~${nL(LIVE.windowBins * 25)} ${uL()}: RIH ${live.offset.RIH != null ? klb(live.offset.RIH) : '— (sin lecturas)'} · POOH ${live.offset.POOH != null ? klb(live.offset.POOH) : '— (se usa el de RIH)'}. `,
-          `Con eso, el modelo ajustado (línea punteada) espera en la profundidad objetivo ${nL(end.depth)} ${uL()}: RIH ${end.rih != null ? `${nF(end.rih + off.rih)} ${uF()}` : 'lock-up'} · POOH ${nF(end.pooh + off.pooh)} ${uF()}.`,
-        ]),
-        el('div', { class: 'ctsim-row-btns' }, [el('button', { class: 'btn-secondary', type: 'button', onClick: applyOffsets }, 'Usar estos offsets en el formulario')]),
-        events.length
-          ? el('details', { class: 'ctsim-preview-det' }, [
-              el('summary', {}, `Eventos fuera de la banda (${live.events.length}${live.alarms.length ? `, ${live.alarms.length} alarmas` : ''})`),
-              el('div', { class: 'ctsim-table-wrap' }, [
-                el('table', { class: 'ctsim-table' }, [
-                  el('thead', {}, el('tr', {}, [el('th', {}, 'Hora'), el('th', {}, `MD (${uL()})`), el('th', {}, 'Dir.'), el('th', {}, 'Tramo'), el('th', {}, `Desvío (${uF()})`), el('th', {}, 'Nivel')])),
-                  el(
-                    'tbody',
-                    {},
-                    events.map((x) =>
-                      el('tr', {}, [el('td', {}, when(x) || '—'), el('td', {}, nL(x.md)), el('td', {}, x.dir), el('td', {}, zl[zoneOf(x.md, live.kop, live.lp)]), el('td', {}, klb(x.d)), el('td', { class: x.level === 'alarm' ? 'ctsim-bad-text' : '' }, x.level === 'alarm' ? 'Alarma' : 'Precaución')])
-                    )
-                  ),
-                ]),
-              ]),
-            ])
-          : null,
-        el(
-          'p',
-          { class: 'ctsim-hint' },
-          `Cómo se usa en operación: exportá el CSV del sistema de adquisición y cargalo de nuevo en "8 · Carreras reales" cada vez que quieras actualizar. Cada lectura (mediana cada 25 ${uL()}) se compara con el modelo, con el offset de superficie re-estimado con las ${LIVE.windowBins} lecturas anteriores (sin las últimas ${LIVE.gapBins}, para que un problema que se desarrolla no se absorba). Precaución: fuera de la banda de campo (90 % de las lecturas normales de 15 carreras). Alarma (curva y lateral): RIH ${nF(LIVE.alarmSetDownLbf)} ${uF()} o más por debajo, o POOH ${nF(LIVE.alarmOverpullLbf)} ${uF()} o más por encima de lo esperado. Validado con BdC-1037h r1 (aprisionamiento, alarma a 5337 m, 18 min antes de la sobretensión) y BdC-1030h r1 (lock-up incipiente, alarma a 5462 m); falsas alarmas en 2 de 8 carreras normales.`
-        ),
-      ]),
-    ])
-  }
-
-  function chart(base, lo, hi, live = null) {
+  function chart(base, lo, hi) {
     // viewBox follows the available width so text keeps its size on wide screens
     const W = Math.round(Math.min(760, Math.max(360, (resultsEl.clientWidth || 360) - 18)))
     const H = W > 500 ? 620 : 520
     const m = { l: 46, r: 12, t: 12, b: 34 }
     const rows = base.rows
     const run = state.run ? state.run.points : []
-    const fieldBand = (state.bandMode || 'field') === 'field'
-    const { kop, lp } = live || (state.survey ? kopLp(state.survey) : { kop: null, lp: null })
-    const offs = liveOffsets(live)
-    const fb = live ? FIELD_BANDS.live : FIELD_BANDS.plan
-    const bandAt = (key, r) => fb[key.toUpperCase()][zoneOf(r.depth, kop, lp)]
-    const fieldX = fieldBand ? rows.flatMap((r) => ['rih', 'pooh'].filter((k) => r[k] !== null).flatMap((k) => bandAt(k, r).map((b) => r[k] + offs[k] + b))) : []
-    const xs = [...rows.flatMap((r) => [r.rih, r.pooh]), ...(fieldBand ? fieldX : [...lo.rows.flatMap((r) => [r.rih, r.pooh]), ...hi.rows.flatMap((r) => [r.rih, r.pooh])]), ...run.map((p) => p.w)].filter((v) => v !== null && Number.isFinite(v))
+    const xs = [...rows.flatMap((r) => [r.rih, r.pooh]), ...lo.rows.flatMap((r) => [r.rih, r.pooh]), ...hi.rows.flatMap((r) => [r.rih, r.pooh]), ...run.map((p) => p.w)].filter((v) => v !== null && Number.isFinite(v))
     // axes in display units (data stay in lbf / m)
     const u = U()
     const xsD = xs.map((v) => u.cv.force(v))
@@ -2576,25 +2471,10 @@ export function mountCtSimulator(container) {
       const pts = [...a.map((r) => `${sx(r[key])},${sy(r.depth)}`), ...b.reverse().map((r) => `${sx(r[key])},${sy(r.depth)}`)]
       add('polygon', { points: pts.join(' '), class: cls })
     }
-    // field band: 90 % of the field readings around the model (re-centred
-    // on the live offset when a run is loaded)
-    const fband = (key, cls) => {
-      const a = rows.filter((r) => r[key] !== null)
-      if (a.length < 2) return
-      const pts = [...a.map((r) => `${sx(r[key] + offs[key] + bandAt(key, r)[0])},${sy(r.depth)}`), ...[...a].reverse().map((r) => `${sx(r[key] + offs[key] + bandAt(key, r)[1])},${sy(r.depth)}`)]
-      add('polygon', { points: pts.join(' '), class: cls })
-    }
-    if (fieldBand) {
-      fband('rih', 'ctsim-band ctsim-rih-fill')
-      fband('pooh', 'ctsim-band ctsim-pooh-fill')
-    } else {
-      band('rih', 'ctsim-band ctsim-rih-fill')
-      band('pooh', 'ctsim-band ctsim-pooh-fill')
-    }
-    // measured (live levels: caution ring, alarm dot)
-    const shown = live ? live.points : run
-    for (const p of shown) add('circle', { cx: sx(p.w), cy: sy(p.md), r: 2, class: p.dir === 'RIH' ? 'ctsim-dot ctsim-rih-fill' : 'ctsim-dot ctsim-pooh-fill' })
-    for (const p of shown) if (p.level === 'caution' || p.level === 'alarm') add('circle', { cx: sx(p.w), cy: sy(p.md), r: p.level === 'alarm' ? 5 : 3.5, class: p.level === 'alarm' ? 'ctsim-dot-alarm' : 'ctsim-dot-caution' })
+    band('rih', 'ctsim-band ctsim-rih-fill')
+    band('pooh', 'ctsim-band ctsim-pooh-fill')
+    // measured
+    for (const p of run) add('circle', { cx: sx(p.w), cy: sy(p.md), r: 2, class: p.dir === 'RIH' ? 'ctsim-dot ctsim-rih-fill' : 'ctsim-dot ctsim-pooh-fill' })
     // model lines
     const line = (key, cls) => {
       const segs = []
@@ -2610,12 +2490,6 @@ export function mountCtSimulator(container) {
     }
     line('rih', 'ctsim-line ctsim-rih-stroke')
     line('pooh', 'ctsim-line ctsim-pooh-stroke')
-    // model shifted by the live surface offset
-    if (live)
-      for (const key of ['rih', 'pooh']) {
-        const a = rows.filter((r) => r[key] !== null)
-        if (a.length > 1 && Math.abs(offs[key]) > 1) add('polyline', { points: a.map((r) => `${sx(r[key] + offs[key])},${sy(r.depth)}`).join(' '), class: `ctsim-line ctsim-${key}-stroke ctsim-dashed` })
-      }
     for (const d of state.plugs) {
       if (d > d1) continue
       add('line', { x1: W - m.r - 8, x2: W - m.r, y1: sy(d), y2: sy(d), class: 'ctsim-plug' })
@@ -2629,21 +2503,8 @@ export function mountCtSimulator(container) {
       el('div', { class: 'ctsim-legend' }, [
         el('span', {}, [el('i', { class: 'ctsim-key ctsim-rih-bg' }), 'RIH']),
         el('span', {}, [el('i', { class: 'ctsim-key ctsim-pooh-bg' }), 'POOH']),
-        el('span', { class: 'ctsim-legend-dim' }, [
-          'Banda: ',
-          el(
-            'select',
-            { class: 'ctsim-inline-select', 'aria-label': 'Banda del gráfico', onChange: (e) => ((state.bandMode = e.target.value), renderResults()) },
-            [
-              ['field', live ? 'de campo 90 % (ajustada en vivo)' : 'de campo 90 % (sin ajustar)'],
-              ['mu', 'µ ± 0,05'],
-            ].map(([v, l]) => el('option', { value: v, selected: (state.bandMode || 'field') === v }, l))
-          ),
-        ]),
+        el('span', { class: 'ctsim-legend-dim' }, 'Banda: µ ± 0,05'),
         run.length ? el('span', { class: 'ctsim-legend-dim' }, '● medido') : null,
-        live ? el('span', { class: 'ctsim-legend-dim' }, [el('i', { class: 'ctsim-key ctsim-dash-bg' }), 'ajustado en vivo']) : null,
-        live?.points.some((p) => p.level === 'caution') ? el('span', { class: 'ctsim-legend-dim' }, [el('i', { class: 'ctsim-ring ctsim-ring-caution' }), 'precaución']) : null,
-        live?.alarms.length ? el('span', { class: 'ctsim-legend-dim' }, [el('i', { class: 'ctsim-ring ctsim-ring-alarm' }), 'alarma']) : null,
         state.plugs.length ? el('span', { class: 'ctsim-legend-dim' }, [el('i', { class: 'ctsim-key ctsim-plug-bg' }), 'tapones']) : null,
       ]),
       svg,
