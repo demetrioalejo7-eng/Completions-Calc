@@ -248,17 +248,21 @@ export function forcesAtDepth(ctx, depthM, dir, bottomForce = 0) {
   // POOH: the ERT is usually bypassed (pumping through the multicycle valve);
   // p.ertInPooh = true keeps it working at model.ertPoohEfficiency
   const ertEff = dir === 'POOH' ? (p.ertInPooh === false ? 0 : model.ertPoohEfficiency) : 1
-  const ertLbf = model.ertMode === 'mu' ? 0 : (p.ertLbfPerBpm || 0) * (p.rateBpm || 0) * ertEff
+  // no pumping while the tool is above the KOP (p.noPumpAboveKop[dir]):
+  // no ERT and no annular flow drag there
+  const pumping = !(p.noPumpAboveKop?.[dir] && p.kopM != null && depthM < p.kopM)
+  const rate = pumping ? p.rateBpm || 0 : 0
+  const ertLbf = model.ertMode === 'mu' ? 0 : (p.ertLbfPerBpm || 0) * rate * ertEff
   const ertZoneFt = model.ertZoneM * M_TO_FT
   const ertPerFt = ertZoneFt > 0 ? ertLbf / ertZoneFt : 0
   const ertMuCut =
     model.ertMode === 'mu'
-      ? Math.min(0.9, (model.ertMuReductionRef * ertEff * ((p.ertLbfPerBpm || 0) * (p.rateBpm || 0))) / (model.ertRefLbfPerBpm * model.ertRefRateBpm))
+      ? Math.min(0.9, (model.ertMuReductionRef * ertEff * ((p.ertLbfPerBpm || 0) * rate)) / (model.ertRefLbfPerBpm * model.ertRefRateBpm))
       : 0
   const bhaLenM = p.bha?.length || 0
   const bhaWairPerFt = bhaLenM > 0 ? (p.bha.weight || 0) / (bhaLenM * M_TO_FT) : 0
   const bf = 1 - p.fluidPpg / 65.5 // steel buoyancy factor (same fluid in & out)
-  const gAnn = p.annularGradient || 0 // psi/ft, frictional, annulus
+  const gAnn = pumping ? p.annularGradient || 0 : 0 // psi/ft, frictional, annulus
   const speed = (dir === 'POOH' ? p.speedPOOH : p.speedRIH) || 0
   const speedDragPerFt = ((dir === 'POOH' ? model.speedDragPOOH : model.speedDragRIH) * speed) / (1000 * M_TO_FT)
   let F = bottomForce

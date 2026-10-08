@@ -97,6 +97,8 @@ export function mountCtSimulator(container) {
     rbtPOOH: cal.reelTensionLbf,
     reelTared: cal.reelTared,
     ertInPooh: false,
+    // no pumping (no ERT, no annular drag) while the tool is above the KOP
+    noPumpAboveKop: { RIH: true, POOH: true },
     indicatorOffset: 0,
     // speed plan per section (m/min): vertical to KOP, curve KOP–LP, lateral
     speeds: { vert: { RIH: 23, POOH: 23 }, curve: { RIH: 10, POOH: 10 }, lat: { RIH: 3.5, POOH: 10 } },
@@ -612,6 +614,15 @@ export function mountCtSimulator(container) {
           schedule()
         }, { unit: 'bpm', step: 0.1 }),
         numField('Caudal de retorno', state.returnRate, set('returnRate'), { unit: 'bpm', step: 0.1, hint: 'Estándar: bombeo − 0,3' }),
+      ]),
+      el('span', { class: 'field-label' }, 'Sin bombeo con la herramienta arriba del KOP (sin ERT ni arrastre del flujo anular en la vertical)'),
+      el('div', { class: 'row' }, [
+        ...['RIH', 'POOH'].map((dir) =>
+          el('label', { class: 'ctsim-chk' }, [
+            el('input', { type: 'checkbox', checked: !!state.noPumpAboveKop?.[dir], onChange: (e) => ((state.noPumpAboveKop = { ...state.noPumpAboveKop, [dir]: e.target.checked }), schedule()) }),
+            dir,
+          ])
+        ),
       ]),
       numField('Densidad del fluido (slickwater)', state.fluidPpg, set('fluidPpg'), { unit: 'ppg', step: 0.01 }),
       speedPlan(),
@@ -1177,6 +1188,8 @@ export function mountCtSimulator(container) {
       reelTensionPOOH: state.rbtPOOH || 0,
       reelTared: state.reelTared,
       ertInPooh: state.ertInPooh,
+      noPumpAboveKop: state.noPumpAboveKop,
+      kopM: survey ? kopLp(survey).kop : null,
       indicatorOffset: state.indicatorOffset || 0,
       bha: state.bha,
       outStepM: 50,
@@ -2123,7 +2136,7 @@ export function mountCtSimulator(container) {
       ['Sarta / grado', `${preset ? preset.label : 'Personalizada'} · ${grade.id}`],
       ['Fluido', `${fmt(state.fluidPpg, 2)} ppg`],
       ['WHP / presión de circulación', `${nP(state.whp)} / ${nP(state.ctp)} ${uP()}`],
-      ['Caudal bombeo / retorno', `${fmt(state.rate, 2)} / ${fmt(state.returnRate, 2)} bpm`],
+      ['Caudal bombeo / retorno', `${fmt(state.rate, 2)} / ${fmt(state.returnRate, 2)} bpm${['RIH', 'POOH'].filter((d) => state.noPumpAboveKop?.[d]).length ? ` · sin bombeo arriba del KOP en ${['RIH', 'POOH'].filter((d) => state.noPumpAboveKop?.[d]).join(' y ')}` : ''}`],
       ['µ RIH / µ POOH', `${fmt(state.muRIH, 3)} / ${fmt(state.muPOOH, 3)}`],
       ['ERT', `${state.ert ? `${fmt(state.ert, 0)} lbf/bpm` : 'Sin ERT'} · en POOH: ${state.ertInPooh ? 'activo' : 'baypaseado (válvula multiciclo)'}`],
       ['Stripper / reel', `${nF(state.stripper)} ${uF()} / ${nF(state.rbtRIH)} ${uF()}${state.reelTared ? ' (indicador tarado con el reel)' : ''}`],

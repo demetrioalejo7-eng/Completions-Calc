@@ -83,3 +83,17 @@ test('tared indicator: the reel tension is not subtracted from the reading', () 
   const b = surfaceWeight(20000, 'RIH', { ...base, reelTared: false }, s, model)
   assert.equal(Math.round(a - b), 6000)
 })
+
+test('no pumping above the KOP: no ERT / annular drag there, unchanged below', () => {
+  const kopM = 2500
+  const at = [1500, 2400, 4000]
+  const pumped = simulateTrip({ ...base, kopM }, model, at).rows
+  const dry = simulateTrip({ ...base, kopM, noPumpAboveKop: { RIH: true, POOH: true } }, model, at).rows
+  const noRate = simulateTrip({ ...base, kopM, rateBpm: 0, returnRateBpm: 0 }, model, at).rows
+  for (const i of [0, 1]) {
+    assert.ok(Math.abs(dry[i].rih - noRate[i].rih) < 1, `RIH at ${at[i]} m as with no pumping`)
+    assert.ok(Math.abs(dry[i].pooh - noRate[i].pooh) < 1, `POOH at ${at[i]} m as with no pumping`)
+  }
+  assert.equal(dry[2].rih, pumped[2].rih)
+  assert.equal(dry[2].pooh, pumped[2].pooh)
+})

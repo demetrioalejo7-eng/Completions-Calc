@@ -80,3 +80,31 @@ test('run CSV: negative weights near surface are real readings; -999.25 is no da
   assert.ok(first.md < 100, `first RIH bin at ${first.md} m`)
   assert.ok(Math.abs(first.w - (-30000 + 20 * first.md)) < 300, 'weight median, no-data codes skipped')
 })
+
+test('run CSV logged once a minute (Last / Min / Max, "Caudal Total")', () => {
+  const out = ['"DateTime","CT - Peso (lb) [Last]","CT - Profundidad Backup (m) [Last]","CT - Caudal Total (bbl/min) [Last]"']
+  let t = Date.UTC(2026, 6, 1, 0, 0, 0) / 1000
+  const iso = (x) => new Date(x * 1000).toISOString().replace('T', ' ').slice(0, 19)
+  let md = 0
+  const trip = (to, v, w, q) => {
+    const dir = Math.sign(to - md)
+    while ((to - md) * dir > 0) {
+      md = dir > 0 ? Math.min(to, md + v) : Math.max(to, md - v)
+      out.push(`"${iso(t)}","${w(md)}","${md.toFixed(2)}","${q}"`)
+      t += 60
+    }
+  }
+  for (let i = 0; i < 20; i++) (out.push(`"${iso(t)}","-25000","0.00","0"`), (t += 60)) // rigged up at surface
+  trip(3000, 20, (d) => -25000 + 10 * d, 0)
+  trip(4000, 3, (d) => 5000, 4)
+  trip(0, 10, (d) => 10 * d, 4)
+  const r = parseRunCsv(out.join('\n'))
+  assert.equal(r.runs.length, 1)
+  assert.ok(r.hasQ)
+  const rih = r.points.filter((p) => p.dir === 'RIH')
+  const pooh = r.points.filter((p) => p.dir === 'POOH')
+  assert.ok(rih.length > 100 && pooh.length > 100, `${rih.length} RIH / ${pooh.length} POOH bins`)
+  assert.ok(rih[0].md < 100, 'vertical RIH bins at 1 sample per bin')
+  const lat = rih.find((p) => p.md > 3500)
+  assert.ok(Math.abs(lat.v - 3) < 0.2 && lat.q === 4, 'lateral speed and rate')
+})
