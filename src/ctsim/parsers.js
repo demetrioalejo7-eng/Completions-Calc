@@ -168,7 +168,7 @@ export function createRunReader({ binM = 25 } = {}) {
     const dir = dv > 0 ? 'RIH' : 'POOH'
     const key = `${c.run}|${dir}|${Math.floor(c.md / binM)}`
     let g = bins.get(key)
-    if (!g) bins.set(key, (g = { w: [], v: [], whp: 0, nwhp: 0, q: 0, nq: 0 }))
+    if (!g) bins.set(key, (g = { w: [], v: [], whp: 0, nwhp: 0, q: 0, nq: 0, t: c.t }))
     if (dts.length < 200) dts.push(ring[16].t - ring[15].t)
     g.w.push(c.w)
     // speed channel when it agrees with the depth trend (some exports log it
@@ -229,7 +229,7 @@ export function createRunReader({ binM = 25 } = {}) {
     for (const [key, g] of bins) {
       if (g.w.length < minN) continue
       const [id, dir, b] = key.split('|')
-      pointsOf.get(Number(id))?.push({ dir, md: (Number(b) + 0.5) * binM, w: med(g.w), v: med(g.v), whp: g.nwhp ? g.whp / g.nwhp : null, q: g.nq ? g.q / g.nq : null, n: g.w.length })
+      pointsOf.get(Number(id))?.push({ dir, md: (Number(b) + 0.5) * binM, w: med(g.w), v: med(g.v), whp: g.nwhp ? g.whp / g.nwhp : null, q: g.nq ? g.q / g.nq : null, n: g.w.length, t: g.t })
     }
     const out = runs
       .map((r) => ({ ...r, points: pointsOf.get(r.id).sort((a, b) => a.md - b.md) }))
