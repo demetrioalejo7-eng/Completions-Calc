@@ -51,6 +51,13 @@ suben al repositorio**. Solo se versionan los coeficientes resultantes en
    propios). `build_bins_4min.py` sirve para exportaciones de baja
    frecuencia.
 
+   Las exportaciones de 1 dato por minuto (pad C1B) van con
+   `build_bins_1min.py` (peso = valor Last del minuto; velocidad entre las
+   muestras vecinas). Cada carrera lleva su survey, el estado y el tamaño
+   del ERT (`ertK`, lbf/bpm) y, si es anómala, una etiqueta de pad aparte
+   (`C1B-X`) para quedar fuera del entrenamiento. `lib.mjs` usa la sarta
+   SPI 41571 en los pads de SPI (`STRING_BY_PAD`).
+
    `build_slack.py` extrae los eventos de asentamiento (fresado / tag en el
    lateral): slack-off = peso libre RIH − peso en el indicador, donde los
    offsets de superficie se cancelan. Sirve para contrastar la capacidad de
@@ -66,6 +73,22 @@ suben al repositorio**. Solo se versionan los coeficientes resultantes en
    diagnóstico (`--variant offsets` estima un offset por pozo).
 
 5. Copiar los parámetros a `src/ctsim/calibration.js`.
+
+## Pad C1B (jul-2026, SPI, ERT media intensidad, 4 carreras + 1 anómala)
+
+- Prueba ciega con la calibración de 3 pads: RIH dentro de ±3 klb, pero el
+  modelo daba lock-up a 6560–6810 m y los 4 pozos llegaron a TD (6910–7019
+  m). Con el C1B en el entrenamiento: 0 puntos en lock-up, el ERT queda en
+  ~50 % de reducción de µ en los últimos ~3200 m (a 1500 lbf/bpm × 4,2 bpm;
+  ~32 % con media intensidad a 4 bpm), µ RIH 0,278 / µ POOH 0,286 con
+  contacto residual 0,09 lbf/ft. Los otros pads quedan igual (error mediano
+  1,3–2,4 klb).
+- Validación cruzada dejando afuera cada pad: error mediano en el pad no
+  visto 1,3–2,6 klb; sin el C1B el modelo sigue trabando el C1B: el alcance
+  con ERT media necesitó sus propios datos.
+- BdC-1037h r1 (aprisionamiento con sobretensión) queda fuera: entre 5290 y
+  5355 m la mediana RIH cae de +9 a −9 klb con la velocidad bajando de 3 a
+  0,9 m/min; luego tensiones de 59–76 klb (POOH normal ~45–49 klb).
 
 ## Hallazgos (pads B3A2, C1A y B1B, 11 carreras)
 

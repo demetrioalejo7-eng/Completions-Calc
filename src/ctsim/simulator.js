@@ -690,7 +690,7 @@ export function mountCtSimulator(container) {
       ),
       state.muLevel === 'custom'
         ? el('div', { class: 'row' }, [numField('µ RIH', state.muRIH, set('muRIH'), { step: 0.01 }), numField('µ POOH', state.muPOOH, set('muPOOH'), { step: 0.01 })])
-        : el('p', { class: 'note' }, `µ RIH ${state.muRIH.toFixed(3)} · µ POOH ${state.muPOOH.toFixed(3)} (la sacada usa un µ menor: en RIH la curvatura residual del CT agrega contacto con el casing).`),
+        : el('p', { class: 'note' }, `µ RIH ${state.muRIH.toFixed(3)} · µ POOH ${state.muPOOH.toFixed(3)} (calibrados juntos con un contacto extra por la curvatura residual del CT de ${cal.model.residualContact} lbf/ft).`),
       selectField(
         'Herramienta de alcance extendido (ERT)',
         Object.entries(ERT_LEVELS).map(([k, e]) => ({ value: k, label: e.label })).concat([{ value: 'custom', label: 'Personalizado…' }]),
@@ -979,6 +979,9 @@ export function mountCtSimulator(container) {
 
   function loadProjectObject(p) {
     const a = applyProject(state, p)
+    // projects saved with an older calibration: the "Calibrado" friction
+    // level takes the current calibrated values
+    if (state.muLevel === 'cal') ((state.muRIH = MU_LEVELS.cal.rih), (state.muPOOH = MU_LEVELS.cal.pooh))
     state.active = -1
     state.surveyName = ''
     setActive(a)
@@ -1257,7 +1260,7 @@ export function mountCtSimulator(container) {
         'Modelo: dF/ds = W_B·cosθ ± µ(v)·F_N, con F_N por peso y curvatura (Johancsik / CTES Orpheus), pandeo helicoidal y contacto adicional r_c·F²/(4EI) en compresión. ',
         state.reelTared ? 'Peso en superficie = F_E − WHP·A_o ∓ stripper − corrección del cero (indicador tarado con el reel: la tensión del reel no aparece en la lectura). ' : 'Peso en superficie = F_E − WHP·A_o ∓ stripper − tensión del reel. ',
         `µ(v) = µ·[1 + k·ln(v/${cal.model.speedRef} m/min)] (k RIH ${cal.model.speedCoefRIH}, k POOH ${cal.model.speedCoefPOOH}); término de superficie ≈ +${Math.round((cal.model.speedSurfPOOH - cal.model.speedSurfRIH) / 2)} lb por m/min respecto de ${cal.model.speedSurfRef} m/min. `,
-        `ERT: reduce µ en los ${cal.model.ertZoneM} m sobre la herramienta, ${Math.round(cal.model.ertMuReductionRef * 100)} % con ${cal.model.ertRefLbfPerBpm} lbf/bpm a ${cal.model.ertRefRateBpm} bpm, proporcional a k_ERT·caudal (calibrado con BdC-1030h: con el ERT trabado se sacó a 5632 m por lock-up incipiente, con ERT llegó a TD; efecto incierto, 20–48 % según el pad). ${state.ertInPooh ? `En POOH actúa al ${Math.round(cal.model.ertPoohEfficiency * 100)} %. ` : 'En POOH no actúa (ERT baypaseado por la válvula multiciclo). '}`,
+        `ERT: reduce µ en los ${cal.model.ertZoneM} m sobre la herramienta, ${Math.round(cal.model.ertMuReductionRef * 100)} % con ${cal.model.ertRefLbfPerBpm} lbf/bpm a ${cal.model.ertRefRateBpm} bpm, proporcional a k_ERT·caudal (calibrado con BdC-1030h, que con el ERT trabado se sacó a 5632 m por lock-up incipiente, y con el pad C1B, que llegó a TD con ERT de media intensidad; efecto incierto, 22–64 % según el pad). ${state.ertInPooh ? `En POOH actúa al ${Math.round(cal.model.ertPoohEfficiency * 100)} %. ` : 'En POOH no actúa (ERT baypaseado por la válvula multiciclo). '}`,
         'La banda sombreada es µ ± 0,05. ',
         cal.note,
       ])

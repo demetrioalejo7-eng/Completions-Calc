@@ -5,7 +5,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { buildWellPath, buildString, makeCasing, forcesAtDepth, surfaceWeight, annularFrictionGradient, DEFAULT_MODEL } from '../../src/ctsim/forces.js'
-import { STANDARD_STRING_2375, CASING_5_21_4, DEFAULT_BHA } from '../../src/ctsim/defaults.js'
+import { STANDARD_STRING_2375, SPI_41571_2375, CASING_5_21_4, DEFAULT_BHA } from '../../src/ctsim/defaults.js'
 
 export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 export const dataDir = path.join(root, 'field-data')
@@ -45,6 +45,9 @@ const STRING_DEF = process.env.CT_STRING_REVERSED
   ? { ...STANDARD_STRING_2375, sections: [...STANDARD_STRING_2375.sections].reverse().map((x) => ({ length: x.length, wallStart: x.wallEnd, wallEnd: x.wallStart })) }
   : STANDARD_STRING_2375
 const string = buildString(STRING_DEF)
+// pads run with another CT string (default: the standard 2 3/8" design)
+const STRING_BY_PAD = { C1B: buildString(SPI_41571_2375), 'C1B-X': buildString(SPI_41571_2375) }
+const stringOf = (b) => STRING_BY_PAD[b.pad] || string
 const casing = makeCasing(CASING_5_21_4)
 
 // A "spec" lists the free parameters. Each parameter has a name, a start
@@ -76,8 +79,10 @@ export function makePredictor(paths, { ert = 1000 } = {}) {
       muPOOH: P.muPOOH,
       speedRIH: b.v,
       speedPOOH: b.v,
-      rateBpm: b.Q > 0 ? b.Q : 4,
-      ertLbfPerBpm: b.ert === 0 || (b.finalPooh && !P.ertInFinalPooh) ? 0 : P.ertLbfPerBpm ?? ert,
+      // measured rate (0 above the KOP in RIH: no ERT there)
+      rateBpm: Number.isFinite(b.Q) ? b.Q : 4,
+      // ERT size per run when the bins carry it (ertK, lbf/bpm), else the global one
+      ertLbfPerBpm: b.ert === 0 || (b.finalPooh && !P.ertInFinalPooh) ? 0 : Number.isFinite(b.ertK) ? b.ertK : P.ertLbfPerBpm ?? ert,
       fluidPpg: FLUID_PPG,
       bha: DEFAULT_BHA,
       annularGradient: annularFrictionGradient({ rateBpm: b.Q, casingId: 4.126, od: 2.375, densityPpg: FLUID_PPG, dragReduction: model.frDragReduction }),
@@ -86,9 +91,10 @@ export function makePredictor(paths, { ert = 1000 } = {}) {
       reelTensionRIH: P[`rbt_${b.well}`] ?? P[`rbt_${b.pad}`] ?? P.rbt ?? 0,
       reelTensionPOOH: P[`rbt_${b.well}`] ?? P[`rbt_${b.pad}`] ?? P.rbt ?? 0,
     }
-    const r = forcesAtDepth({ path: paths[b.survey || b.well], string, casing, p, model }, b.bin, b.dir)
+    const st = stringOf(b)
+    const r = forcesAtDepth({ path: paths[b.survey || b.well], string: st, casing, p, model }, b.bin, b.dir)
     if (r.lockup) return NaN
-    return surfaceWeight(r.surfaceForce, b.dir, p, string, model) + (P[`off_${b.well}`] ?? 0)
+    return surfaceWeight(r.surfaceForce, b.dir, p, st, model) + (P[`off_${b.well}`] ?? 0)
   }
 }
 
