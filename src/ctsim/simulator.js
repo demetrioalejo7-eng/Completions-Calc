@@ -920,15 +920,44 @@ export function mountCtSimulator(container) {
     renderResults()
   }
 
+  // Re-render without moving the page: keep the window and panel scroll
+  // positions (clearing a panel collapses its height for an instant, which
+  // made the browser jump to the top).
+  function keepScroll(fn) {
+    const y = window.scrollY
+    const f = formEl.scrollTop
+    const r = resultsEl.scrollTop
+    const body = formEl.closest('.ctsim-app-body')
+    const b = body ? body.scrollTop : 0
+    // hold the current height while the panels are rebuilt
+    const root = document.documentElement
+    const minH = root.style.minHeight
+    root.style.minHeight = `${root.scrollHeight}px`
+    fn()
+    root.style.minHeight = minH
+    window.scrollTo(window.scrollX, y)
+    formEl.scrollTop = f
+    resultsEl.scrollTop = r
+    if (body) body.scrollTop = b
+  }
+
   function renderForm() {
-    // keep the panels the user opened / closed across re-renders
-    const prev = new Map([...formEl.querySelectorAll(':scope > details')].map((d) => [d.querySelector('summary')?.textContent, d.open]))
-    clear(formEl)
-    formEl.append(projectCard(), surveyCard(), plugsCard(), wellCard(), stringCard(), operationCard(), frictionCard(), readingsCard(), runCard())
-    for (const d of formEl.querySelectorAll(':scope > details')) {
-      const was = prev.get(d.querySelector('summary')?.textContent)
-      if (was === true) d.open = true
-    }
+    // keep the panels the user opened / closed across re-renders: top-level
+    // cards by position (their titles change, e.g. a run count), inner ones
+    // by title
+    const top = [...formEl.querySelectorAll(':scope > details')].map((d) => d.open)
+    const inner = new Map([...formEl.querySelectorAll(':scope > details details')].map((d) => [d.querySelector('summary')?.textContent, d.open]))
+    keepScroll(() => {
+      clear(formEl)
+      formEl.append(projectCard(), surveyCard(), plugsCard(), wellCard(), stringCard(), operationCard(), frictionCard(), readingsCard(), runCard())
+      ;[...formEl.querySelectorAll(':scope > details')].forEach((d, i) => {
+        if (top[i] !== undefined) d.open = top[i]
+      })
+      for (const d of formEl.querySelectorAll(':scope > details details')) {
+        const was = inner.get(d.querySelector('summary')?.textContent)
+        if (was !== undefined) d.open = was
+      }
+    })
     autosave()
   }
 
@@ -1208,6 +1237,10 @@ export function mountCtSimulator(container) {
   ]
 
   function renderResults() {
+    keepScroll(renderResultsNow)
+  }
+
+  function renderResultsNow() {
     autosave()
     if (view3d) {
       view3d.dispose()
