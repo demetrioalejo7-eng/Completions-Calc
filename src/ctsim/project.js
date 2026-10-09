@@ -14,14 +14,14 @@ export const TEMPLATES_KEY = 'ctsim-templates-v1'
 // Parameters saved with a project (everything but the wells and the run).
 const PROJECT_KEYS = [
   'coordConv', 'wells3d', 'pin3d', 'size3d', 'labels3d', 'timePlan',
-  'casingId', 'string', 'grade', 'stringPreset', 'fluidPpg', 'whp', 'ctp', 'rate', 'returnRate',
+  'casingId', 'string', 'grade', 'stringPreset', 'fluidPpg', 'whp', 'whpNoPump', 'ctp', 'rate', 'returnRate',
   'muLevel', 'muRIH', 'muPOOH', 'stripper', 'rbtRIH', 'rbtPOOH', 'reelTared', 'ertInPooh', 'indicatorOffset',
-  'speeds', 'ertLevel', 'ert', 'readings', 'bha', 'tab', 'tri', 'units', 'noPumpAboveKop',
+  'speeds', 'ertLevel', 'ert', 'readings', 'bha', 'tab', 'tri', 'units', 'noPumpAboveKop', 'useRunCond',
 ]
 
 // Equipment / job settings reused between pads.
 export const TEMPLATE_KEYS = [
-  'casingId', 'string', 'grade', 'stringPreset', 'fluidPpg', 'whp', 'ctp', 'rate', 'returnRate',
+  'casingId', 'string', 'grade', 'stringPreset', 'fluidPpg', 'whp', 'whpNoPump', 'ctp', 'rate', 'returnRate',
   'muLevel', 'muRIH', 'muPOOH', 'stripper', 'rbtRIH', 'rbtPOOH', 'reelTared', 'ertInPooh', 'indicatorOffset',
   'speeds', 'ertLevel', 'ert', 'bha', 'timePlan', 'coordConv', 'units', 'noPumpAboveKop',
 ]
