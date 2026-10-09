@@ -97,3 +97,18 @@ test('no pumping above the KOP: no ERT / annular drag there, unchanged below', (
   assert.equal(dry[2].rih, pumped[2].rih)
   assert.equal(dry[2].pooh, pumped[2].pooh)
 })
+
+test('WHP without pumping above the KOP and run conditions per depth', () => {
+  const at = [1500, 4000]
+  const plain = simulateTrip({ ...base, kopM: 2500 }, model, at).rows
+  const nopump = simulateTrip({ ...base, kopM: 2500, noPumpAboveKop: { RIH: true, POOH: true }, whpNoPump: base.whp + 1000 }, model, at).rows
+  const Ao = (Math.PI / 4) * 2.375 ** 2
+  // higher WHP above the KOP: lighter by ΔWHP·Ao (plus no ERT / flow drag there)
+  assert.ok(nopump[0].rih < plain[0].rih - 0.9 * 1000 * Ao)
+  assert.equal(nopump[1].rih, plain[1].rih)
+  // measured conditions override the plan at that depth only
+  const cond = simulateTrip({ ...base, condAt: (d, dir) => (d < 2000 && dir === 'RIH' ? { whp: base.whp + 1000 } : null) }, model, at).rows
+  assert.ok(Math.abs(cond[0].rih - (plain[0].rih - 1000 * Ao)) < 1)
+  assert.equal(cond[0].pooh, plain[0].pooh)
+  assert.equal(cond[1].rih, plain[1].rih)
+})

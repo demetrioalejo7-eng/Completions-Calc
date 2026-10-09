@@ -99,6 +99,9 @@ export function mountCtSimulator(container) {
     ertInPooh: false,
     // no pumping (no ERT, no annular drag) while the tool is above the KOP
     noPumpAboveKop: { RIH: true, POOH: true },
+    // model curve with the speed / WHP / rate measured in the loaded run
+    useRunCond: true,
+    whpNoPump: null,
     indicatorOffset: 0,
     // speed plan per section (m/min): vertical to KOP, curve KOP–LP, lateral
     speeds: { vert: { RIH: 23, POOH: 23 }, curve: { RIH: 10, POOH: 10 }, lat: { RIH: 3.5, POOH: 10 } },
@@ -603,9 +606,10 @@ export function mountCtSimulator(container) {
   function operationCard() {
     return card('5 · Parámetros operativos', [
       el('div', { class: 'row' }, [
-        qField('Presión de pozo (WHP)', state.whp, qset('whp'), 'press', { step: 50 }),
-        qField('Presión de circulación', state.ctp, qset('ctp'), 'press', { step: 100, hint: 'Solo para el chequeo de tensión' }),
+        qField('Presión de pozo (WHP)', state.whp, qset('whp'), 'press', { step: 50, hint: 'Bombeando' }),
+        qField('WHP sin bombeo (opcional)', state.whpNoPump, qset('whpNoPump'), 'press', { step: 50, hint: 'Arriba del KOP, sin bombeo: suele ser mayor. Vacío = igual a la WHP' }),
       ]),
+      qField('Presión de circulación', state.ctp, qset('ctp'), 'press', { step: 100, hint: 'Solo para el chequeo de tensión' }),
       el('div', { class: 'row' }, [
         numField('Caudal de bombeo', state.rate, (v) => {
           state.rate = v
@@ -654,7 +658,32 @@ export function mountCtSimulator(container) {
         ...zones.flatMap(([z, label]) => [el('span', { class: 'ctsim-speed-z' }, label), inp(z, 'RIH'), inp(z, 'POOH')]),
       ]),
       el('span', { class: 'ctsim-hint' }, '1 m/min = 3,28 ft/min. Elegís las unidades en «0 · Proyecto». La velocidad es la de toda la sarta y depende de dónde está la herramienta; es un factor clave en el lateral.'),
+      state.run
+        ? el('label', { class: 'ctsim-chk' }, [
+            el('input', { type: 'checkbox', checked: state.useRunCond, onChange: (e) => ((state.useRunCond = e.target.checked), schedule()) }),
+            'Con la carrera cargada (CSV): simular con la velocidad, la WHP y el caudal medidos en cada profundidad (donde no hay lecturas se usa este plan)',
+          ])
+        : null,
     ])
+  }
+
+  // Conditions measured in the run at a depth: median speed, WHP and pump
+  // rate of the readings within ±100 m in that direction (none → plan).
+  const runCondCache = new WeakMap()
+  function runCondFn(points) {
+    if (runCondCache.has(points)) return runCondCache.get(points)
+    const byDir = { RIH: points.filter((x) => x.dir === 'RIH'), POOH: points.filter((x) => x.dir === 'POOH') }
+    const med = (a) => {
+      const v = a.filter((x) => x != null && Number.isFinite(x)).sort((x, y) => x - y)
+      return v.length ? v[Math.floor(v.length / 2)] : null
+    }
+    const fn = (d, dir) => {
+      const near = byDir[dir].filter((x) => Math.abs(x.md - d) <= 100)
+      if (!near.length) return null
+      return { v: med(near.map((x) => x.v)), whp: med(near.map((x) => x.whp)), q: med(near.map((x) => x.q)) }
+    }
+    runCondCache.set(points, fn)
+    return fn
   }
 
   function speedAtFn(survey = state.survey) {
@@ -1206,6 +1235,7 @@ export function mountCtSimulator(container) {
       string: state.string,
       fluidPpg: state.fluidPpg,
       whp: state.whp || 0,
+      whpNoPump: state.whpNoPump ?? null,
       rateBpm: state.rate || 0,
       returnRateBpm: state.returnRate ?? state.rate,
       muRIH,
@@ -1213,6 +1243,7 @@ export function mountCtSimulator(container) {
       speedRIH: state.speeds.lat.RIH || 0.1,
       speedPOOH: state.speeds.lat.POOH || 0.1,
       speedAt: speedAtFn(survey),
+      condAt: state.useRunCond && state.run?.points?.length && survey === state.survey ? runCondFn(state.run.points) : undefined,
       targetM: survey ? tdOf(survey) : undefined,
       ertLbfPerBpm: state.ert || 0,
       stripperLbf: state.stripper || 0,
@@ -2171,7 +2202,7 @@ export function mountCtSimulator(container) {
       ['Casing (ID)', `${fmt(state.casingId, 3)} in`],
       ['Sarta / grado', `${preset ? preset.label : 'Personalizada'} · ${grade.id}`],
       ['Fluido', `${fmt(state.fluidPpg, 2)} ppg`],
-      ['WHP / presión de circulación', `${nP(state.whp)} / ${nP(state.ctp)} ${uP()}`],
+      ['WHP / presión de circulación', `${nP(state.whp)} / ${nP(state.ctp)} ${uP()}${state.whpNoPump != null ? ` · WHP sin bombeo (arriba del KOP) ${nP(state.whpNoPump)} ${uP()}` : ''}`],
       ['Caudal bombeo / retorno', `${fmt(state.rate, 2)} / ${fmt(state.returnRate, 2)} bpm${['RIH', 'POOH'].filter((d) => state.noPumpAboveKop?.[d]).length ? ` · sin bombeo arriba del KOP en ${['RIH', 'POOH'].filter((d) => state.noPumpAboveKop?.[d]).join(' y ')}` : ''}`],
       ['µ RIH / µ POOH', `${fmt(state.muRIH, 3)} / ${fmt(state.muPOOH, 3)}`],
       ['ERT', `${state.ert ? `${fmt(state.ert, 0)} lbf/bpm` : 'Sin ERT'} · en POOH: ${state.ertInPooh ? 'activo' : 'baypaseado (válvula multiciclo)'}`],
