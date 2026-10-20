@@ -364,22 +364,14 @@ export function simulateTrip(p, model = DEFAULT_MODEL, depthsM = null) {
   const rows = depths.map((d) => {
     // pipe speed is uniform along the string and set by where the tool is:
     // p.speedAt(depth, dir) gives a per-section speed plan (m/min)
-    // p.condAt(depth, dir) → { v, whp, q }: conditions measured in a run
-    // (speed, wellhead pressure, pump rate) that override the plan
     // p.whpNoPump: wellhead pressure while not pumping (tool above the KOP
     // with p.noPumpAboveKop): it reads higher than with the pumps on
     const noPumpWhp = (dir) => p.whpNoPump != null && p.kopM != null && d < p.kopM && p.noPumpAboveKop?.[dir]
     const at = (dir) => {
-      if (!p.speedAt && !p.condAt && !noPumpWhp(dir)) return ctx
+      if (!p.speedAt && !noPumpWhp(dir)) return ctx
       const q = { ...ctx.p }
       if (p.speedAt) (q.speedRIH = p.speedAt(d, 'RIH')), (q.speedPOOH = p.speedAt(d, 'POOH'))
       if (noPumpWhp(dir)) q.whp = p.whpNoPump
-      const k = p.condAt?.(d, dir)
-      if (k) {
-        if (k.v > 0) q[dir === 'RIH' ? 'speedRIH' : 'speedPOOH'] = k.v
-        if (k.whp != null) q.whp = k.whp
-        if (k.q != null) (q.rateBpm = k.q), (q.noPumpAboveKop = null)
-      }
       return { ...ctx, p: q }
     }
     const cR = at('RIH')

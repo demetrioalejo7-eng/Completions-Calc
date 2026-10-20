@@ -99,8 +99,6 @@ export function mountCtSimulator(container) {
     ertInPooh: false,
     // no pumping (no ERT, no annular drag) while the tool is above the KOP
     noPumpAboveKop: { RIH: true, POOH: true },
-    // model curve with the speed / WHP / rate measured in the loaded run
-    useRunCond: true,
     whpNoPump: null,
     indicatorOffset: 0,
     // speed plan per section (m/min): vertical to KOP, curve KOP–LP, lateral
@@ -658,32 +656,7 @@ export function mountCtSimulator(container) {
         ...zones.flatMap(([z, label]) => [el('span', { class: 'ctsim-speed-z' }, label), inp(z, 'RIH'), inp(z, 'POOH')]),
       ]),
       el('span', { class: 'ctsim-hint' }, '1 m/min = 3,28 ft/min. Elegís las unidades en «0 · Proyecto». La velocidad es la de toda la sarta y depende de dónde está la herramienta; es un factor clave en el lateral.'),
-      state.run
-        ? el('label', { class: 'ctsim-chk' }, [
-            el('input', { type: 'checkbox', checked: state.useRunCond, onChange: (e) => ((state.useRunCond = e.target.checked), schedule()) }),
-            'Con la carrera cargada (CSV): simular con la velocidad, la WHP y el caudal medidos en cada profundidad (donde no hay lecturas se usa este plan)',
-          ])
-        : null,
     ])
-  }
-
-  // Conditions measured in the run at a depth: median speed, WHP and pump
-  // rate of the readings within ±100 m in that direction (none → plan).
-  const runCondCache = new WeakMap()
-  function runCondFn(points) {
-    if (runCondCache.has(points)) return runCondCache.get(points)
-    const byDir = { RIH: points.filter((x) => x.dir === 'RIH'), POOH: points.filter((x) => x.dir === 'POOH') }
-    const med = (a) => {
-      const v = a.filter((x) => x != null && Number.isFinite(x)).sort((x, y) => x - y)
-      return v.length ? v[Math.floor(v.length / 2)] : null
-    }
-    const fn = (d, dir) => {
-      const near = byDir[dir].filter((x) => Math.abs(x.md - d) <= 100)
-      if (!near.length) return null
-      return { v: med(near.map((x) => x.v)), whp: med(near.map((x) => x.whp)), q: med(near.map((x) => x.q)) }
-    }
-    runCondCache.set(points, fn)
-    return fn
   }
 
   function speedAtFn(survey = state.survey) {
@@ -1243,7 +1216,6 @@ export function mountCtSimulator(container) {
       speedRIH: state.speeds.lat.RIH || 0.1,
       speedPOOH: state.speeds.lat.POOH || 0.1,
       speedAt: speedAtFn(survey),
-      condAt: state.useRunCond && state.run?.points?.length && survey === state.survey ? runCondFn(state.run.points) : undefined,
       targetM: survey ? tdOf(survey) : undefined,
       ertLbfPerBpm: state.ert || 0,
       stripperLbf: state.stripper || 0,
