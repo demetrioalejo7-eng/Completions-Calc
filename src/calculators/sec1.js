@@ -45,7 +45,7 @@ export const section1 = {
       id: 'pipe-capacity',
       title: 'Capacidad de Tubing / Casing / Drill Pipe / Coiled Tubing',
       description:
-        'Elegí un tamaño estándar de la tabla o ingresá el OD/ID manualmente. La capacidad depende solo del ID.',
+        'Elegí un tamaño estándar de la tabla o ingresá el ID manualmente. La capacidad depende solo del ID.',
       diagram: { kind: 'pipeCrossSection', labels: { od: 'OD', id: 'ID' } },
       inputs: [
         {
@@ -55,7 +55,7 @@ export const section1 = {
           dataset: ALL_PIPES,
           odField: 'od',
           idField: 'id',
-          wtField: 'wt',
+          uses: 'id',
         },
         depth('length', 'Longitud', { defaultM: 300 }),
       ],
@@ -92,7 +92,8 @@ export const section1 = {
           idField: 'id',
           wtField: 'wt',
         },
-        weightPerLength('weight', 'Peso (si no cargaste ID)'),
+        // Only for a custom size: a pipe picked from the list already brings ID and weight.
+        (values) => (values.__kind_pipe ? null : weightPerLength('weight', 'Peso (si no cargaste ID)')),
         depth('length', 'Longitud', { defaultM: 300 }),
         {
           type: 'select',
@@ -117,7 +118,7 @@ export const section1 = {
         // otras herramientas de campo, mientras que el teórico (OD²-ID²)
         // sale sistemáticamente ~3-4% más bajo.
         const theoreticalWt = steelWeightPerFt(v.od, id)
-        const wt = v.weight || v.wt || theoreticalWt
+        const wt = v.wt || v.weight || theoreticalWt
         const length = v.length || 0
         const results = [
           lengthInResult('ID', id),
@@ -162,16 +163,18 @@ export const section1 = {
             { value: 'annular', label: 'Anular (entre tubería y pozo/casing)' },
           ],
           default: 'tubular',
+          rerenderForm: true,
         },
-        {
+        (values) => ({
           type: 'pipePreset',
           id: 'pipe',
           label: 'Tubería',
           dataset: ALL_PIPES,
           odField: 'od',
           idField: 'id',
-        },
-        lengthIn('outerD', 'Diámetro exterior del anular (si aplica)', { default: 8.5 }),
+          uses: values.kind === 'annular' ? 'od' : 'id',
+        }),
+        (values) => (values.kind === 'annular' ? lengthIn('outerD', 'Diámetro del pozo / ID del casing', { default: 8.5 }) : null),
         flow('rate', 'Caudal', { default: 10 }),
       ],
       compute(v) {

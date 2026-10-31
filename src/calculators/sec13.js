@@ -242,6 +242,7 @@ export const section13 = {
           label: 'Tubería dentro del pozo (opcional, 0 = pozo vacío)',
           dataset: ALL_PIPES,
           odField: 'pipeOd',
+          uses: 'od',
           idField: 'pipeId',
         },
         { type: 'number', id: 'bulkDensity', label: 'Densidad aparente de la arena', unit: 'lb/gal', step: 0.1, default: SAND_BULK_DENSITY_PPG },

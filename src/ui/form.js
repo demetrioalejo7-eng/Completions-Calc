@@ -1,25 +1,10 @@
 import { el, fmt, clear } from './dom.js'
 import { UNIT_CATEGORIES, convertTemperature } from '../data/units.js'
 import { diagramMarkup } from './diagrams.js'
-import { PIPE_GRADES } from '../data/strengths.js'
-import { CT_GRADES } from '../data/ctStrength.js'
-
-const DRILL_PIPE_GRADES = [
-  { id: 'D', label: 'Grado D' },
-  { id: 'E', label: 'Grado E' },
-  { id: 'G', label: 'Grado G' },
-  { id: 'S135', label: 'Grado S-135' },
-]
 
 // Fixed display order for the "Tipo" step of the cascading pipe selector —
 // only the kinds actually present in a given dataset are shown.
 const PIPE_KIND_ORDER = ['Tubing', 'Casing', 'Drill Pipe', 'Coiled Tbg']
-
-function gradesForKind(kind) {
-  if (kind === 'Drill Pipe') return DRILL_PIPE_GRADES
-  if (kind === 'Coiled Tbg') return CT_GRADES
-  return PIPE_GRADES
-}
 
 function numberInput(spec, value, onChange) {
   const input = el('input', {
@@ -201,11 +186,16 @@ export function resultValueNode(r, key, values, setValue, rerenderResultsOnly) {
 // it's kept purely as a reference tag, not fed into odField/idField.
 // Hand-editing the OD/ID fields below still works exactly like before and
 // drops the whole cascade back to "Tamaño personalizado…".
+// `spec.uses` limits what the calculator needs from the pipe: 'od' stops
+// the cascade at the diameter (no weight) and shows only the OD field;
+// 'id' still needs the weight (it sets the ID) but shows only the ID field.
+// Omitted: both OD and ID.
 function pipePresetInput(spec, values, setValue, rerender, onFieldEdit) {
+  const needsOd = spec.uses !== 'id'
+  const needsId = spec.uses !== 'od'
   const kindKey = '__kind_' + spec.id
   const odKey = '__od_' + spec.id
   const rowKey = '__row_' + spec.id
-  const gradeKey = '__grade_' + spec.id
 
   const selectedKind = values[kindKey] ?? ''
   const kinds = PIPE_KIND_ORDER.filter((k) => spec.dataset.some((r) => r.kind === k))
@@ -247,6 +237,7 @@ function pipePresetInput(spec, values, setValue, rerender, onFieldEdit) {
           setValue(odKey, e.target.value)
           setValue(rowKey, '')
           if (spec.wtField) setValue(spec.wtField, null)
+          if (!needsId) setValue(spec.odField, e.target.value === '' ? null : Number(e.target.value))
           rerender()
         },
       },
@@ -256,7 +247,7 @@ function pipePresetInput(spec, values, setValue, rerender, onFieldEdit) {
     )
     nodes.push(el('label', { class: 'field' }, [el('span', { class: 'field-label' }, 'Diámetro (OD)'), odSelect]))
 
-    if (selectedOd !== '') {
+    if (selectedOd !== '' && needsId) {
       const rowsOfOd = rowsOfKind.filter((r) => String(r.od) === String(selectedOd))
       const selectedRow = values[rowKey] ?? ''
       const rowSelect = el(
@@ -279,16 +270,6 @@ function pipePresetInput(spec, values, setValue, rerender, onFieldEdit) {
       )
       nodes.push(el('label', { class: 'field' }, [el('span', { class: 'field-label' }, 'Libraje (peso nominal)'), rowSelect]))
     }
-
-    const grades = gradesForKind(selectedKind)
-    const selectedGrade = values[gradeKey] ?? ''
-    const gradeSelect = el(
-      'select',
-      { onChange: (e) => { setValue(gradeKey, e.target.value); rerender() } },
-      [el('option', { value: '', selected: selectedGrade === '' }, 'Sin especificar')].concat(
-        grades.map((g) => el('option', { value: g.id, selected: g.id === selectedGrade }, g.label)))
-    )
-    nodes.push(el('label', { class: 'field' }, [el('span', { class: 'field-label' }, 'Grado (referencia)'), gradeSelect]))
   }
 
   const odSpec = {
@@ -318,8 +299,8 @@ function pipePresetInput(spec, values, setValue, rerender, onFieldEdit) {
   }
   nodes.push(
     el('div', { class: 'stack' }, [
-      unitNumberInput(odSpec, values, setValue, onManualEdit),
-      unitNumberInput(idSpec, values, setValue, onManualEdit),
+      needsOd ? unitNumberInput(odSpec, values, setValue, onManualEdit) : null,
+      needsId ? unitNumberInput(idSpec, values, setValue, onManualEdit) : null,
     ])
   )
 
@@ -484,6 +465,11 @@ export function renderCalculatorForm(container, calc) {
     for (const rawInput of calc.inputs) {
       const input = typeof rawInput === 'function' ? rawInput(values) : rawInput
       if (!input) continue
+      // Conditional fields that only appear after another choice changes
+      // still start from their default instead of blank.
+      if (typeof rawInput === 'function' && values[input.id] === undefined && input.default !== undefined) {
+        values[input.id] = input.default
+      }
       let node
       if (input.type === 'number') {
         node = numberInput(input, values[input.id], (v) => {

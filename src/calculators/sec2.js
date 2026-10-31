@@ -43,6 +43,7 @@ export const section2 = {
           label: 'Tubería (d = OD)',
           dataset: ALL_PIPES,
           odField: 'pipeOd',
+          uses: 'od',
           idField: 'pipeId',
         },
         depth('length', 'Longitud', { defaultM: 300 }),
@@ -63,6 +64,7 @@ export const section2 = {
           label: 'Tubería exterior (D = ID)',
           dataset: ALL_PIPES,
           odField: 'outerOd',
+          uses: 'id',
           idField: 'outerId',
         },
         {
@@ -71,6 +73,7 @@ export const section2 = {
           label: 'Tubería interior (d = OD)',
           dataset: ALL_PIPES,
           odField: 'innerOd',
+          uses: 'od',
           idField: 'innerId',
         },
         depth('length', 'Longitud', { defaultM: 300 }),
