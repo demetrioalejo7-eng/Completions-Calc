@@ -2,6 +2,8 @@
 // every other unit stores its factor-to-base (value_in_unit * factor =
 // value_in_base). Converting unit A -> B: value * factorA / factorB.
 
+// Each factor is how many of the category's first (base) unit equal ONE
+// of that unit: value_in_B = value_in_A * f[A] / f[B].
 export const UNIT_CATEGORIES = {
   Longitud: {
     'Pies (ft)': 1,
@@ -16,8 +18,8 @@ export const UNIT_CATEGORIES = {
   Volumen: {
     'Barriles (bbl)': 1,
     'Galones US (gal)': 1 / 42,
-    'Pies cúbicos (ft³)': 5.6146,
-    'Pulgadas cúbicas (in³)': 5.6146 / 1728,
+    'Pies cúbicos (ft³)': 1 / 5.6146,
+    'Pulgadas cúbicas (in³)': 1 / (5.6146 * 1728),
     'Litros (L)': 1 / 158.987,
     'Metros cúbicos (m³)': 6.28981,
     'Acre-pie (acre-ft)': 7758,
@@ -69,7 +71,7 @@ export const UNIT_CATEGORIES = {
   },
   'Peso / Longitud': {
     'Lb/ft': 1,
-    'kg/m': 1 / 0.671969,
+    'kg/m': 0.671969,
   },
   Velocidad: {
     'Pies/min (ft/min)': 1,
@@ -80,9 +82,9 @@ export const UNIT_CATEGORIES = {
   },
   Torque: {
     'Pie-libra (ft-lb)': 1,
-    'Newton-metro (N·m)': 1.35582,
+    'Newton-metro (N·m)': 1 / 1.35582,
     'Pulgada-libra (in-lb)': 1 / 12,
-    'kgf·m': 0.138255,
+    'kgf·m': 1 / 0.138255,
   },
   'Capacidad lineal': {
     'Barriles/pie (bbl/ft)': 1,
@@ -93,9 +95,9 @@ export const UNIT_CATEGORIES = {
   },
   'Gradiente de presión': {
     'PSI/pie (psi/ft)': 1,
-    'kPa/m': 22.6203,
-    'kg/cm²/m': 0.230670,
-    'Bar/m': 0.226203,
+    'kPa/m': 1 / 22.6203,
+    'kg/cm²/m': 1 / 0.230670,
+    'Bar/m': 1 / 0.226203,
   },
   // A temperature *difference* (ΔT) scales without an offset.
   'Diferencia de temperatura': {
@@ -105,8 +107,8 @@ export const UNIT_CATEGORIES = {
   },
   'Volumen de gas (estándar)': {
     SCF: 1,
-    'Metros³ estándar (Nm³)': 1 / 35.3147,
-    'Miles de SCF (MSCF)': 1 / 1000,
+    'Metros³ estándar (Nm³)': 35.3147,
+    'Miles de SCF (MSCF)': 1000,
   },
 }
 

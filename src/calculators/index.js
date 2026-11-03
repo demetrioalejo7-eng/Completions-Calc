@@ -12,6 +12,7 @@ import { section12 } from './sec12.js'
 import { section13 } from './sec13.js'
 import { section14 } from './sec14.js'
 import { stringWeightCalculator } from './secStringWeight.js'
+import { torqueCalculator } from './secTorques.js'
 
 // Capacidad, Volumen y Altura, Múltiples Sartas y Dimensiones y Resistencias
 // viven en distintos archivos por comodidad de desarrollo, pero se muestran
@@ -24,7 +25,8 @@ const tubulares = {
     ...section1.calculators,
     ...section2.calculators,
     ...section3.calculators,
-    ...section4.calculators,
+    // Torques de portamechas / HW / DP right after the API drill pipe table.
+    ...section4.calculators.flatMap((c) => (c.id === 'drillpipe-strength' ? [c, torqueCalculator] : [c])),
     stringWeightCalculator,
   ],
 }
